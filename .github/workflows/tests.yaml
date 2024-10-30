@@ -8,7 +8,8 @@ on:
     branches:
       - main
       - develop
-      - support/
+      - support/*
+      - release/*
   pull_request:
     branches:
       - main
