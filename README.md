@@ -33,6 +33,11 @@ installed automatically during the installation process:
 - scipy
 - grpcio
 
+To run the unit and integration tests, you will need:
+
+- openmdao (can be found [here](https://github.com/OpenMDAO/OpenMDAO) or installed via pip)
+- csdl (can be found [here](https://github.com/LSDOlab/csdl))
+- csdl python backend (can be found [here](https://github.com/LSDOlab/python_csdl_backend))
 
 ## Installation
 

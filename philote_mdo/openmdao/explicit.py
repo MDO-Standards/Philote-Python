@@ -48,8 +48,7 @@ if omdao_installed:
             Initialize the component and client.
             """
             if not channel:
-                raise ValueError('No channel provided, the Philote client will not'
-                                 'be able to connect.')
+                raise ValueError('No channel provided, the Philote client will not be able to connect.')
 
             # generic Philote client
             # The setting of OpenMDAO options requires the list of available
