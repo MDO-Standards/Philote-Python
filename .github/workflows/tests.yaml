@@ -8,6 +8,7 @@ on:
     branches:
       - main
       - develop
+      - support/
   pull_request:
     branches:
       - main
@@ -35,12 +36,6 @@ jobs:
         pip install flake8 coverage[toml] grpcio grpcio-tools protoletariat numpy scipy openmdao
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         sudo apt install -y protobuf-compiler
-    - name: Install CSDL
-      run: |
-        git clone https://github.com/LSDOlab/csdl.git
-        git clone https://github.com/LSDOlab/python_csdl_backend.git
-        pip install -e csdl
-        pip install -e python_csdl_backend
     - name: Install Package
       run: |
         pip install -e .
