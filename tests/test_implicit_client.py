@@ -64,6 +64,7 @@ class TestImplicitClient(unittest.TestCase):
 
         output_data = {
             "f": np.array([5.0, 6.0, 7.0]),
+            "g": np.array([7.0, 6.0, 5.0]),
         }
 
         response1 = data.Array(

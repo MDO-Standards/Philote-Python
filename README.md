@@ -1,7 +1,12 @@
-![Philote](https://github.com/chrislupp/Philote-Python/blob/main/doc/graphics/philote-python.svg?raw=true)
+<div align="center">
+<img src="https://github.com/chrislupp/Philote-Python/blob/main/doc/graphics/philote-python.svg?raw=true" width="500">
+</div>
+
+[//]: # (![Philote]&#40;https://github.com/chrislupp/Philote-Python/blob/main/doc/graphics/philote-python.svg?raw=true&#41;)
 
 [![Unit and Regression Tests](https://github.com/chrislupp/Philote-Python/actions/workflows/tests.yaml/badge.svg)](https://github.com/chrislupp/Philote-Python/actions/workflows/tests.yaml)
 [![Coverage Status](https://coveralls.io/repos/github/chrislupp/Philote-Python/badge.svg?branch=main)](https://coveralls.io/github/chrislupp/Philote-Python?branch=main)
+[![CodeQL](https://github.com/chrislupp/Philote-Python/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/chrislupp/Philote-Python/actions/workflows/github-code-scanning/codeql)
 [![Deploy Documentation](https://github.com/chrislupp/Philote-Python/actions/workflows/documentation.yaml/badge.svg)](https://github.com/chrislupp/Philote-Python/actions/workflows/documentation.yaml)
 # Philote-Python
 
@@ -28,6 +33,11 @@ installed automatically during the installation process:
 - scipy
 - grpcio
 
+To run the unit and integration tests, you will need:
+
+- openmdao (can be found [here](https://github.com/OpenMDAO/OpenMDAO) or installed via pip)
+- csdl (can be found [here](https://github.com/LSDOlab/csdl))
+- csdl python backend (can be found [here](https://github.com/LSDOlab/python_csdl_backend))
 
 ## Installation
 
