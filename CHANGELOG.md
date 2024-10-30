@@ -19,6 +19,19 @@
   version has been fixed for the build at 1.59. As a result the grpcio version also must at least be 1.59
 
 
+## Version 0.6.1
+
+### Features
+
+- None
+
+### Bug Fixes
+
+- Fixed grpcio-tools build dependency issue. Under certain circumstances (e.g., use of an older grpcio package), the
+  installation will fail due to an incompatible grpcio-tools version getting installed at build time. The grpcio-tools
+  version has been fixed for the build at 1.59. As a result the grpcio version also must at least be 1.59
+
+
 ## Version 0.6.0
 
 ### Features
