@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "philote-mdo"
-version = "0.6.0"
+version = "0.6.1"
 description = "Python bindings that implement the Philote-MDO standard."
 license = "Apache-2.0"
 authors = ["Christopher Lupp"]
