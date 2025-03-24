@@ -37,5 +37,4 @@ except ImportError:
 if omdao_installed:
     from .explicit import RemoteExplicitComponent
     from .implicit import RemoteImplicitComponent
-
-# from .group import OpenMdaoSubProblem
+    from .group import OpenMdaoSubProblem

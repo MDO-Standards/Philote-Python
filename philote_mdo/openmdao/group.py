@@ -29,126 +29,124 @@
 # control over the information you may find at these locations.
 import openmdao.api as om
 import philote_mdo.general as pm
-#
-#
-# class OpenMdaoSubProblem(pm.ExplicitDiscipline):
-#     """
-#     Philote explicit discipline that calls an OpenMDAO group.
-#
-#     While the Philote discipline is explicit, the underlying OpenMDAO
-#     group may have cycles that require a nonlinear solver.
-#     """
-#
-#     def __init__(self, group=None):
-#         super().__init__()
-#
-#         self._prob = None
-#         self._model = None
-#
-#         self._input_map = {}
-#         self._output_map = {}
-#         self._partials_map = {}
-#
-#         self.add_group(group)
-#
-#     def add_group(self, group):
-#         """
-#         Adds an OpenMDAO group to the discipline.
-#
-#         Warning: This will delete any previous problem settings and attached
-#         models.
-#         """
-#         self._prob = om.Problem(model=group)
-#         self._model = self._prob.model
-#
-#     def add_mapped_input(self, local_var, subprob_var, shape=(1,), units=""):
-#         """
-#         Adds an input that is mapped from the discipline to the sub-problem.
-#         """
-#         self._input_map[local_var] = {
-#             "sub_prob_name": subprob_var,
-#             "shape": shape,
-#             "units": units,
-#         }
-#
-#     def add_mapped_output(self, local_var, subprob_var, shape=(1,), units=""):
-#         """
-#         Adds an output that is mapped from the discipline to the sub-problem.
-#         """
-#         self._output_map[local_var] = {
-#             "sub_prob_name": subprob_var,
-#             "shape": shape,
-#             "units": units,
-#         }
-#
-#     def clear_mapped_variables(self):
-#         """
-#         Clears the variable map and sets it to an empty dictionary.
-#         """
-#         self._input_map = {}
-#         self._output_map = {}
-#
-#     def declare_subproblem_partial(self, local_func, local_var):
-#         """
-#         Declares the partials for this sub-problem.
-#
-#         Parameters
-#         ----------
-#         local_func: str
-#             function name in the local name space
-#         local_var: str
-#             variable name in the local name space
-#
-#         Returns
-#         -------
-#             None
-#         """
-#         self._partials_map[(local_func, local_var)] = (
-#             self._output_map[local_func]["sub_prob_name"],
-#             self._input_map[local_var]["sub_prob_name"],
-#         )
-#
-#     def initialize(self):
-#         pass
-#
-#     def setup(self):
-#         self._prob.setup()
-#
-#         for local, var in self._input_map.items():
-#             self.add_input(local, shape=var["shape"], units=var["units"])
-#
-#         for local, var in self._output_map.items():
-#             self.add_output(local, shape=var["shape"], units=var["units"])
-#
-#         for pair in self._partials_map.keys():
-#             self.declare_partials(pair[0], pair[1])
-#
-#     def compute(self, inputs, outputs):
-#         for local, var in self._input_map.items():
-#             sub = var["sub_prob_name"]
-#             self._prob[sub] = inputs[local]
-#
-#         self._prob.run_model()
-#
-#         for local, var in self._output_map.items():
-#             sub = var["sub_prob_name"]
-#             outputs[local] = self._prob[sub]
-#
-#     def compute_partials(self, inputs, partials):
-#         for local, var in self._input_map.items():
-#             sub = var["sub_prob_name"]
-#             self._prob[sub] = inputs[local]
-#
-#         self._prob.run_model()
-#
-#         # get the list of functions and variables for the compute_totals call
-#         func = []
-#         var = []
-#         for val in self._partials_map.values():
-#             func += [val[0]]
-#             var += [val[1]]
-#
-#         totals = self._prob.compute_totals(of=func, wrt=var)
-#
-#         for local, sub in self._partials_map.items():
-#             partials[local] = totals[sub]
+
+
+class OpenMdaoSubProblem(pm.ExplicitDiscipline):
+    """
+    Philote explicit discipline that calls an OpenMDAO group.
+
+    While the Philote discipline is explicit, the underlying OpenMDAO
+    group may have cycles that require a nonlinear solver.
+    """
+
+    def __init__(self):
+        super().__init__()
+
+        self._prob = None
+        self._model = None
+
+        self._input_map = {}
+        self._output_map = {}
+        self._partials_map = {}
+
+    def add_group(self, group):
+        """
+        Adds an OpenMDAO group to the discipline.
+
+        Warning: This will delete any previous problem settings and attached
+        models.
+        """
+        self._prob = om.Problem(model=group)
+        self._model = self._prob.model
+
+    def add_mapped_input(self, local_var, subprob_var, shape=(1,), units=""):
+        """
+        Adds an input that is mapped from the discipline to the sub-problem.
+        """
+        self._input_map[local_var] = {
+            "sub_prob_name": subprob_var,
+            "shape": shape,
+            "units": units,
+        }
+
+    def add_mapped_output(self, local_var, subprob_var, shape=(1,), units=""):
+        """
+        Adds an output that is mapped from the discipline to the sub-problem.
+        """
+        self._output_map[local_var] = {
+            "sub_prob_name": subprob_var,
+            "shape": shape,
+            "units": units,
+        }
+
+    def clear_mapped_variables(self):
+        """
+        Clears the variable map and sets it to an empty dictionary.
+        """
+        self._input_map = {}
+        self._output_map = {}
+
+    def declare_subproblem_partial(self, local_func, local_var):
+        """
+        Declares the partials for this sub-problem.
+
+        Parameters
+        ----------
+        local_func: str
+            function name in the local name space
+        local_var: str
+            variable name in the local name space
+
+        Returns
+        -------
+            None
+        """
+        self._partials_map[(local_func, local_var)] = (
+            self._output_map[local_func]["sub_prob_name"],
+            self._input_map[local_var]["sub_prob_name"],
+        )
+
+    def initialize(self):
+        pass
+
+    def setup(self):
+        self._prob.setup()
+
+        for local, var in self._input_map.items():
+            self.add_input(local, shape=var["shape"], units=var["units"])
+
+        for local, var in self._output_map.items():
+            self.add_output(local, shape=var["shape"], units=var["units"])
+
+        for pair in self._partials_map.keys():
+            self.declare_partials(pair[0], pair[1])
+
+    def compute(self, inputs, outputs):
+        for local, var in self._input_map.items():
+            sub = var["sub_prob_name"]
+            self._prob[sub] = inputs[local]
+
+        self._prob.run_model()
+
+        for local, var in self._output_map.items():
+            sub = var["sub_prob_name"]
+            outputs[local] = self._prob[sub]
+
+    def compute_partials(self, inputs, partials):
+        for local, var in self._input_map.items():
+            sub = var["sub_prob_name"]
+            self._prob[sub] = inputs[local]
+
+        self._prob.run_model()
+
+        # get the list of functions and variables for the compute_totals call
+        func = []
+        var = []
+        for val in self._partials_map.values():
+            func += [val[0]]
+            var += [val[1]]
+
+        totals = self._prob.compute_totals(of=func, wrt=var)
+
+        for local, sub in self._partials_map.items():
+            partials[local] = totals[sub]
