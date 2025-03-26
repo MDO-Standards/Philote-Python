@@ -1,6 +1,6 @@
 # Philote-Python
 #
-# Copyright 2022-2024 Christopher A. Lupp
+# Copyright 2022-2025 Christopher A. Lupp
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@
 # control over the information you may find at these locations.
 try:
     import openmdao.api as om
+
     omdao_installed = True
 except ImportError:
     omdao_installed = False
@@ -37,6 +38,7 @@ import philote_mdo.general as pm
 import philote_mdo.openmdao.utils as utils
 
 if omdao_installed:
+
     class RemoteExplicitComponent(om.ExplicitComponent):
         """
         OpenMDAO component that acts as a client to an explicit Philote analysis
@@ -48,7 +50,9 @@ if omdao_installed:
             Initialize the component and client.
             """
             if not channel:
-                raise ValueError('No channel provided, the Philote client will not be able to connect.')
+                raise ValueError(
+                    "No channel provided, the Philote client will not be able to connect."
+                )
 
             # generic Philote client
             # The setting of OpenMDAO options requires the list of available
@@ -80,13 +84,13 @@ if omdao_installed:
             # add to the OpenMDAO component options
             for name, type_str in self._client.options_list.items():
                 type = None
-                if type_str == 'bool':
+                if type_str == "bool":
                     type = bool
-                elif type_str == 'int':
+                elif type_str == "int":
                     type = int
-                elif type_str == 'float':
+                elif type_str == "float":
                     type = float
-                elif type_str == 'str':
+                elif type_str == "str":
                     type = str
 
                 self.options.declare(name, types=type)
@@ -111,7 +115,9 @@ if omdao_installed:
             out = self._client.run_compute(local_inputs)
             utils.assign_global_outputs(out, outputs)
 
-        def compute_partials(self, inputs, partials, discrete_inputs=None, discrete_outputs=None):
+        def compute_partials(
+            self, inputs, partials, discrete_inputs=None, discrete_outputs=None
+        ):
             """
             Compute the gradient evaluation.
             """

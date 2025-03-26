@@ -1,6 +1,6 @@
 # Philote-Python
 #
-# Copyright 2022-2024 Christopher A. Lupp
+# Copyright 2022-2025 Christopher A. Lupp
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ class TestOpenMdaoUtils(unittest.TestCase):
 
         expected_calls = [
             ("add_input", ("var1",), {"shape": (2,), "units": "m"}),
-            ("add_output", ("var2",), {"shape": (1,), "units": None})
+            ("add_output", ("var2",), {"shape": (1,), "units": None}),
         ]
         for call in expected_calls:
             getattr(comp, call[0]).assert_called_once_with(*call[1], **call[2])
@@ -89,12 +89,12 @@ class TestOpenMdaoUtils(unittest.TestCase):
         # assert that the necessary methods are called and that
         # declare_partials is called for each partial
         comp_mock._client.get_partials_definitions.assert_called_once()
-        comp_mock.declare_partials.assert_any_call('partial1', 'subpartial1')
-        comp_mock.declare_partials.assert_any_call('partial2', 'subpartial2')
+        comp_mock.declare_partials.assert_any_call("partial1", "subpartial1")
+        comp_mock.declare_partials.assert_any_call("partial2", "subpartial2")
 
     def test_create_local_inputs(self):
         # define sample inputs and var_meta
-        inputs = {'var1': 10, 'var2': 20, 'var3': 30}
+        inputs = {"var1": 10, "var2": 20, "var3": 30}
 
         # case 1: 3 inputs
         # ----------------
@@ -118,12 +118,12 @@ class TestOpenMdaoUtils(unittest.TestCase):
         local_inputs1 = utils.create_local_inputs(inputs, var_meta)
 
         # assert that only relative variable names are included in local_inputs
-        self.assertIn('var1', local_inputs1)
-        self.assertIn('var2', local_inputs1)
-        self.assertIn('var3', local_inputs1)
-        self.assertEqual(local_inputs1['var1'], 10)
-        self.assertEqual(local_inputs1['var2'], 20)
-        self.assertEqual(local_inputs1['var3'], 30)
+        self.assertIn("var1", local_inputs1)
+        self.assertIn("var2", local_inputs1)
+        self.assertIn("var3", local_inputs1)
+        self.assertEqual(local_inputs1["var1"], 10)
+        self.assertEqual(local_inputs1["var2"], 20)
+        self.assertEqual(local_inputs1["var3"], 30)
 
         # case 2: 2 inputs, 1 output
         # --------------------------
@@ -132,11 +132,11 @@ class TestOpenMdaoUtils(unittest.TestCase):
         local_inputs2 = utils.create_local_inputs(inputs, var_meta)
 
         # assert that only relative variable names are included in local_inputs
-        self.assertIn('var1', local_inputs2)
-        self.assertNotIn('var2', local_inputs2)
-        self.assertIn('var3', local_inputs2)
-        self.assertEqual(local_inputs2['var1'], 10)
-        self.assertEqual(local_inputs2['var3'], 30)
+        self.assertIn("var1", local_inputs2)
+        self.assertNotIn("var2", local_inputs2)
+        self.assertIn("var3", local_inputs2)
+        self.assertEqual(local_inputs2["var1"], 10)
+        self.assertEqual(local_inputs2["var3"], 30)
 
         # case 2: 1 input, 2 outputs
         # --------------------------
@@ -145,25 +145,25 @@ class TestOpenMdaoUtils(unittest.TestCase):
         local_inputs3 = utils.create_local_inputs(inputs, var_meta, kOutput)
 
         # assert that only relative variable names are included in local_inputs
-        self.assertNotIn('var1', local_inputs3)
-        self.assertIn('var2', local_inputs3)
-        self.assertIn('var3', local_inputs3)
-        self.assertEqual(local_inputs3['var2'], 20)
-        self.assertEqual(local_inputs3['var3'], 30)
+        self.assertNotIn("var1", local_inputs3)
+        self.assertIn("var2", local_inputs3)
+        self.assertIn("var3", local_inputs3)
+        self.assertEqual(local_inputs3["var2"], 20)
+        self.assertEqual(local_inputs3["var3"], 30)
 
     def test_create_local_outputs(self):
         # Define sample out and outputs dictionaries
-        out = {'output1': 10, 'output2': 20}
-        outputs = {'output1': None, 'output2': None, 'output3': None}
+        out = {"output1": 10, "output2": 20}
+        outputs = {"output1": None, "output2": None, "output3": None}
 
         # call the function
         utils.assign_global_outputs(out, outputs)
 
         # assert that the values in outputs are updated correctly
-        self.assertEqual(outputs['output1'], 10)
-        self.assertEqual(outputs['output2'], 20)
+        self.assertEqual(outputs["output1"], 10)
+        self.assertEqual(outputs["output2"], 20)
         # ensure that other keys in outputs are unchanged
-        self.assertEqual(outputs['output3'], None)
+        self.assertEqual(outputs["output3"], None)
 
 
 if __name__ == "__main__":

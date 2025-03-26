@@ -1,6 +1,6 @@
 # Philote-Python
 #
-# Copyright 2022-2024 Christopher A. Lupp
+# Copyright 2022-2025 Christopher A. Lupp
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@
 # control over the information you may find at these locations.
 try:
     import openmdao.api as om
+
     omdao_installed = True
 except ImportError:
     omdao_installed = False
@@ -39,6 +40,7 @@ import philote_mdo.openmdao.utils as utils
 
 
 if omdao_installed:
+
     class RemoteImplicitComponent(om.ImplicitComponent):
         """
         An OpenMDAO component that acts as a client to an implicit analysis server.
@@ -49,8 +51,10 @@ if omdao_installed:
             Initialize the component and client.
             """
             if not channel:
-                raise ValueError('No channel provided, the Philote client will not'
-                                 'be able to connect.')
+                raise ValueError(
+                    "No channel provided, the Philote client will not"
+                    "be able to connect."
+                )
 
             # generic Philote client
             # The setting of OpenMDAO options requires the list of available
@@ -82,13 +86,13 @@ if omdao_installed:
             # add to the OpenMDAO component options
             for name, type_str in self._client.options_list.items():
                 type = None
-                if type_str == 'bool':
+                if type_str == "bool":
                     type = bool
-                elif type_str == 'int':
+                elif type_str == "int":
                     type = int
-                elif type_str == 'float':
+                elif type_str == "float":
                     type = float
-                elif type_str == 'str':
+                elif type_str == "str":
                     type = str
 
                 self.options.declare(name, types=type)
@@ -105,17 +109,28 @@ if omdao_installed:
             """
             utils.client_setup_partials(self)
 
-        def apply_nonlinear(self, inputs, outputs, residuals, discrete_inputs=None, discrete_outputs=None):
+        def apply_nonlinear(
+            self,
+            inputs,
+            outputs,
+            residuals,
+            discrete_inputs=None,
+            discrete_outputs=None,
+        ):
             """
             Compute the residual evaluation.
             """
             local_inputs = utils.create_local_inputs(inputs, self._client._var_meta)
-            local_outputs = utils.create_local_inputs(outputs, self._client._var_meta, data.kOutput)
+            local_outputs = utils.create_local_inputs(
+                outputs, self._client._var_meta, data.kOutput
+            )
 
             res = self._client.run_compute_residuals(local_inputs, local_outputs)
             utils.assign_global_outputs(res, residuals)
 
-        def solve_nonlinear(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
+        def solve_nonlinear(
+            self, inputs, outputs, discrete_inputs=None, discrete_outputs=None
+        ):
             """
             Solves the residual for the implicit discipline.
             """
@@ -123,11 +138,15 @@ if omdao_installed:
             out = self._client.run_solve_residuals(local_inputs)
             utils.assign_global_outputs(out, outputs)
 
-        def linearize(self, inputs, outputs, partials,  discrete_inputs=None, discrete_outputs=None):
+        def linearize(
+            self, inputs, outputs, partials, discrete_inputs=None, discrete_outputs=None
+        ):
             """
             Computes the residual gradients for the implicit discipline.
             """
             local_inputs = utils.create_local_inputs(inputs, self._client._var_meta)
-            local_outputs = utils.create_local_inputs(outputs, self._client._var_meta, data.kOutput)
+            local_outputs = utils.create_local_inputs(
+                outputs, self._client._var_meta, data.kOutput
+            )
             jac = self._client.run_residual_gradients(local_inputs, local_outputs)
             utils.assign_global_outputs(jac, partials)

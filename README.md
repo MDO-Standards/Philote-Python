@@ -69,7 +69,7 @@ version of gRPC that you have installed) and make it discoverable on your PATH.
 This package is licensed under the Apache 2 license:
 
 
->   Copyright 2022-2024 Christopher A. Lupp
+>   Copyright 2022-2025 Christopher A. Lupp
 >   
 >   Licensed under the Apache License, Version 2.0 (the "License");
 >   you may not use this file except in compliance with the License.

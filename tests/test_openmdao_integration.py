@@ -1,6 +1,6 @@
 # Philote-Python
 #
-# Copyright 2022-2024 Christopher A. Lupp
+# Copyright 2022-2025 Christopher A. Lupp
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -60,7 +60,9 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         prob = om.Problem()
         model = prob.model
 
-        paraboloid_comp = pmdo_om.RemoteExplicitComponent(channel=grpc.insecure_channel("localhost:50051"))
+        paraboloid_comp = pmdo_om.RemoteExplicitComponent(
+            channel=grpc.insecure_channel("localhost:50051")
+        )
         model.add_subsystem("Paraboloid", paraboloid_comp)
 
         # run setup
@@ -95,7 +97,9 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         prob = om.Problem()
         model = prob.model
 
-        paraboloid_comp = pmdo_om.RemoteExplicitComponent(channel=grpc.insecure_channel("localhost:50051"))
+        paraboloid_comp = pmdo_om.RemoteExplicitComponent(
+            channel=grpc.insecure_channel("localhost:50051")
+        )
         model.add_subsystem("Paraboloid", paraboloid_comp)
 
         # setup the problem
@@ -131,7 +135,9 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         prob = om.Problem()
         model = prob.model
 
-        comp = pmdo_om.RemoteExplicitComponent(channel=grpc.insecure_channel("localhost:50051"), dimension=2)
+        comp = pmdo_om.RemoteExplicitComponent(
+            channel=grpc.insecure_channel("localhost:50051"), dimension=2
+        )
         model.add_subsystem("Rosenbrock", comp)
 
         # run setup
@@ -165,7 +171,9 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         prob = om.Problem()
         model = prob.model
 
-        comp = pmdo_om.RemoteExplicitComponent(channel=grpc.insecure_channel("localhost:50051"), dimension=2)
+        comp = pmdo_om.RemoteExplicitComponent(
+            channel=grpc.insecure_channel("localhost:50051"), dimension=2
+        )
         model.add_subsystem("Rosenbrock", comp)
 
         # setup the problem
@@ -177,7 +185,9 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         # run a gradient evaluation
         jac = prob.compute_totals("Rosenbrock.f", ["Rosenbrock.x"])
 
-        assert_almost_equal(jac["Rosenbrock.f", "Rosenbrock.x"], np.array([[-2.0, 0.0]]))
+        assert_almost_equal(
+            jac["Rosenbrock.f", "Rosenbrock.x"], np.array([[-2.0, 0.0]])
+        )
 
         # stop the server
         server.stop(0)
@@ -199,9 +209,12 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         # client code
         prob = om.Problem()
         model = prob.model
-        client = model.add_subsystem("Quadratic",
-                                     pmdo_om.RemoteImplicitComponent(channel=grpc.insecure_channel("localhost:50051"))
-                                     )
+        client = model.add_subsystem(
+            "Quadratic",
+            pmdo_om.RemoteImplicitComponent(
+                channel=grpc.insecure_channel("localhost:50051")
+            ),
+        )
 
         # define some inputs
         inputs = {"a": np.array([1.0]), "b": np.array([2.0]), "c": np.array([-2.0])}

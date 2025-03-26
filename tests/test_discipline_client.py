@@ -1,6 +1,6 @@
 # Philote-Python
 #
-# Copyright 2022-2024 Christopher A. Lupp
+# Copyright 2022-2025 Christopher A. Lupp
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,7 +62,6 @@ class TestDisciplineClient(unittest.TestCase):
         self.assertEqual(instance._partials_meta, [])
         self.assertEqual(instance.options_list, {})
 
-
     @patch("philote_mdo.generated.disciplines_pb2_grpc.DisciplineServiceStub")
     def test_get_discipline_info(self, mock_discipline_stub):
         """
@@ -115,7 +114,7 @@ class TestDisciplineClient(unittest.TestCase):
 
         # mock the _disc_stub.GetAvailableOptions method
         mock_options = MagicMock()
-        mock_options.options = ['option1', 'option2', 'option3', 'option4']
+        mock_options.options = ["option1", "option2", "option3", "option4"]
         mock_options.type = [data.kBool, data.kDouble, data.kString, data.kInt]
         instance._disc_stub.GetAvailableOptions.return_value = mock_options
 
@@ -123,7 +122,12 @@ class TestDisciplineClient(unittest.TestCase):
         instance.get_available_options()
 
         # assert that options_list is populated correctly
-        expected_options_list = {'option1': 'bool', 'option2': 'float', 'option3': 'str', 'option4': 'int'}
+        expected_options_list = {
+            "option1": "bool",
+            "option2": "float",
+            "option3": "str",
+            "option4": "int",
+        }
         self.assertEqual(instance.options_list, expected_options_list)
 
     def test_send_options(self):

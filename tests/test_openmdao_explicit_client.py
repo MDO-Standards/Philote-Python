@@ -1,6 +1,6 @@
 # Philote-Python
 #
-# Copyright 2022-2024 Christopher A. Lupp
+# Copyright 2022-2025 Christopher A. Lupp
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,37 +33,46 @@ import philote_mdo.generated.data_pb2 as data
 from philote_mdo.openmdao import RemoteExplicitComponent
 
 
-@patch('openmdao.api.ExplicitComponent.__init__')
+@patch("openmdao.api.ExplicitComponent.__init__")
 class TestOpenMdaoExplicitClient(unittest.TestCase):
     """
     Unit tests for the OpenMDAO explicit component/client.
     """
 
-    @patch('philote_mdo.general.ExplicitClient')
+    @patch("philote_mdo.general.ExplicitClient")
     def test_constructor(self, mock_explicit_client, mock_explicit_component):
         """
         Tests the initialize function of the OpenMDAO Explicit Client.
         """
         mock_channel = Mock()
         num_par_fd = 1
-        options = {'option1': True, 'option2': 20, 'option3': 3.14, 'option4': 'test'}
+        options = {"option1": True, "option2": 20, "option3": 3.14, "option4": "test"}
 
         # mock the client and its behavior
         mock_client_instance = MagicMock()
-        mock_client_instance.options_list = {'option1': 'bool', 'option2': 'int', 'option3': 'float', 'option4': 'str'}
+        mock_client_instance.options_list = {
+            "option1": "bool",
+            "option2": "int",
+            "option3": "float",
+            "option4": "str",
+        }
         mock_client_instance.get_available_options.return_value = None
 
         # set the mock client instance as the return value of pm.ExplicitClient
         mock_explicit_client.return_value = mock_client_instance
 
         # Create an instance of the class
-        comp = RemoteExplicitComponent(channel=mock_channel, num_par_fd=num_par_fd, **options)
+        comp = RemoteExplicitComponent(
+            channel=mock_channel, num_par_fd=num_par_fd, **options
+        )
 
         # Verify that pm.ExplicitClient is initialized with the correct channel
         mock_explicit_client.assert_called_once_with(channel=mock_channel)
 
         # Verify that super().__init__ is called with the correct arguments
-        mock_explicit_component.assert_called_once_with(num_par_fd=num_par_fd, **options)
+        mock_explicit_component.assert_called_once_with(
+            num_par_fd=num_par_fd, **options
+        )
 
         # Verify that send_options is called with the correct arguments
         expected_send_options_args = options.copy()
@@ -74,7 +83,11 @@ class TestOpenMdaoExplicitClient(unittest.TestCase):
 
         # mock the client and its behavior
         client_mock = MagicMock()
-        client_mock.options_list = {'option1': 'bool', 'option2': 'int', 'option3': 'float'}
+        client_mock.options_list = {
+            "option1": "bool",
+            "option2": "int",
+            "option3": "float",
+        }
 
         # mock the options object
         options_mock = MagicMock()
@@ -91,11 +104,11 @@ class TestOpenMdaoExplicitClient(unittest.TestCase):
         client_mock.get_available_options.assert_called_once()
 
         # assert that options.declare is called for each option
-        options_mock.declare.assert_any_call('option1', types=bool)
-        options_mock.declare.assert_any_call('option2', types=int)
-        options_mock.declare.assert_any_call('option3', types=float)
+        options_mock.declare.assert_any_call("option1", types=bool)
+        options_mock.declare.assert_any_call("option2", types=int)
+        options_mock.declare.assert_any_call("option3", types=float)
 
-    @patch('philote_mdo.openmdao.utils.client_setup')
+    @patch("philote_mdo.openmdao.utils.client_setup")
     def test_setup(self, mock_openmdao_client_setup, om_explicit_component_patch):
         """
         Tests the setup function of the OpenMDAO Explicit Client.
@@ -135,8 +148,10 @@ class TestOpenMdaoExplicitClient(unittest.TestCase):
         # check that the setup utility function was called
         mock_openmdao_client_setup.assert_called_once_with(component)
 
-    @patch('philote_mdo.openmdao.utils.client_setup_partials')
-    def test_setup_partials(self, mock_openmdao_client_setup_partials, om_explicit_component_patch):
+    @patch("philote_mdo.openmdao.utils.client_setup_partials")
+    def test_setup_partials(
+        self, mock_openmdao_client_setup_partials, om_explicit_component_patch
+    ):
         """
         Tests the setup partials function of the OpenMDAO Explicit Client.
         """
@@ -188,36 +203,38 @@ class TestOpenMdaoExplicitClient(unittest.TestCase):
         var4.shape = [1]
 
         # Mocking necessary objects
-        inputs = {'input1': 10, 'input2': 20}
-        outputs = {'output1': None, 'output2': None}
+        inputs = {"input1": 10, "input2": 20}
+        outputs = {"output1": None, "output2": None}
         discrete_inputs = None
         discrete_outputs = None
 
         # Mocking the client and its methods
         client_mock = MagicMock()
         client_mock._var_meta = [var1, var2, var3, var4]
-        client_mock.run_compute.return_value = {'output1': 30, 'output2': 40}
+        client_mock.run_compute.return_value = {"output1": 30, "output2": 40}
 
         # Creating instance of the class to be tested
         mock_channel = Mock()
         instance = RemoteExplicitComponent(channel=mock_channel)
         instance._client = client_mock
         # mock the component name
-        instance.name = 'test'
+        instance.name = "test"
 
         # Calling the function to be tested
         instance.compute(inputs, outputs, discrete_inputs, discrete_outputs)
 
         # Asserting that the method calls are made correctly
-        client_mock.run_compute.assert_called_once_with({'input1': 10, 'input2': 20})
-        self.assertEqual(outputs['output1'], 30)
-        self.assertEqual(outputs['output2'], 40)
+        client_mock.run_compute.assert_called_once_with({"input1": 10, "input2": 20})
+        self.assertEqual(outputs["output1"], 30)
+        self.assertEqual(outputs["output2"], 40)
 
     def test_compute_partials(self, om_explicit_component_patch):
         # Mocking necessary objects
-        inputs = {'input1': 10, 'input2': 20}
-        partials = {'output1': {'input1': None, 'input2': None},
-                    'output2': {'input1': None, 'input2': None}}
+        inputs = {"input1": 10, "input2": 20}
+        partials = {
+            "output1": {"input1": None, "input2": None},
+            "output2": {"input1": None, "input2": None},
+        }
         discrete_inputs = None
         discrete_outputs = None
 
@@ -248,25 +265,28 @@ class TestOpenMdaoExplicitClient(unittest.TestCase):
         # Mocking the client and its methods
         client_mock = MagicMock()
         client_mock._var_meta = [var1, var2, var3, var4]
-        client_mock.run_compute_partials.return_value = {'output1': {'input1': 1, 'input2': 2},
-                                                         'output2': {'input1': 3, 'input2': 4}}
-
+        client_mock.run_compute_partials.return_value = {
+            "output1": {"input1": 1, "input2": 2},
+            "output2": {"input1": 3, "input2": 4},
+        }
 
         # Creating instance of the class to be tested
         instance = RemoteExplicitComponent(channel=Mock())
         instance._client = client_mock
         # mock the component name
-        instance.name = 'test'
+        instance.name = "test"
 
         # Calling the function to be tested
         instance.compute_partials(inputs, partials, discrete_inputs, discrete_outputs)
 
         # Asserting that the method calls are made correctly
-        client_mock.run_compute_partials.assert_called_once_with({'input1': 10, 'input2': 20})
-        self.assertEqual(partials['output1']['input1'], 1)
-        self.assertEqual(partials['output1']['input2'], 2)
-        self.assertEqual(partials['output2']['input1'], 3)
-        self.assertEqual(partials['output2']['input2'], 4)
+        client_mock.run_compute_partials.assert_called_once_with(
+            {"input1": 10, "input2": 20}
+        )
+        self.assertEqual(partials["output1"]["input1"], 1)
+        self.assertEqual(partials["output1"]["input2"], 2)
+        self.assertEqual(partials["output2"]["input1"], 3)
+        self.assertEqual(partials["output2"]["input2"], 4)
 
 
 if __name__ == "__main__":

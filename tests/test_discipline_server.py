@@ -1,6 +1,6 @@
 # Philote-Python
 #
-# Copyright 2022-2024 Christopher A. Lupp
+# Copyright 2022-2025 Christopher A. Lupp
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -96,15 +96,17 @@ class TestDisciplineServer(unittest.TestCase):
         server._discipline = Discipline()
 
         # set the mock options_list to _discipline.options_list
-        server._discipline.options_list = {'option1': 'bool',
-                                           'option2': 'int',
-                                           'option3': 'float'}
+        server._discipline.options_list = {
+            "option1": "bool",
+            "option2": "int",
+            "option3": "float",
+        }
 
         # call the function
         results = server.GetAvailableOptions(request_mock, context_mock)
 
         # assert that the results are correct
-        expected_options = ['option1', 'option2', 'option3']
+        expected_options = ["option1", "option2", "option3"]
         expected_types = [data.kBool, data.kInt, data.kDouble]
 
         self.assertEqual(results.options, expected_options)

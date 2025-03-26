@@ -1,6 +1,6 @@
 # Philote-Python
 #
-# Copyright 2022-2024 Christopher A. Lupp
+# Copyright 2022-2025 Christopher A. Lupp
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,37 +34,46 @@ import philote_mdo.generated.data_pb2 as data
 from philote_mdo.openmdao import RemoteImplicitComponent
 
 
-@patch('openmdao.api.ImplicitComponent.__init__')
+@patch("openmdao.api.ImplicitComponent.__init__")
 class TestOpenMdaoImplicitClient(unittest.TestCase):
     """
     Unit tests for the OpenMDAO implicit component/client.
     """
 
-    @patch('philote_mdo.general.ImplicitClient')
+    @patch("philote_mdo.general.ImplicitClient")
     def test_constructor(self, mock_explicit_client, mock_implicit_component):
         """
         Tests the constructor of the OpenMDAO implicit Client.
         """
         mock_channel = Mock()
         num_par_fd = 1
-        options = {'option1': True, 'option2': 20, 'option3': 3.14, 'option4': 'test'}
+        options = {"option1": True, "option2": 20, "option3": 3.14, "option4": "test"}
 
         # mock the client and its behavior
         mock_client_instance = MagicMock()
-        mock_client_instance.options_list = {'option1': 'bool', 'option2': 'int', 'option3': 'float', 'option4': 'str'}
+        mock_client_instance.options_list = {
+            "option1": "bool",
+            "option2": "int",
+            "option3": "float",
+            "option4": "str",
+        }
         mock_client_instance.get_available_options.return_value = None
 
         # set the mock client instance as the return value of pm.ExplicitClient
         mock_explicit_client.return_value = mock_client_instance
 
         # Create an instance of the class
-        comp = RemoteImplicitComponent(channel=mock_channel, num_par_fd=num_par_fd, **options)
+        comp = RemoteImplicitComponent(
+            channel=mock_channel, num_par_fd=num_par_fd, **options
+        )
 
         # Verify that pm.ExplicitClient is initialized with the correct channel
         mock_explicit_client.assert_called_once_with(channel=mock_channel)
 
         # Verify that super().__init__ is called with the correct arguments
-        mock_implicit_component.assert_called_once_with(num_par_fd=num_par_fd, **options)
+        mock_implicit_component.assert_called_once_with(
+            num_par_fd=num_par_fd, **options
+        )
 
         # Verify that send_options is called with the correct arguments
         expected_send_options_args = options.copy()
@@ -78,7 +87,11 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
 
         # mock the client and its behavior
         client_mock = MagicMock()
-        client_mock.options_list = {'option1': 'bool', 'option2': 'int', 'option3': 'float'}
+        client_mock.options_list = {
+            "option1": "bool",
+            "option2": "int",
+            "option3": "float",
+        }
 
         # mock the options object
         options_mock = MagicMock()
@@ -95,11 +108,11 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
         client_mock.get_available_options.assert_called_once()
 
         # assert that options.declare is called for each option
-        options_mock.declare.assert_any_call('option1', types=bool)
-        options_mock.declare.assert_any_call('option2', types=int)
-        options_mock.declare.assert_any_call('option3', types=float)
+        options_mock.declare.assert_any_call("option1", types=bool)
+        options_mock.declare.assert_any_call("option2", types=int)
+        options_mock.declare.assert_any_call("option3", types=float)
 
-    @patch('philote_mdo.openmdao.utils.client_setup')
+    @patch("philote_mdo.openmdao.utils.client_setup")
     def test_setup(self, mock_openmdao_client_setup, om_explicit_component_patch):
         """
         Tests the setup function of the OpenMDAO implicit client.
@@ -139,8 +152,10 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
         # check that the setup utility function was called
         mock_openmdao_client_setup.assert_called_once_with(component)
 
-    @patch('philote_mdo.openmdao.utils.client_setup_partials')
-    def test_setup_partials(self, mock_openmdao_client_setup_partials, om_explicit_component_patch):
+    @patch("philote_mdo.openmdao.utils.client_setup_partials")
+    def test_setup_partials(
+        self, mock_openmdao_client_setup_partials, om_explicit_component_patch
+    ):
         """
         Tests the setup partials function of the OpenMDAO implicit client.
         """
@@ -189,7 +204,7 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
         comp = RemoteImplicitComponent(channel=mock_channel)
         comp._client = client_mock
         # mock the component name
-        comp.name = 'test'
+        comp.name = "test"
 
         # inputs and outputs
         inputs = {
@@ -208,7 +223,9 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
         }
 
         # calling the function to be tested
-        comp.apply_nonlinear(inputs, outputs, residuals, discrete_inputs, discrete_outputs)
+        comp.apply_nonlinear(
+            inputs, outputs, residuals, discrete_inputs, discrete_outputs
+        )
 
         # asserting that the method calls are made correctly
         client_mock.run_compute_residuals.assert_called_once_with(inputs, outputs)
@@ -242,7 +259,7 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
         comp = RemoteImplicitComponent(channel=mock_channel)
         comp._client = client_mock
         # mock the component name
-        comp.name = 'test'
+        comp.name = "test"
 
         # inputs and outputs
         inputs = {
@@ -282,14 +299,18 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
             data.PartialsMetaData(name="f", subname="x"),
             data.PartialsMetaData(name="f", subname="f"),
             data.PartialsMetaData(name="g", subname="x"),
-            data.PartialsMetaData(name="g", subname="g")
+            data.PartialsMetaData(name="g", subname="g"),
         ]
 
         expected_jac = {
             ("f", "x"): np.array([5.0, 6.0, 7.0]),
-            ("f", "f"): np.array([8.0, 9.0, 10.0, 8.0, 9.0, 10.0, 8.0, 9.0, 10.0]).reshape((3,3)),
+            ("f", "f"): np.array(
+                [8.0, 9.0, 10.0, 8.0, 9.0, 10.0, 8.0, 9.0, 10.0]
+            ).reshape((3, 3)),
             ("g", "x"): np.array([1.0, 6.0, 7.0]),
-            ("g", "g"): np.array([1.0, 9.0, 10.0, 8.0, 9.0, 10.0, 8.0, 9.0, 1.0]).reshape((3, 3)),
+            ("g", "g"): np.array(
+                [1.0, 9.0, 10.0, 8.0, 9.0, 10.0, 8.0, 9.0, 1.0]
+            ).reshape((3, 3)),
         }
         client_mock.run_residual_gradients.return_value = expected_jac
 
@@ -298,7 +319,7 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
         comp = RemoteImplicitComponent(channel=mock_channel)
         comp._client = client_mock
         # mock the component name
-        comp.name = 'test'
+        comp.name = "test"
 
         # inputs and outputs
         inputs = {
@@ -315,7 +336,7 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
             ("f", "x"): np.zeros(3),
             ("f", "f"): np.zeros((3, 3)),
             ("g", "x"): np.zeros(3),
-            ("g", "g"): np.zeros((3, 3))
+            ("g", "g"): np.zeros((3, 3)),
         }
 
         # calling the function to be tested
