@@ -90,3 +90,10 @@ class SellarMDA(om.Group):
 
 
 class SellarGroup(pm.OpenMdaoSubProblem):
+
+    def initialize(self):
+        self.add_group(SellarMDA())
+
+    def set_options(self, options):
+        pass
+
