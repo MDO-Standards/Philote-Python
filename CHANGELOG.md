@@ -7,6 +7,8 @@
 - Created a general implementation of the implicit discipline client for
   OpenMDAO. The client creates an OpenMDAO ImplicitComponent which can
   be added to any OpenMDAO model.
+- [experimental] Created an interface to host OpenMDAO groups in ExplicitServers. This feature should be viewed as
+  experimental with future updates to complete it.
 
 ### Bug Fixes
 

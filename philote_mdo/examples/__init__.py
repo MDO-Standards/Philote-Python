@@ -33,6 +33,6 @@ from .rosenbrock import Rosenbrock
 
 try:
     import openmdao.api
-    from .sellar import SellarMDA
+    from .sellar import SellarGroup
 except:
     pass
