@@ -1,20 +1,20 @@
 <div align="center">
-<img src="https://github.com/chrislupp/Philote-Python/blob/main/doc/graphics/philote-python.svg?raw=true" width="500">
+<img src="https://github.com/MDO-Standards/Philote-Python/blob/main/doc/graphics/philote-python.svg?raw=true" width="500">
 </div>
 
-[//]: # (![Philote]&#40;https://github.com/chrislupp/Philote-Python/blob/main/doc/graphics/philote-python.svg?raw=true&#41;)
+[//]: # (![Philote]&#40;https://github.com/MDO-Standards/Philote-Python/blob/main/doc/graphics/philote-python.svg?raw=true&#41;)
 
-[![Unit and Regression Tests](https://github.com/chrislupp/Philote-Python/actions/workflows/tests.yaml/badge.svg)](https://github.com/chrislupp/Philote-Python/actions/workflows/tests.yaml)
-[![Coverage Status](https://coveralls.io/repos/github/chrislupp/Philote-Python/badge.svg?branch=main)](https://coveralls.io/github/chrislupp/Philote-Python?branch=main)
-[![CodeQL](https://github.com/chrislupp/Philote-Python/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/chrislupp/Philote-Python/actions/workflows/github-code-scanning/codeql)
-[![Deploy Documentation](https://github.com/chrislupp/Philote-Python/actions/workflows/documentation.yaml/badge.svg)](https://github.com/chrislupp/Philote-Python/actions/workflows/documentation.yaml)
+[![Unit and Integration Tests](https://github.com/MDO-Standards/Philote-Python/actions/workflows/tests.yaml/badge.svg)](https://github.com/MDO-Standards/Philote-Python/actions/workflows/tests.yaml)
+[![Coverage Status](https://coveralls.io/repos/github/MDO-Standards/Philote-Python/badge.svg?branch=main)](https://coveralls.io/github/chrislupp/Philote-Python?branch=main)
+[![CodeQL](https://github.com/MDO-Standards/Philote-Python/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/MDO-Standards/Philote-Python/actions/workflows/github-code-scanning/codeql)
+[![Deploy Documentation](https://github.com/MDO-Standards/Philote-Python/actions/workflows/documentation.yaml/badge.svg)](https://github.com/MDO-Standards/Philote-Python/actions/workflows/documentation.yaml)
 # Philote-Python
 
 Python library for using and creating Philote analysis servers.
 
 Documentation can be found at:
 
-https://chrislupp.github.io/Philote-Python
+https://MDO-Standards.github.io/Philote-Python
 
 
 ## Requirements
