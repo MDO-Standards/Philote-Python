@@ -9,6 +9,10 @@
   be added to any OpenMDAO model.
 - [experimental] Created an interface to host OpenMDAO groups in ExplicitServers. This feature should be viewed as
   experimental with future updates to complete it.
+- Added integration tests for OpenMDAO implicit components using the quadratic example
+- Added unit tests for OpenMDAO linearize, solve_nonlinear, and apply_nonlinear functions
+- Updated Philote protocol to version 0.7.0
+- Moved tests out of the package structure
 
 ### Bug Fixes
 
@@ -19,6 +23,10 @@
 - Fixed grpcio-tools build dependency issue. Under certain circumstances (e.g., use of an older grpcio package), the
   installation will fail due to an incompatible grpcio-tools version getting installed at build time. The grpcio-tools
   version has been fixed for the build at 1.59. As a result the grpcio version also must at least be 1.59
+
+### Documentation & Infrastructure
+
+- Updated copyright statements across the codebase
 
 
 ## Version 0.6.1
