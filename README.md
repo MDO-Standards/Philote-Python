@@ -8,6 +8,11 @@
 [![codecov](https://codecov.io/gh/MDO-Standards/Philote-Python/graph/badge.svg?token=6PK30STMDL)](https://codecov.io/gh/MDO-Standards/Philote-Python)
 [![CodeQL](https://github.com/MDO-Standards/Philote-Python/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/MDO-Standards/Philote-Python/actions/workflows/github-code-scanning/codeql)
 [![Deploy Documentation](https://github.com/MDO-Standards/Philote-Python/actions/workflows/documentation.yaml/badge.svg)](https://github.com/MDO-Standards/Philote-Python/actions/workflows/documentation.yaml)
+![PyPI - Version](https://img.shields.io/pypi/v/philote-mdo?style=flat&color=blue)
+
+
+
+
 # Philote-Python
 
 Python library for using and creating Philote analysis servers.
