@@ -22,4 +22,4 @@ omit =
 directory = htmlcov
 omit = 
     philote_mdo/generated/*
-    */__init__.py
+    **/__init__.py
