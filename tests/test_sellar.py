@@ -45,6 +45,7 @@ class TestSellarMDA(unittest.TestCase):
         group = SellarMDA()
         prob = om.Problem(model=group)
         prob.setup()
+        prob.run_model()
         
         # Test that all subsystems were added
         self.assertIn('cycle', group._subsystems_allprocs)
@@ -57,11 +58,15 @@ class TestSellarMDA(unittest.TestCase):
         self.assertIn('d1', cycle._subsystems_allprocs)
         self.assertIn('d2', cycle._subsystems_allprocs)
         
-        # Test that default values are set (exact value may vary by OpenMDAO version)
+        # Test that variables are properly set up (values may vary by OpenMDAO version)
         x_val = prob.get_val('x')
         self.assertIsInstance(x_val, np.ndarray)
         self.assertEqual(len(x_val), 1)
-        np.testing.assert_allclose(np.array(prob.get_val('z')), np.array([5.0, 2.0]), rtol=1.0e-6, atol=1e-6)
+        
+        z_val = prob.get_val('z')
+        self.assertIsInstance(z_val, np.ndarray)
+        self.assertEqual(len(z_val), 2)  # z should have 2 elements
+        np.testing.assert_allclose(z_val, np.array([5.0, 2.0]))
 
     def test_run_model(self):
         """
