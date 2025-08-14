@@ -19,10 +19,6 @@ parts:
   chapters:
   - file: tutorials/openmdao
 
-- caption: Working with CSDL
-  chapters:
-  - file: tutorials/csdl
-
 #- caption: API Reference
 #  chapters:
 #  - file: api/explicit
