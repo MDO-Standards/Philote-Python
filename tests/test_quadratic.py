@@ -120,6 +120,90 @@ class TestQuadradicImplicit(unittest.TestCase):
         self.assertEqual(jac[("x", "c")][0], 1.0)
         self.assertEqual(jac[("x", "x")][0], 10.0)
 
+    def test_apply_linear_fwd_mode_all_inputs(self):
+        """
+        Tests the apply_linear function in forward mode with all inputs.
+        """
+        inputs = {"a": np.array([1.0]), "b": np.array([2.0]), "c": np.array([-2.0])}
+        outputs = {"x": np.array([4.0])}
+        d_inputs = {"a": np.array([0.1]), "b": np.array([0.2]), "c": np.array([0.3])}
+        d_outputs = {"x": np.array([0.4])}
+        d_residuals = {"x": np.array([0.0])}
+        
+        disc = QuadradicImplicit()
+        disc.apply_linear(inputs, outputs, d_inputs, d_outputs, d_residuals, "fwd")
+        
+        # Expected: (2*a*x + b)*d_x + x^2*d_a + x*d_b + d_c
+        # = (2*1*4 + 2)*0.4 + 4^2*0.1 + 4*0.2 + 0.3 = 10*0.4 + 16*0.1 + 0.8 + 0.3 = 6.7
+        self.assertAlmostEqual(d_residuals["x"][0], 6.7, places=8)
+
+    def test_apply_linear_fwd_mode_partial_inputs(self):
+        """
+        Tests the apply_linear function in forward mode with partial inputs.
+        """
+        inputs = {"a": np.array([1.0]), "b": np.array([2.0]), "c": np.array([-2.0])}
+        outputs = {"x": np.array([4.0])}
+        d_inputs = {"a": np.array([0.1])}  # Only d_a provided
+        d_outputs = {"x": np.array([0.4])}
+        d_residuals = {"x": np.array([0.0])}
+        
+        disc = QuadradicImplicit()
+        disc.apply_linear(inputs, outputs, d_inputs, d_outputs, d_residuals, "fwd")
+        
+        # Expected: (2*a*x + b)*d_x + x^2*d_a = 10*0.4 + 16*0.1 = 5.6
+        self.assertAlmostEqual(d_residuals["x"][0], 5.6, places=8)
+
+    def test_apply_linear_rev_mode_all_inputs(self):
+        """
+        Tests the apply_linear function in reverse mode with all inputs.
+        """
+        inputs = {"a": np.array([1.0]), "b": np.array([2.0]), "c": np.array([-2.0])}
+        outputs = {"x": np.array([4.0])}
+        d_inputs = {"a": np.array([0.0]), "b": np.array([0.0]), "c": np.array([0.0])}
+        d_outputs = {"x": np.array([0.0])}
+        d_residuals = {"x": np.array([0.5])}
+        
+        disc = QuadradicImplicit()
+        disc.apply_linear(inputs, outputs, d_inputs, d_outputs, d_residuals, "rev")
+        
+        # Expected derivatives based on reverse mode
+        self.assertAlmostEqual(d_outputs["x"][0], 5.0, places=8)  # (2*a*x + b) * d_residuals = 10 * 0.5
+        self.assertAlmostEqual(d_inputs["a"][0], 8.0, places=8)   # x^2 * d_residuals = 16 * 0.5
+        self.assertAlmostEqual(d_inputs["b"][0], 2.0, places=8)   # x * d_residuals = 4 * 0.5
+        self.assertAlmostEqual(d_inputs["c"][0], 0.5, places=8)   # d_residuals = 0.5
+
+    def test_apply_linear_rev_mode_partial_outputs(self):
+        """
+        Tests the apply_linear function in reverse mode with partial outputs.
+        """
+        inputs = {"a": np.array([1.0]), "b": np.array([2.0]), "c": np.array([-2.0])}
+        outputs = {"x": np.array([4.0])}
+        d_inputs = {"a": np.array([0.0])}  # Only d_a provided
+        d_outputs = {}  # No d_outputs
+        d_residuals = {"x": np.array([0.5])}
+        
+        disc = QuadradicImplicit()
+        disc.apply_linear(inputs, outputs, d_inputs, d_outputs, d_residuals, "rev")
+        
+        # Only d_a should be modified
+        self.assertAlmostEqual(d_inputs["a"][0], 8.0, places=8)   # x^2 * d_residuals = 16 * 0.5
+
+    def test_apply_linear_no_x_in_residuals(self):
+        """
+        Tests the apply_linear function when 'x' is not in d_residuals.
+        """
+        inputs = {"a": np.array([1.0]), "b": np.array([2.0]), "c": np.array([-2.0])}
+        outputs = {"x": np.array([4.0])}
+        d_inputs = {"a": np.array([0.1]), "b": np.array([0.2]), "c": np.array([0.3])}
+        d_outputs = {"x": np.array([0.4])}
+        d_residuals = {}  # No 'x' in residuals
+        
+        disc = QuadradicImplicit()
+        disc.apply_linear(inputs, outputs, d_inputs, d_outputs, d_residuals, "fwd")
+        
+        # Nothing should change since 'x' not in d_residuals
+        self.assertEqual(len(d_residuals), 0)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

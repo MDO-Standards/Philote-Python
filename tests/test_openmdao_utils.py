@@ -165,6 +165,16 @@ class TestOpenMdaoUtils(unittest.TestCase):
         # ensure that other keys in outputs are unchanged
         self.assertEqual(outputs["output3"], None)
 
+    def test_update_options(self):
+        """
+        Tests the update_options function (currently a placeholder).
+        """
+        from philote_mdo.openmdao.utils import update_options
+        
+        # This function currently does nothing but should run without error
+        result = update_options()
+        self.assertIsNone(result)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
