@@ -98,9 +98,7 @@ class RemoteExplicitComponent(om.ExplicitComponent):
         out = self._client.run_compute(local_inputs)
         utils.assign_global_outputs(out, outputs)
 
-    def compute_partials(
-        self, inputs, partials, discrete_inputs=None, discrete_outputs=None
-    ):
+    def compute_partials(self, inputs, partials, discrete_inputs=None, discrete_outputs=None):
         """
         Compute the gradient evaluation.
         """
