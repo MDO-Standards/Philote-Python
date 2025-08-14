@@ -17,6 +17,9 @@ exclude_lines =
 
 omit = 
     philote_mdo/generated/*
+    philote_mdo/__init__.py
+    philote_mdo/*/__init__.py
+    tests/*
 
 [html]
 directory = htmlcov
