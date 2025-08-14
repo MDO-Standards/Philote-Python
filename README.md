@@ -5,7 +5,7 @@
 [//]: # (![Philote]&#40;https://github.com/MDO-Standards/Philote-Python/blob/main/doc/graphics/philote-python.svg?raw=true&#41;)
 
 [![Unit and Integration Tests](https://github.com/MDO-Standards/Philote-Python/actions/workflows/tests.yaml/badge.svg)](https://github.com/MDO-Standards/Philote-Python/actions/workflows/tests.yaml)
-[![Coverage Status](https://coveralls.io/repos/github/MDO-Standards/Philote-Python/badge.svg?branch=release/0.7.0)](https://coveralls.io/github/MDO-Standards/Philote-Python?branch=release/0.7.0)
+[![codecov](https://codecov.io/gh/MDO-Standards/Philote-Python/graph/badge.svg?token=6PK30STMDL)](https://codecov.io/gh/MDO-Standards/Philote-Python)
 [![CodeQL](https://github.com/MDO-Standards/Philote-Python/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/MDO-Standards/Philote-Python/actions/workflows/github-code-scanning/codeql)
 [![Deploy Documentation](https://github.com/MDO-Standards/Philote-Python/actions/workflows/documentation.yaml/badge.svg)](https://github.com/MDO-Standards/Philote-Python/actions/workflows/documentation.yaml)
 # Philote-Python
