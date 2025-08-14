@@ -76,18 +76,7 @@ class RemoteExplicitComponent(om.ExplicitComponent):
         self._client.get_available_options()
 
         # add to the OpenMDAO component options
-        for name, type_str in self._client.options_list.items():
-            type = None
-            if type_str == "bool":
-                type = bool
-            elif type_str == "int":
-                type = int
-            elif type_str == "float":
-                type = float
-            elif type_str == "str":
-                type = str
-
-            self.options.declare(name, types=type)
+        utils.declare_options(self._client.options_list.items(), self.options)
 
     def setup(self):
         """

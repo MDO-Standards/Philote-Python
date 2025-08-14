@@ -30,8 +30,22 @@
 import philote_mdo.generated.data_pb2 as data
 
 
-def update_options():
-    pass
+def declare_options(opt_list, options):
+    """
+    Declares the options from the client options list.
+    """
+    for name, type_str in opt_list:
+        opt_type = None
+        if type_str == "bool":
+            opt_type = bool
+        elif type_str == "int":
+            opt_type = int
+        elif type_str == "float":
+            opt_type = float
+        elif type_str == "str":
+            opt_type = str
+
+        options.declare(name, types=opt_type)
 
 
 def client_setup(comp):
