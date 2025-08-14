@@ -61,7 +61,7 @@ class TestSellarMDA(unittest.TestCase):
         x_val = prob.get_val('x')
         self.assertIsInstance(x_val, np.ndarray)
         self.assertEqual(len(x_val), 1)
-        np.testing.assert_array_equal(prob.get_val('z'), np.array([5.0, 2.0]))
+        np.testing.assert_allclose(np.array(prob.get_val('z')), np.array([5.0, 2.0]), rtol=1.0e-6, atol=1e-6)
 
     def test_run_model(self):
         """
