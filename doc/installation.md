@@ -25,8 +25,11 @@ To run the unit and integration tests, you will need:
 
 ## Compiling Definitions and Installation
 
-Older versions of this library featured a two-step build process. This has since
-been simplified. To install the package run pip:
+The easiest way for users to install this library is via pip using the PyPI package:
+
+    pip install philote-mdo
+
+If you need or want to install the package from the repository, you can doe this using pip:
 
     pip install <path/to/Philote-Python>
 
@@ -40,3 +43,10 @@ install packages when located in that directory, making the corresponding
 command:
 
     pip install .
+
+Unlike earlier version, the package is distributed with generated gRPC python files. This means that you do not need to
+have grpciotools or protoc installed when using Philote-Python. If you are doing development work, specifically when you
+are adding new gRPC features, you will need to regenerate the gRPC files. To do this, run the following command from the
+repository root directory:
+
+    python utils/compile_proto.py

@@ -1,5 +1,16 @@
 # Change Log
 
+## Version 0.8.0
+
+### Features
+
+### Bug Fixes
+
+### Documentation & Infrastructure
+
+- Updated installation instructions to reflect PyPI install option.
+
+
 ## Version 0.7.0
 
 ### Features
