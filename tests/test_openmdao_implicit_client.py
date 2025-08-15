@@ -348,6 +348,21 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
             self.assertTrue(jac_key in partials)
             np.testing.assert_array_equal(partials[jac_key], expected_data)
 
+    def test_constructor_no_channel_raises_error(self, om_implicit_component_patch):
+        """
+        Tests that the constructor raises ValueError when no channel is provided.
+        """
+        with self.assertRaises(ValueError) as context:
+            RemoteImplicitComponent(channel=None)
+        
+        self.assertIn("No channel provided", str(context.exception))
+        
+        # Test with channel not provided at all
+        with self.assertRaises(ValueError) as context:
+            RemoteImplicitComponent()
+        
+        self.assertIn("No channel provided", str(context.exception))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

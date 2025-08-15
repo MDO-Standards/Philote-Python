@@ -288,6 +288,21 @@ class TestOpenMdaoExplicitClient(unittest.TestCase):
         self.assertEqual(partials["output2"]["input1"], 3)
         self.assertEqual(partials["output2"]["input2"], 4)
 
+    def test_constructor_no_channel_raises_error(self, om_explicit_component_patch):
+        """
+        Tests that the constructor raises ValueError when no channel is provided.
+        """
+        with self.assertRaises(ValueError) as context:
+            RemoteExplicitComponent(channel=None)
+        
+        self.assertIn("No channel provided", str(context.exception))
+        
+        # Test with channel not provided at all
+        with self.assertRaises(ValueError) as context:
+            RemoteExplicitComponent()
+        
+        self.assertIn("No channel provided", str(context.exception))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
