@@ -60,9 +60,7 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         prob = om.Problem()
         model = prob.model
 
-        paraboloid_comp = pmdo_om.RemoteExplicitComponent(
-            channel=grpc.insecure_channel("localhost:50051")
-        )
+        paraboloid_comp = pmdo_om.RemoteExplicitComponent(channel=grpc.insecure_channel("localhost:50051"))
         model.add_subsystem("Paraboloid", paraboloid_comp)
 
         # run setup
@@ -97,9 +95,7 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         prob = om.Problem()
         model = prob.model
 
-        paraboloid_comp = pmdo_om.RemoteExplicitComponent(
-            channel=grpc.insecure_channel("localhost:50051")
-        )
+        paraboloid_comp = pmdo_om.RemoteExplicitComponent(channel=grpc.insecure_channel("localhost:50051")q)
         model.add_subsystem("Paraboloid", paraboloid_comp)
 
         # setup the problem
@@ -135,9 +131,7 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         prob = om.Problem()
         model = prob.model
 
-        comp = pmdo_om.RemoteExplicitComponent(
-            channel=grpc.insecure_channel("localhost:50051"), dimension=2
-        )
+        comp = pmdo_om.RemoteExplicitComponent(channel=grpc.insecure_channel("localhost:50051"), dimension=2)
         model.add_subsystem("Rosenbrock", comp)
 
         # run setup
@@ -171,12 +165,10 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         prob = om.Problem()
         model = prob.model
 
-        comp = pmdo_om.RemoteExplicitComponent(
-            channel=grpc.insecure_channel("localhost:50051"), dimension=2
-        )
+        comp = pmdo_om.RemoteExplicitComponent(channel=grpc.insecure_channel("localhost:50051"), dimension=2)
         model.add_subsystem("Rosenbrock", comp)
 
-        # setup the problem
+        # set up the problem
         prob.setup()
 
         # define some inputs
@@ -211,9 +203,7 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         model = prob.model
         client = model.add_subsystem(
             "Quadratic",
-            pmdo_om.RemoteImplicitComponent(
-                channel=grpc.insecure_channel("localhost:50051")
-            ),
+            pmdo_om.RemoteImplicitComponent(channel=grpc.insecure_channel("localhost:50051")),
         )
 
         # define some inputs
@@ -234,50 +224,6 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
 
         # stop the server
         server.stop(0)
-
-    # def test_quadratic_compute_function(self):
-    #     """
-    #     Integration test for the OpenMDAO implicit client using the quadratic
-    #     example.
-    #     """
-    #     # server code
-    #     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    #
-    #     discipline = pmdo.ImplicitServer(discipline=QuadradicImplicit())
-    #     discipline.attach_to_server(server)
-    #
-    #     server.add_insecure_port("[::]:50051")
-    #     server.start()
-    #
-    #     # client code
-    #     prob = om.Problem()
-    #     model = prob.model
-    #     client = model.add_subsystem("Quadratic",
-    #                                  pmdo_om.RemoteImplicitComponent(channel=grpc.insecure_channel("localhost:50051"))
-    #                                  )
-    #     client.linear_solver = om.DirectSolver()
-    #
-    #     # define some inputs
-    #     inputs = {"a": np.array([1.0]), "b": np.array([2.0]), "c": np.array([-2.0])}
-    #     outputs = {"x": np.array([4.0])}
-    #
-    #     # run setup
-    #     prob.setup()
-    #
-    #     prob.set_val("Quadratic.a", 1.0)
-    #     prob.set_val("Quadratic.b", 2.0)
-    #     prob.set_val("Quadratic.c", -2.0)
-    #
-    #     # run a gradient evaluation
-    #     jac = prob.compute_totals("Quadratic.x", ["Quadratic.a", "Quadratic.b", "Quadratic.c"])
-    #
-    #     # check the gradient values
-    #     assert_almost_equal(jac["Quadratic.x", "Quadratic.a"], np.array([[-0.25]]))
-    #     assert_almost_equal(jac["Quadratic.x", "Quadratic.b"], np.array([[-0.25]]))
-    #     assert_almost_equal(jac["Quadratic.x", "Quadratic.c"], np.array([[-0.25]]))
-    #
-    #     # stop the server
-    #     server.stop(0)
 
 
 if __name__ == "__main__":

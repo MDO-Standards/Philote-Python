@@ -137,12 +137,12 @@ class TestOpenMdaoSubProblem(unittest.TestCase):
         subprob.add_mapped_input('local_x', 'x')
         subprob.add_mapped_output('local_y', 'y')
         
-        # Setup the sub-problem
+        # Set up the subproblem
         subprob.setup()
         
         # Verify that the discipline has the expected inputs and outputs
-        # Note: We can't easily test the internal state without accessing private members
-        # But we can verify the setup completed without error
+        # Note: We can't easily test the internal state without accessing private members,
+        # but we can verify the setup completed without error
         self.assertIsNotNone(subprob._prob)
         self.assertIsNotNone(subprob._model)
 
