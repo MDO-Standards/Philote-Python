@@ -165,6 +165,50 @@ class TestOpenMdaoUtils(unittest.TestCase):
         # ensure that other keys in outputs are unchanged
         self.assertEqual(outputs["output3"], None)
 
+    def test_declare_options(self):
+        """
+        Tests the declare_options function.
+        """
+        from philote_mdo.openmdao.utils import declare_options
+        
+        # Create a mock options object
+        options_mock = Mock()
+        
+        # Test case 1: Single option with bool type
+        opt_list = [("use_cache", "bool")]
+        declare_options(opt_list, options_mock)
+        options_mock.declare.assert_called_once_with("use_cache", types=bool)
+        
+        # Reset mock for next test
+        options_mock.reset_mock()
+        
+        # Test case 2: Multiple options with different types
+        opt_list = [
+            ("max_iter", "int"),
+            ("tolerance", "float"),
+            ("method", "str"),
+            ("verbose", "bool")
+        ]
+        declare_options(opt_list, options_mock)
+        
+        expected_calls = [
+            ("max_iter", int),
+            ("tolerance", float),
+            ("method", str),
+            ("verbose", bool)
+        ]
+        
+        for name, opt_type in expected_calls:
+            options_mock.declare.assert_any_call(name, types=opt_type)
+        
+        self.assertEqual(options_mock.declare.call_count, 4)
+        
+        # Test case 3: Unknown type (should result in None)
+        options_mock.reset_mock()
+        opt_list = [("unknown_param", "unknown_type")]
+        declare_options(opt_list, options_mock)
+        options_mock.declare.assert_called_once_with("unknown_param", types=None)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
