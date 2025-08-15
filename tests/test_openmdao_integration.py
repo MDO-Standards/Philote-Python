@@ -95,7 +95,7 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         prob = om.Problem()
         model = prob.model
 
-        paraboloid_comp = pmdo_om.RemoteExplicitComponent(channel=grpc.insecure_channel("localhost:50051")q)
+        paraboloid_comp = pmdo_om.RemoteExplicitComponent(channel=grpc.insecure_channel("localhost:50051"))
         model.add_subsystem("Paraboloid", paraboloid_comp)
 
         # setup the problem
