@@ -1,20 +1,30 @@
-![Philote](https://github.com/chrislupp/Philote-Python/blob/main/doc/graphics/philote-python.svg?raw=true)
+<div align="center">
+<img src="https://github.com/MDO-Standards/Philote-Python/blob/main/doc/graphics/philote-python.svg?raw=true" width="500">
+</div>
 
-[![Unit and Regression Tests](https://github.com/chrislupp/Philote-Python/actions/workflows/tests.yaml/badge.svg)](https://github.com/chrislupp/Philote-Python/actions/workflows/tests.yaml)
-[![Coverage Status](https://coveralls.io/repos/github/chrislupp/Philote-Python/badge.svg?branch=main)](https://coveralls.io/github/chrislupp/Philote-Python?branch=main)
-[![Deploy Documentation](https://github.com/chrislupp/Philote-Python/actions/workflows/documentation.yaml/badge.svg)](https://github.com/chrislupp/Philote-Python/actions/workflows/documentation.yaml)
+[//]: # (![Philote]&#40;https://github.com/MDO-Standards/Philote-Python/blob/main/doc/graphics/philote-python.svg?raw=true&#41;)
+
+[![Unit and Integration Tests](https://github.com/MDO-Standards/Philote-Python/actions/workflows/tests.yaml/badge.svg)](https://github.com/MDO-Standards/Philote-Python/actions/workflows/tests.yaml)
+[![codecov](https://codecov.io/gh/MDO-Standards/Philote-Python/graph/badge.svg?token=6PK30STMDL)](https://codecov.io/gh/MDO-Standards/Philote-Python)
+[![CodeQL](https://github.com/MDO-Standards/Philote-Python/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/MDO-Standards/Philote-Python/actions/workflows/github-code-scanning/codeql)
+[![Deploy Documentation](https://github.com/MDO-Standards/Philote-Python/actions/workflows/documentation.yaml/badge.svg)](https://github.com/MDO-Standards/Philote-Python/actions/workflows/documentation.yaml)
+![PyPI - Version](https://img.shields.io/pypi/v/philote-mdo?style=flat&color=blue)
+
+
+
+
 # Philote-Python
 
 Python library for using and creating Philote analysis servers.
 
 Documentation can be found at:
 
-https://chrislupp.github.io/Philote-Python
+https://MDO-Standards.github.io/Philote-Python
 
 
 ## Requirements
 
-The installation/build process requires the following tools to be installed
+The development process requires the following tools to be installed
 (they will be installed if not present):
 
 - grpcio-tools
@@ -28,6 +38,9 @@ installed automatically during the installation process:
 - scipy
 - grpcio
 
+To run the unit and integration tests, you will need:
+
+- openmdao (can be found [here](https://github.com/OpenMDAO/OpenMDAO) or installed via pip)
 
 ## Installation
 
@@ -48,20 +61,12 @@ command:
     pip install .
 
 
-### Potential Issues
-
-Some users have reported that grpcio-tools does not install the protoc
-executable required to generate the stubs. If you run into this issue, you
-will have to manually install the protoc executable (make sure to match the
-version of gRPC that you have installed) and make it discoverable on your PATH.
-
-
 ## License
 
 This package is licensed under the Apache 2 license:
 
 
->   Copyright 2022-2024 Christopher A. Lupp
+>   Copyright 2022-2025 Christopher A. Lupp
 >   
 >   Licensed under the Apache License, Version 2.0 (the "License");
 >   you may not use this file except in compliance with the License.

@@ -1,6 +1,6 @@
 # Philote-Python
 #
-# Copyright 2022-2024 Christopher A. Lupp
+# Copyright 2022-2025 Christopher A. Lupp
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,3 +27,29 @@
 # the linked websites, of the information, products, or services contained
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
+import grpc
+import numpy as np
+import philote_mdo.general as pmdo
+
+
+client = pmdo.ExplicitClient(channel=grpc.insecure_channel("localhost:50051"))
+
+# transfer the stream options to the server
+client.send_stream_options()
+
+# run setup
+client.run_setup()
+client.get_variable_definitions()
+client.get_partials_definitions()
+
+# define some inputs
+inputs = {"x": np.array([1.0]), "z": np.array([5.0, 2.0])}
+# outputs = {}
+
+# run a function evaluation
+outputs = client.run_compute(inputs)
+print(outputs)
+
+# run a gradient evaluation
+# partials = client.run_compute_partials(inputs)
+# print(partials)

@@ -1,6 +1,6 @@
 # Philote-Python
 #
-# Copyright 2022-2024 Christopher A. Lupp
+# Copyright 2022-2025 Christopher A. Lupp
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -168,129 +168,62 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         comp = pmdo_om.RemoteExplicitComponent(channel=grpc.insecure_channel("localhost:50051"), dimension=2)
         model.add_subsystem("Rosenbrock", comp)
 
-        # setup the problem
+        # set up the problem
         prob.setup()
 
         # define some inputs
         prob.set_val("Rosenbrock.x", np.zeros(2))
 
-        # run a function evaluation
+        # run a gradient evaluation
         jac = prob.compute_totals("Rosenbrock.f", ["Rosenbrock.x"])
 
-        assert_almost_equal(jac["Rosenbrock.f", "Rosenbrock.x"], np.array([[-2.0, 0.0]]))
+        assert_almost_equal(
+            jac["Rosenbrock.f", "Rosenbrock.x"], np.array([[-2.0, 0.0]])
+        )
 
         # stop the server
         server.stop(0)
 
-    # def test_quadratic_compute_residuals(self):
-    #     """
-    #     Integration test for the QuadraticImplicit compute function.
-    #     """
-    #     # server code
-    #     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    #
-    #     discipline = pmdo.ImplicitServer(discipline=QuadradicImplicit())
-    #     discipline.attach_to_server(server)
-    #
-    #     server.add_insecure_port("[::]:50051")
-    #     server.start()
-    #
-    #     # client code
-    #     client = pmdo.ImplicitClient(channel=grpc.insecure_channel("localhost:50051"))
-    #
-    #     # transfer the stream options to the server
-    #     client.send_stream_options()
-    #
-    #     # run setup
-    #     client.run_setup()
-    #     client.get_variable_definitions()
-    #     client.get_partials_definitions()
-    #
-    #     # define some inputs
-    #     inputs = {"a": np.array([1.0]), "b": np.array([2.0]), "c": np.array([-2.0])}
-    #     outputs = {"x": np.array([4.0])}
-    #
-    #     # run a function evaluation
-    #     residuals = client.run_compute_residuals(inputs, outputs)
-    #
-    #     self.assertEqual(residuals["x"][0], 22.0)
-    #
-    #     # stop the server
-    #     server.stop(0)
+    def test_quadratic_compute_function(self):
+        """
+        Integration test for the OpenMDAO implicit client using the quadratic
+        example.
+        """
+        # server code
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-    # def test_quadratic_solve_residuals(self):
-    #     """
-    #     Integration test for the QuadraticImplicit compute function.
-    #     """
-    #     # server code
-    #     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    #
-    #     discipline = pmdo.ImplicitServer(discipline=QuadradicImplicit())
-    #     discipline.attach_to_server(server)
-    #
-    #     server.add_insecure_port("[::]:50051")
-    #     server.start()
-    #
-    #     # client code
-    #     client = pmdo.ImplicitClient(channel=grpc.insecure_channel("localhost:50051"))
-    #
-    #     # transfer the stream options to the server
-    #     client.send_stream_options()
-    #
-    #     # run setup
-    #     client.run_setup()
-    #     client.get_variable_definitions()
-    #     client.get_partials_definitions()
-    #
-    #     # define some inputs
-    #     inputs = {"a": np.array([1.0]), "b": np.array([2.0]), "c": np.array([-2.0])}
-    #
-    #     # run a function evaluation
-    #     outputs = client.run_solve_residuals(inputs)
-    #
-    #     self.assertAlmostEqual(outputs["x"][0], 0.73205081, places=8)
-    #
-    #     # stop the server
-    #     server.stop(0)
-    #
-    # def test_quadratic_residual_gradients(self):
-    #     """
-    #     Integration test for the QuadraticImplicit residual gradients function.
-    #     """
-    #     # server code
-    #     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    #
-    #     discipline = pmdo.ImplicitServer(discipline=QuadradicImplicit())
-    #     discipline.attach_to_server(server)
-    #
-    #     server.add_insecure_port("[::]:50051")
-    #     server.start()
-    #
-    #     # client code
-    #     client = pmdo.ImplicitClient(channel=grpc.insecure_channel("localhost:50051"))
-    #
-    #     # transfer the stream options to the server
-    #     client.send_stream_options()
-    #
-    #     # run setup
-    #     client.run_setup()
-    #     client.get_variable_definitions()
-    #     client.get_partials_definitions()
-    #
-    #     # define some inputs
-    #     inputs = {"a": np.array([1.0]), "b": np.array([2.0]), "c": np.array([-2.0])}
-    #     outputs = {"x": np.array([4.0])}
-    #
-    #     # run a function evaluation
-    #     jac = client.run_residual_gradients(inputs, outputs)
-    #
-    #     self.assertEqual(jac[("x", "a")][0], 16.0)
-    #     self.assertEqual(jac[("x", "b")][0], 4.0)
-    #     self.assertEqual(jac[("x", "c")][0], 1.0)
-    #     self.assertEqual(jac[("x", "x")][0], 10.0)
-    #
-    #     # stop the server
-    #     server.stop(0)
+        discipline = pmdo.ImplicitServer(discipline=QuadradicImplicit())
+        discipline.attach_to_server(server)
+
+        server.add_insecure_port("[::]:50051")
+        server.start()
+
+        # client code
+        prob = om.Problem()
+        model = prob.model
+        client = model.add_subsystem(
+            "Quadratic",
+            pmdo_om.RemoteImplicitComponent(channel=grpc.insecure_channel("localhost:50051")),
+        )
+
+        # define some inputs
+        inputs = {"a": np.array([1.0]), "b": np.array([2.0]), "c": np.array([-2.0])}
+        outputs = {"x": np.array([4.0])}
+
+        # run setup
+        prob.setup()
+
+        prob.set_val("Quadratic.a", 1.0)
+        prob.set_val("Quadratic.b", 2.0)
+        prob.set_val("Quadratic.c", -2.0)
+
+        # run a function evaluation
+        prob.run_model()
+
+        self.assertAlmostEqual(prob.get_val("Quadratic.x")[0], 0.73205081, places=8)
+
+        # stop the server
+        server.stop(0)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # Philote-Python
 #
-# Copyright 2022-2024 Christopher A. Lupp
+# Copyright 2022-2025 Christopher A. Lupp
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@
 import numpy as np
 import openmdao.api as om
 from openmdao.test_suite.components.sellar import SellarDis1, SellarDis2
+import philote_mdo.openmdao as pm
 
 
 class SellarMDA(om.Group):
@@ -49,7 +50,7 @@ class SellarMDA(om.Group):
     See the License for the specific language governing permissions and
     limitations under the License.
 
-    It was included here so that the solver debug print statments could
+    It was included here so that the solver debug print statements could
     be turned off.
     """
 
@@ -86,3 +87,13 @@ class SellarMDA(om.Group):
         self.add_subsystem(
             "con_cmp2", om.ExecComp("con2 = y2 - 24.0"), promotes=["con2", "y2"]
         )
+
+
+class SellarGroup(pm.OpenMdaoSubProblem):
+
+    def initialize(self):
+        self.add_group(SellarMDA())
+
+    def set_options(self, options):
+        pass
+

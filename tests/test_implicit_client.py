@@ -1,6 +1,6 @@
 # Philote-Python
 #
-# Copyright 2022-2024 Christopher A. Lupp
+# Copyright 2022-2025 Christopher A. Lupp
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -64,6 +64,7 @@ class TestImplicitClient(unittest.TestCase):
 
         output_data = {
             "f": np.array([5.0, 6.0, 7.0]),
+            "g": np.array([7.0, 6.0, 5.0]),
         }
 
         response1 = data.Array(

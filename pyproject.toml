@@ -1,29 +1,56 @@
-[tool.poetry]
+[project]
 name = "philote-mdo"
-version = "0.6.0"
+version = "0.7.0"
 description = "Python bindings that implement the Philote-MDO standard."
-license = "Apache-2.0"
-authors = ["Christopher Lupp"]
+license = {text = "Apache-2.0"}
+authors = [{name = "Christopher Lupp"}]
 readme = "README.md"
-homepage = "https://chrislupp.github.io/Philote-Python/"
-repository = "https://github.com/chrislupp/Philote-Python"
-documentation = "https://chrislupp.github.io/Philote-Python/"
 keywords = ["mdo", "optimization", "rpc"]
-include = ["philote_mdo/generated/*pb2.py", "philote_mdo/generated/*pb2.pyi", "philote_mdo/generated/*grpc.py", "proto/*"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "grpcio~=1.66.0",
+    "protobuf~=5.29.0",
+    "numpy>=1.19.0",
+    "scipy>=1.10.0",
+]
 
+[project.urls]
+Homepage = "https://mdo-standards.github.io/Philote-Python/"
+Repository = "https://github.com/mdo-standards/Philote-Python"
+Documentation = "https://mdo-standards.github.io/Philote-Python/"
 
-[tool.poetry.dependencies]
-python = "^3.9"
-grpcio = "^1.49.1"
-numpy = "^1.19.0"
-scipy = "^1.12.0"
-
+[project.optional-dependencies]
+openmdao = ["openmdao>=3.0"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "flake8>=6.0",
+    "grpcio-tools~=1.66.0",
+    "protoletariat>=3.0",
+]
 
 [build-system]
-requires = ["poetry-core", "grpcio-tools", "protoletariat"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+include-package-data = true
 
-[tool.poetry.build]
-generate-setup-file = false
-script = "utils/compile_proto.py"
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["philote_mdo*"]
+
+[tool.setuptools.package-data]
+"philote_mdo.generated" = ["*.py", "*.pyi"]
+"philote_mdo" = ["proto/*"]
