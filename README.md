@@ -24,7 +24,7 @@ https://MDO-Standards.github.io/Philote-Python
 
 ## Requirements
 
-The installation/build process requires the following tools to be installed
+The development process requires the following tools to be installed
 (they will be installed if not present):
 
 - grpcio-tools
@@ -59,18 +59,6 @@ install packages when located in that directory, making the corresponding
 command:
 
     pip install .
-
-
-### Potential Issues
-
-Some users have reported that grpcio-tools does not install the protoc
-executable required to generate the stubs. If you run into this issue, you
-will have to manually install the protoc executable (make sure to match the
-version of gRPC that you have installed) and make it discoverable on your PATH.
-
-If you are using Anaconda, the following command may solve the issue:
-
-    conda install -c conda-forge protobuf grpcio-tools
 
 
 ## License
