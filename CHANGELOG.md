@@ -7,12 +7,12 @@
 - Created a general implementation of the implicit discipline client for
   OpenMDAO. The client creates an OpenMDAO ImplicitComponent which can
   be added to any OpenMDAO model.
-- [experimental] Created an interface to host OpenMDAO groups in ExplicitServers. This feature should be viewed as
-  experimental with future updates to complete it.
+- Created an interface to host OpenMDAO groups in ExplicitServers.
 - Added integration tests for OpenMDAO implicit components using the quadratic example
 - Added unit tests for OpenMDAO linearize, solve_nonlinear, and apply_nonlinear functions
 - Updated Philote protocol to version 0.7.0
 - Moved tests out of the package structure
+- Improved test coverage (100% lines covered by unit and integration tests, excluding generated files)
 
 ### Bug Fixes
 
