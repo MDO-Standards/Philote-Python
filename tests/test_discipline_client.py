@@ -408,6 +408,77 @@ class TestDisciplineClient(unittest.TestCase):
             self.assertTrue((name, subname) in partials)
             np.testing.assert_array_equal(partials[(name, subname)], expected_data)
 
+    def test_recover_outputs_empty_array_raises_error(self):
+        """
+        Tests that _recover_outputs raises ValueError when array data is empty.
+        """
+        mock_channel = Mock()
+        client = DisciplineClient(mock_channel)
+
+        client._var_meta = [
+            data.VariableMetaData(name="f", type=data.kOutput, shape=(2,)),
+        ]
+
+        # Create response with empty data array
+        response_empty = data.Array(
+            name="f", start=0, end=1, type=data.kOutput, data=[]
+        )
+        mock_responses = [response_empty]
+
+        with self.assertRaises(ValueError) as context:
+            client._recover_outputs(mock_responses)
+        
+        self.assertIn("Expected continuous variables, but array is empty", str(context.exception))
+
+    def test_recover_residuals_empty_array_raises_error(self):
+        """
+        Tests that _recover_residuals raises ValueError when array data is empty.
+        """
+        mock_channel = Mock()
+        client = DisciplineClient(mock_channel)
+
+        client._var_meta = [
+            data.VariableMetaData(name="f", type=data.kResidual, shape=(2,)),
+        ]
+
+        # Create response with empty data array
+        response_empty = data.Array(
+            name="f", start=0, end=1, type=data.kResidual, data=[]
+        )
+        mock_responses = [response_empty]
+
+        with self.assertRaises(ValueError) as context:
+            client._recover_residuals(mock_responses)
+        
+        self.assertIn("Expected continuous variables, but array is empty", str(context.exception))
+
+    def test_recover_partials_empty_array_raises_error(self):
+        """
+        Tests that _recover_partials raises ValueError when array data is empty.
+        """
+        mock_channel = Mock()
+        client = DisciplineClient(mock_channel)
+
+        client._var_meta = [
+            data.VariableMetaData(name="f", type=data.kOutput, shape=(2,)),
+            data.VariableMetaData(name="x", type=data.kInput, shape=(2,)),
+        ]
+        
+        client._partials_meta = [
+            data.PartialsMetaData(name="f", subname="x"),
+        ]
+
+        # Create response with empty data array
+        response_empty = data.Array(
+            name="f", subname="x", start=0, end=1, type=data.kPartial, data=[]
+        )
+        mock_responses = [response_empty]
+
+        with self.assertRaises(ValueError) as context:
+            client._recover_partials(mock_responses)
+        
+        self.assertIn("Expected continuous outputs for the partials, but array was empty", str(context.exception))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

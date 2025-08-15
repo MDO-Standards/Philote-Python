@@ -356,6 +356,49 @@ class TestDisciplineServer(unittest.TestCase):
         self.assertEqual(flat_inputs["x"].tolist(), [1.0, 2.0, 3.0, 4.0, 5.0, 0.0])
         self.assertEqual(flat_outputs["f"].tolist(), [0.1, 0.2, 0.0])
 
+    def test_get_available_options_invalid_type_raises_error(self):
+        """
+        Tests that GetAvailableOptions raises ValueError for invalid option types.
+        """
+        server = DisciplineServer()
+        discipline = server._discipline = Discipline()
+        
+        # Add option with invalid type
+        discipline.add_option("invalid_option", "unknown_type")
+        
+        request = Empty()
+        context = Mock()
+        
+        with self.assertRaises(ValueError) as error_context:
+            server.GetAvailableOptions(request, context)
+        
+        self.assertIn("Invalid value for discipline option 'invalid_option'", str(error_context.exception))
+
+    def test_process_inputs_empty_array_raises_error(self):
+        """
+        Tests that process_inputs raises ValueError when array data is empty.
+        """
+        server = DisciplineServer()
+        
+        # Create request with empty data array
+        request_iterator = [
+            data.Array(
+                start=0,
+                end=2,
+                data=[],  # Empty data array
+                type=data.VariableType.kInput,
+                name="x",
+            ),
+        ]
+        
+        flat_inputs = {"x": np.zeros(3)}
+        flat_outputs = {}
+        
+        with self.assertRaises(ValueError) as context:
+            server.process_inputs(request_iterator, flat_inputs, flat_outputs)
+        
+        self.assertIn("Expected continuous variables but arrays were empty for variable x", str(context.exception))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
