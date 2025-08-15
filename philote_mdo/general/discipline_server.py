@@ -1,6 +1,6 @@
 # Philote-Python
 #
-# Copyright 2022-2024 Christopher A. Lupp
+# Copyright 2022-2025 Christopher A. Lupp
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -91,16 +91,18 @@ class DisciplineServer(disc.DisciplineService):
             opts.options.append(name)
 
             # assign the correct data type
-            if val == 'bool':
+            if val == "bool":
                 type = data.kBool
-            elif val == 'int':
+            elif val == "int":
                 type = data.kInt
-            elif val == 'float':
+            elif val == "float":
                 type = data.kDouble
-            elif val == 'str':
+            elif val == "str":
                 type = data.kString
             else:
-                raise ValueError("Invalid value for discipline option '{}'".format(name))
+                raise ValueError(
+                    "Invalid value for discipline option '{}'".format(name)
+                )
 
             opts.type.append(type)
 

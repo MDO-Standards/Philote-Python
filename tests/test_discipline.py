@@ -1,6 +1,6 @@
 # Philote-Python
 #
-# Copyright 2022-2024 Christopher A. Lupp
+# Copyright 2022-2025 Christopher A. Lupp
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -146,6 +146,7 @@ class TestDiscipline(unittest.TestCase):
 
         # check that the function completed without raising exceptions
         self.assertTrue(True)
+
     def test_configure(self):
         disc = Discipline()
 
@@ -170,6 +171,7 @@ class TestDiscipline(unittest.TestCase):
         # check that the metadata has been deleted
         self.assertEqual(len(disc._var_meta), 0)
         self.assertEqual(len(disc._partials_meta), 0)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

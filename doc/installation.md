@@ -1,12 +1,12 @@
 # Installation
 
-Philote-Python is a pure Python library. However, the installation process requires a few extra steps,
-as the gRPC/protobuf definitions must first be compiled into 
+Philote-Python is a pure Python library. It ships with generated python for grpc which can be
+generated during the development process. For a standard installation, however, it can just be installed via pip.
 
 
 ## Requirements
 
-The installation process requires the following tools to be installed:
+The development process requires the following tools to be installed:
 
 - grpcio-tools
 - protoletariat
@@ -21,8 +21,6 @@ installed automatically during the installation process:
 To run the unit and integration tests, you will need:
 
 - openmdao (can be found [here](https://github.com/OpenMDAO/OpenMDAO) or installed via pip)
-- csdl (can be found [here](https://github.com/LSDOlab/csdl))
-- csdl python backend (can be found [here](https://github.com/LSDOlab/python_csdl_backend))
 
 
 ## Compiling Definitions and Installation

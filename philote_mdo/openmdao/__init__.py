@@ -1,6 +1,6 @@
 # Philote-Python
 #
-# Copyright 2022-2024 Christopher A. Lupp
+# Copyright 2022-2025 Christopher A. Lupp
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@
 # control over the information you may find at these locations.
 try:
     import openmdao.api as om
+
     omdao_installed = True
 except ImportError:
     omdao_installed = False
@@ -37,5 +38,4 @@ except ImportError:
 if omdao_installed:
     from .explicit import RemoteExplicitComponent
     from .implicit import RemoteImplicitComponent
-
-# from .group import OpenMdaoSubProblem
+    from .group import OpenMdaoSubProblem
