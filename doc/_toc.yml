@@ -18,6 +18,7 @@ parts:
 - caption: Working with OpenMDAO
   chapters:
   - file: tutorials/openmdao
+  - file: tutorials/openmdao_groups
 
 #- caption: API Reference
 #  chapters:
