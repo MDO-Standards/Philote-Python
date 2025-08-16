@@ -35,22 +35,123 @@ from philote_mdo.utils import get_chunk_indices
 
 class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
     """
-    Base class for creating an implicit discipline server.
+    gRPC server implementation for serving implicit Philote disciplines.
+
+    This class creates a gRPC server that exposes implicit discipline functionality
+    over the network. It handles client requests for residual computation, implicit
+    solving, and Jacobian computation by delegating to the underlying implicit discipline.
+    The server supports streaming of large arrays and handles all protocol buffer
+    serialization/deserialization automatically.
+
+    The server implements three main RPC methods:
+    - ComputeResiduals: Evaluate residual equations R(inputs, outputs)
+    - SolveResiduals: Solve implicit equations R(inputs, outputs) = 0
+    - ComputeResidualGradients: Compute Jacobian dR/d[inputs,outputs]
+
+    Key Features:
+        - Automatic gRPC service implementation from discipline
+        - Streaming support for large array transfers
+        - Thread-safe concurrent client handling
+        - Automatic variable metadata discovery and sharing
+        - Option handling and configuration
+        - Error handling and status reporting
+
+    Typical Usage:
+        >>> from concurrent import futures
+        >>> import grpc
+        >>> import philote_mdo.general as pmdo
+        >>>
+        >>> # Create your implicit discipline
+        >>> discipline = MyImplicitDiscipline()
+        >>>
+        >>> # Create and configure server
+        >>> server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        >>> impl_server = pmdo.ImplicitServer(discipline=discipline)
+        >>> impl_server.attach_to_server(server)
+        >>>
+        >>> # Start server
+        >>> server.add_insecure_port('[::]:50051')
+        >>> server.start()
+        >>> print('Server started on port 50051')
+        >>> server.wait_for_termination()
+
+    Attributes:
+        _discipline (ImplicitDiscipline): The underlying implicit discipline being served
+
+    Notes:
+        - Inherits from both DisciplineServer and gRPC ImplicitServiceServicer
+        - Automatically handles protocol buffer conversion and array streaming
+        - Thread-safe for concurrent client connections
+        - The underlying discipline must implement all required implicit methods
     """
 
     def __init__(self, discipline=None):
+        """
+        Initialize the implicit discipline server.
+
+        Parameters
+        ----------
+        discipline : ImplicitDiscipline, optional
+            The implicit discipline to serve. Must implement compute_residuals,
+            solve_residuals, and residual_partials methods.
+
+        Examples
+        --------
+        >>> discipline = MyImplicitDiscipline()
+        >>> server = ImplicitServer(discipline=discipline)
+        """
         super().__init__(discipline=discipline)
 
     def attach_to_server(self, server):
         """
-        Attaches this discipline server class to a gRPC server.
+        Attach this implicit service to a gRPC server.
+
+        This method registers the implicit discipline service with the gRPC server,
+        enabling clients to connect and call implicit discipline methods remotely.
+
+        Parameters
+        ----------
+        server : grpc.Server
+            The gRPC server instance to attach this service to
+
+        Examples
+        --------
+        >>> server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        >>> impl_server = ImplicitServer(discipline=my_discipline)
+        >>> impl_server.attach_to_server(server)
+        >>> server.add_insecure_port('[::]:50051')
+        >>> server.start()
         """
         super().attach_to_server(server)
         disc.add_ImplicitServiceServicer_to_server(self, server)
 
     def ComputeResiduals(self, request_iterator, context):
         """
-        Computes the residuals and sends the results to the client.
+        Handle client requests for residual computation.
+
+        This gRPC method receives inputs and outputs from the client, calls the
+        underlying discipline's compute_residuals method, and streams the computed
+        residuals back to the client. The method handles protocol buffer conversion
+        and array streaming automatically.
+
+        Parameters
+        ----------
+        request_iterator : Iterator[data.Array]
+            Stream of input and output arrays from the client
+        context : grpc.ServicerContext
+            gRPC context for the request
+
+        Yields
+        ------
+        data.Array
+            Stream of residual arrays back to the client
+
+        Notes
+        -----
+        - Automatically handles large array streaming
+        - Converts protocol buffers to numpy arrays for discipline computation
+        - Streams results back in chunks for efficiency
+        - This method is called automatically by the gRPC framework
         """
         # inputs and outputs
         inputs = {}
@@ -62,7 +163,7 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         self.preallocate_inputs(inputs, flat_inputs, outputs, flat_outputs)
         self.process_inputs(request_iterator, flat_inputs, flat_outputs)
 
-        # call the user-defined compute_residuals function
+        # Call the user-defined compute_residuals function
         self._discipline.compute_residuals(inputs, outputs, residuals)
 
         for res_name, value in residuals.items():
@@ -77,7 +178,30 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
 
     def SolveResiduals(self, request_iterator, context):
         """
-        Solves the implicit discipline so that the residuals are driven to zero.
+        Handle client requests for implicit equation solving.
+
+        This gRPC method receives inputs from the client, calls the underlying
+        discipline's solve_residuals method to find outputs that satisfy
+        R(inputs, outputs) = 0, and streams the solved outputs back to the client.
+
+        Parameters
+        ----------
+        request_iterator : Iterator[data.Array]
+            Stream of input arrays from the client
+        context : grpc.ServicerContext
+            gRPC context for the request
+
+        Yields
+        ------
+        data.Array
+            Stream of solved output arrays back to the client
+
+        Notes
+        -----
+        - The discipline's solve_residuals method performs the actual solving
+        - May raise exceptions if the solve fails to converge
+        - Outputs are streamed back in chunks for large arrays
+        - This method is called automatically by the gRPC framework
         """
         # inputs and outputs
         inputs = {}
@@ -88,7 +212,7 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         self.preallocate_inputs(inputs, flat_inputs, outputs, flat_outputs)
         self.process_inputs(request_iterator, flat_inputs, flat_outputs)
 
-        # call the user-defined solve function
+        # Call the user-defined solve function
         self._discipline.solve_residuals(inputs, outputs)
 
         for output_name, value in outputs.items():
@@ -103,7 +227,30 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
 
     def ComputeResidualGradients(self, request_iterator, context):
         """
-        Computes the residual gradients and sends the results to the client.
+        Handle client requests for residual Jacobian computation.
+
+        This gRPC method receives inputs and outputs from the client, calls the
+        underlying discipline's residual_partials method to compute the Jacobian
+        dR/d[inputs,outputs], and streams the partial derivatives back to the client.
+
+        Parameters
+        ----------
+        request_iterator : Iterator[data.Array]
+            Stream of input and output arrays from the client
+        context : grpc.ServicerContext
+            gRPC context for the request
+
+        Yields
+        ------
+        data.Array
+            Stream of partial derivative arrays back to the client
+
+        Notes
+        -----
+        - Computes both dR/dinputs and dR/doutputs partial derivatives
+        - Results are streamed back with proper naming for Jacobian reconstruction
+        - Used for gradient-based optimization and sensitivity analysis
+        - This method is called automatically by the gRPC framework
         """
         # inputs and outputs
         inputs = {}
@@ -115,7 +262,7 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         jac = self.preallocate_partials()
         self.process_inputs(request_iterator, flat_inputs, flat_outputs)
 
-        # call the user-defined residual partials function
+        # Call the user-defined residual partials function
         self._discipline.residual_partials(inputs, outputs, jac)
 
         for jac, value in jac.items():
