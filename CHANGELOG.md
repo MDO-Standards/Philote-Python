@@ -9,6 +9,9 @@
 ### Documentation & Infrastructure
 
 - Updated installation instructions to reflect PyPI install option.
+- Added documentation for implicit disciplines.
+- Added documentation for OpenMDAO clients
+- Added documentation for the OpenMDOA subproblem discipline.
 
 
 ## Version 0.7.0
