@@ -6,10 +6,8 @@ This guide explains how to create, serve, and use implicit disciplines in Philot
 ## Overview
 
 Implicit disciplines are essential for modeling systems where:
-- Outputs cannot be computed directly from inputs
+- Outputs cannot be computed directly from inputs (e.g., iterative problems)
 - Equilibrium conditions must be satisfied
-- Coupled physics require simultaneous solution
-- Conservation laws or constraints must be enforced
 
 ### Key Concepts
 
