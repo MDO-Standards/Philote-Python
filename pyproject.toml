@@ -29,8 +29,15 @@ Homepage = "https://mdo-standards.github.io/Philote-Python/"
 Repository = "https://github.com/mdo-standards/Philote-Python"
 Documentation = "https://mdo-standards.github.io/Philote-Python/"
 
+[project.scripts]
+philote-julia-serve = "philote_mdo.wrappers.julia.cli:main"
+
 [project.optional-dependencies]
 openmdao = ["openmdao>=3.0"]
+julia = [
+    "juliacall>=0.9.0",
+    "pyyaml>=6.0",
+]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
