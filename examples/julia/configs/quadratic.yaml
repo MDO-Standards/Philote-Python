@@ -1,0 +1,16 @@
+# Configuration for quadratic equation solver (implicit discipline)
+#
+# This demonstrates how to deploy an implicit Julia discipline where outputs
+# must satisfy residual equations rather than being directly computed from inputs.
+#
+# Example: Solving x^2 - 5x + 6 = 0 (which has solutions x=2 and x=3)
+# Set inputs: a=1, b=-5, c=6
+
+discipline:
+  kind: implicit              # Type of discipline ("explicit" or "implicit")
+  julia_file: ../quadratic.jl # Path to Julia file containing the discipline
+  julia_type: QuadraticDiscipline # Julia struct name
+
+server:
+  address: "[::]:50052"       # Server address (different from paraboloid example)
+  max_workers: 10             # Thread pool size

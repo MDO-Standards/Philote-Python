@@ -1,0 +1,29 @@
+# Philote-Julia Configuration Example: Paraboloid Discipline
+#
+# This example shows how to serve a simple explicit Julia discipline.
+# The paraboloid function computes: f(x,y) = (x-3)^2 + xy + (y+4)^2
+
+discipline:
+  # Type of discipline: "explicit" or "implicit"
+  kind: explicit
+
+  # Path to Julia file (relative to this config file or absolute)
+  julia_file: ../paraboloid.jl
+
+  # Name of the Julia type/struct to instantiate
+  julia_type: ParaboloidDiscipline
+
+  # Optional: Discipline-specific options
+  # These will be passed to the Julia discipline via set_options!()
+  # options:
+  #   scale_factor: 2.0
+  #   debug: true
+
+server:
+  # gRPC server address
+  # Use [::]:PORT to listen on all interfaces (IPv4 and IPv6)
+  # Use localhost:PORT to listen only on localhost
+  address: "[::]:50051"
+
+  # Maximum number of worker threads for the gRPC server
+  max_workers: 10
