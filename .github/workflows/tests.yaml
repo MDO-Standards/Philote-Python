@@ -44,6 +44,9 @@ jobs:
     - name: Install Package
       run: |
         pip install -e ".[julia]"
+    - name: Install Philote.jl from GitHub
+      run: |
+        julia -e 'using Pkg; Pkg.develop(url="https://github.com/MDO-Standards/Philote.jl.git")'
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
