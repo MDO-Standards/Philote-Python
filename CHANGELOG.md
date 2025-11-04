@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Julia discipline wrapper infrastructure for serving pure Julia Philote disciplines via Python gRPC server using juliacall
+- JuliaWrapperDiscipline for explicit disciplines
+- JuliaImplicitWrapperDiscipline for implicit disciplines
+- YAML configuration support via PhiloteConfig for Julia disciplines
+- CLI entry point (philote-julia-serve command) for serving Julia disciplines
+- Optional 'julia' dependencies group (juliacall and pyyaml)
+- Example Julia disciplines (paraboloid, quadratic) with configurations
+- Automated release workflow using GitHub Actions
+- Copyright update script for Python source files
+
+### Changed
+
+- Convert CHANGELOG to Keep a Changelog format with [Unreleased] section
+- CHANGELOG now follows semantic versioning categories (Added/Changed/Fixed/Removed)
+
 ## [0.7.0] - 2024-12-18
 
 ### Added
