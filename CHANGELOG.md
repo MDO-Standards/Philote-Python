@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI entry point (philote-julia-serve command) for serving Julia disciplines
 - Optional 'julia' dependencies group (juliacall and pyyaml)
 - Example Julia disciplines (paraboloid, quadratic) with configurations
+- Comprehensive test suite for Julia integration (unit and integration tests)
+- Julia integration tutorial (doc/tutorials/julia_integration.md)
+- Julia wrapper API reference documentation (doc/api/julia_wrapper.md)
 - Automated release workflow using GitHub Actions
 - Copyright update script for Python source files
 
@@ -23,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Convert CHANGELOG to Keep a Changelog format with [Unreleased] section
 - CHANGELOG now follows semantic versioning categories (Added/Changed/Fixed/Removed)
+- Updated documentation table of contents with new "Language Integrations" and "API Reference" sections
+- Added missing reference labels to tutorials/units.md and tutorials/implicit_disciplines.md for cross-referencing
 
 ## [0.7.0] - 2024-12-18
 
