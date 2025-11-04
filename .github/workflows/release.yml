@@ -1,0 +1,244 @@
+name: Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true && (contains(github.event.pull_request.labels.*.name, 'release') || contains(github.event.pull_request.labels.*.name, 'prerelease'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Create GPG key for github-actions bot
+        run: |
+          cat >keydetails <<EOF
+          %no-protection
+          Key-Type: RSA
+          Key-Length: 4096
+          Subkey-Type: RSA
+          Subkey-Length: 4096
+          Name-Real: github-actions
+          Name-Email: 41898282+github-actions[bot]@users.noreply.github.com
+          Expire-Date: 0
+          EOF
+          gpg --batch --gen-key keydetails
+          gpg --list-secret-keys --keyid-format LONG
+          echo "GPG_KEY_ID=$(gpg --list-secret-keys --keyid-format LONG | grep sec | awk '{print $2}' | cut -d'/' -f2)" >> $GITHUB_ENV
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.signingkey ${{ env.GPG_KEY_ID }}
+          git config --global commit.gpgsign true
+
+      - name: Validate PR labels
+        id: validate_labels
+        run: |
+          LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
+          echo "Labels: $LABELS"
+
+          # Check for exactly one of release or prerelease
+          HAS_RELEASE=$(echo $LABELS | jq 'map(select(. == "release")) | length')
+          HAS_PRERELEASE=$(echo $LABELS | jq 'map(select(. == "prerelease")) | length')
+
+          if [ "$HAS_RELEASE" -eq 1 ] && [ "$HAS_PRERELEASE" -eq 1 ]; then
+            echo "Error: PR cannot have both 'release' and 'prerelease' labels"
+            exit 1
+          fi
+
+          if [ "$HAS_RELEASE" -eq 0 ] && [ "$HAS_PRERELEASE" -eq 0 ]; then
+            echo "Error: PR must have either 'release' or 'prerelease' label"
+            exit 1
+          fi
+
+          # Check for exactly one of major, minor, or patch
+          HAS_MAJOR=$(echo $LABELS | jq 'map(select(. == "major")) | length')
+          HAS_MINOR=$(echo $LABELS | jq 'map(select(. == "minor")) | length')
+          HAS_PATCH=$(echo $LABELS | jq 'map(select(. == "patch")) | length')
+
+          TOTAL=$((HAS_MAJOR + HAS_MINOR + HAS_PATCH))
+          if [ "$TOTAL" -ne 1 ]; then
+            echo "Error: PR must have exactly one of 'major', 'minor', or 'patch' labels"
+            exit 1
+          fi
+
+          # For prereleases, check for exactly one of alpha, beta, or rc
+          if [ "$HAS_PRERELEASE" -eq 1 ]; then
+            HAS_ALPHA=$(echo $LABELS | jq 'map(select(. == "alpha")) | length')
+            HAS_BETA=$(echo $LABELS | jq 'map(select(. == "beta")) | length')
+            HAS_RC=$(echo $LABELS | jq 'map(select(. == "rc")) | length')
+
+            PRERELEASE_TOTAL=$((HAS_ALPHA + HAS_BETA + HAS_RC))
+            if [ "$PRERELEASE_TOTAL" -ne 1 ]; then
+              echo "Error: Prerelease PR must have exactly one of 'alpha', 'beta', or 'rc' labels"
+              exit 1
+            fi
+
+            echo "IS_PRERELEASE=true" >> $GITHUB_OUTPUT
+            if [ "$HAS_ALPHA" -eq 1 ]; then
+              echo "PRERELEASE_TYPE=alpha" >> $GITHUB_OUTPUT
+            elif [ "$HAS_BETA" -eq 1 ]; then
+              echo "PRERELEASE_TYPE=beta" >> $GITHUB_OUTPUT
+            else
+              echo "PRERELEASE_TYPE=rc" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "IS_PRERELEASE=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Set version bump type
+          if [ "$HAS_MAJOR" -eq 1 ]; then
+            echo "BUMP_TYPE=major" >> $GITHUB_OUTPUT
+          elif [ "$HAS_MINOR" -eq 1 ]; then
+            echo "BUMP_TYPE=minor" >> $GITHUB_OUTPUT
+          else
+            echo "BUMP_TYPE=patch" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get current version
+        id: get_version
+        run: |
+          # Extract version from pyproject.toml
+          CURRENT_VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "Current version: $CURRENT_VERSION"
+          echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+          # Parse version components (handles both X.Y.Z and X.Y.Z-prerelease.N)
+          if [[ $CURRENT_VERSION =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-([a-z]+)\.([0-9]+))?$ ]]; then
+            echo "MAJOR=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
+            echo "MINOR=${BASH_REMATCH[2]}" >> $GITHUB_OUTPUT
+            echo "PATCH=${BASH_REMATCH[3]}" >> $GITHUB_OUTPUT
+            if [ -n "${BASH_REMATCH[5]}" ]; then
+              echo "CURRENT_PRERELEASE_TYPE=${BASH_REMATCH[5]}" >> $GITHUB_OUTPUT
+              echo "CURRENT_PRERELEASE_NUM=${BASH_REMATCH[6]}" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "Error: Could not parse version from pyproject.toml"
+            exit 1
+          fi
+
+      - name: Calculate new version
+        id: calc_version
+        run: |
+          MAJOR=${{ steps.get_version.outputs.MAJOR }}
+          MINOR=${{ steps.get_version.outputs.MINOR }}
+          PATCH=${{ steps.get_version.outputs.PATCH }}
+          BUMP_TYPE=${{ steps.validate_labels.outputs.BUMP_TYPE }}
+          IS_PRERELEASE=${{ steps.validate_labels.outputs.IS_PRERELEASE }}
+          PRERELEASE_TYPE=${{ steps.validate_labels.outputs.PRERELEASE_TYPE }}
+          CURRENT_PRERELEASE_TYPE=${{ steps.get_version.outputs.CURRENT_PRERELEASE_TYPE }}
+          CURRENT_PRERELEASE_NUM=${{ steps.get_version.outputs.CURRENT_PRERELEASE_NUM }}
+
+          # Calculate new version based on bump type
+          if [ "$BUMP_TYPE" == "major" ]; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          elif [ "$BUMP_TYPE" == "minor" ]; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          else
+            PATCH=$((PATCH + 1))
+          fi
+
+          # Handle prerelease versioning
+          if [ "$IS_PRERELEASE" == "true" ]; then
+            # Check if we're continuing the same prerelease type
+            if [ "$CURRENT_PRERELEASE_TYPE" == "$PRERELEASE_TYPE" ] && [ "$BUMP_TYPE" == "patch" ]; then
+              # Increment prerelease number
+              PRERELEASE_NUM=$((CURRENT_PRERELEASE_NUM + 1))
+            else
+              # New prerelease series
+              PRERELEASE_NUM=0
+            fi
+            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}-${PRERELEASE_TYPE}.${PRERELEASE_NUM}"
+          else
+            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          fi
+
+          echo "New version: $NEW_VERSION"
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update copyright years
+        if: steps.validate_labels.outputs.IS_PRERELEASE == 'false'
+        run: |
+          python scripts/update_copyright.py
+
+      - name: Update version in pyproject.toml
+        run: |
+          sed -i 's/^version = ".*"/version = "${{ steps.calc_version.outputs.NEW_VERSION }}"/' pyproject.toml
+          echo "Updated pyproject.toml to version ${{ steps.calc_version.outputs.NEW_VERSION }}"
+
+      - name: Update CHANGELOG.md
+        id: update_changelog
+        run: |
+          NEW_VERSION=${{ steps.calc_version.outputs.NEW_VERSION }}
+          TODAY=$(date +%Y-%m-%d)
+
+          # Replace [Unreleased] with new version
+          sed -i "s/## \[Unreleased\]/## [${NEW_VERSION}] - ${TODAY}/" CHANGELOG.md
+
+          # Add new [Unreleased] section at the top (after the header)
+          sed -i "/## \[${NEW_VERSION}\]/i ## [Unreleased]\n" CHANGELOG.md
+
+      - name: Commit changes
+        run: |
+          git add pyproject.toml CHANGELOG.md
+          if [ "${{ steps.validate_labels.outputs.IS_PRERELEASE }}" == "false" ]; then
+            git add -u  # Add all modified files (for copyright updates)
+          fi
+          git commit -S -m "Release version ${{ steps.calc_version.outputs.NEW_VERSION }}"
+          git push origin main
+
+      - name: Create and push tag
+        run: |
+          git tag -a "v${{ steps.calc_version.outputs.NEW_VERSION }}" -m "Release version ${{ steps.calc_version.outputs.NEW_VERSION }}"
+          git push origin "v${{ steps.calc_version.outputs.NEW_VERSION }}"
+
+      - name: Extract changelog for release
+        id: extract_changelog
+        run: |
+          # Extract the changelog section for this version
+          VERSION=${{ steps.calc_version.outputs.NEW_VERSION }}
+          awk "/## \[${VERSION}\]/,/## \[/" CHANGELOG.md | sed '1d;$d' > release_notes.md
+
+          # If empty, provide a default message
+          if [ ! -s release_notes.md ]; then
+            echo "No changelog entries for this release." > release_notes.md
+          fi
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+
+      - name: Build package
+        run: |
+          python -m build
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.calc_version.outputs.NEW_VERSION }}
+          name: Release ${{ steps.calc_version.outputs.NEW_VERSION }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ steps.validate_labels.outputs.IS_PRERELEASE }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
