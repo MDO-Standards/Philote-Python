@@ -1,5 +1,19 @@
 # Change Log
 
+## Version 0.8.0
+
+### Features
+
+### Bug Fixes
+
+### Documentation & Infrastructure
+
+- Updated installation instructions to reflect PyPI install option.
+- Added documentation for implicit disciplines.
+- Added documentation for OpenMDAO clients
+- Added documentation for the OpenMDOA subproblem discipline.
+
+
 ## Version 0.7.0
 
 ### Features
