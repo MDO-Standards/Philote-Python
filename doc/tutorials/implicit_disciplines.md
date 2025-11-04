@@ -1,4 +1,4 @@
-
+(tutorials:implicit)=
 # Creating Implicit Disciplines
 
 This guide explains how to create, serve, and use implicit disciplines in Philote. Implicit disciplines solve equations of the form R(inputs, outputs) = 0, where outputs are implicitly defined by the inputs through residual equations. Unlike explicit disciplines that compute outputs directly, implicit disciplines require solving nonlinear equations.

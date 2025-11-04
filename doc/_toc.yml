@@ -21,7 +21,11 @@ parts:
   - file: tutorials/openmdao
   - file: tutorials/openmdao_groups
 
-#- caption: API Reference
-#  chapters:
-#  - file: api/explicit
+- caption: Language Integrations
+  chapters:
+  - file: tutorials/julia_integration
+
+- caption: API Reference
+  chapters:
+  - file: api/julia_wrapper
 
