@@ -45,22 +45,23 @@ jobs:
       run: |
         pip install -e ".[julia]"
     - name: Pre-warm juliacall Julia environment with Philote.jl
+      timeout-minutes: 5
       run: |
         python -c "
         import sys
-        print('Initializing juliacall Julia environment...')
+        print('Initializing juliacall Julia environment...', flush=True)
         from juliacall import Main as jl
-        print('✓ juliacall initialized')
-        print('Installing Philote.jl into juliacall environment...')
+        print('✓ juliacall initialized', flush=True)
+        print('Installing Philote.jl into juliacall environment...', flush=True)
         jl.seval('using Pkg')
         jl.seval('Pkg.develop(url=\"https://github.com/MDO-Standards/Philote.jl.git\")')
-        print('✓ Philote.jl installed')
-        print('Precompiling packages...')
+        print('✓ Philote.jl installed', flush=True)
+        print('Precompiling packages...', flush=True)
         jl.seval('Pkg.precompile()')
-        print('✓ Packages precompiled')
-        print('Testing Philote load...')
+        print('✓ Packages precompiled', flush=True)
+        print('Testing Philote load...', flush=True)
         jl.seval('using Philote')
-        print('✓ Philote.jl ready for tests')
+        print('✓ Philote.jl ready for tests', flush=True)
         "
     - name: Lint with flake8
       run: |
@@ -69,6 +70,7 @@ jobs:
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Run Unit Tests with Coverage
+      timeout-minutes: 3
       run: |
         python -m coverage run --omit=philote_mdo/generated -m unittest discover -v -s tests -p 'test_*.py'
     - name: Upload Test Coverage Report to Codecov
