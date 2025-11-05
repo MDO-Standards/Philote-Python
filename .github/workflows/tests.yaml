@@ -44,15 +44,24 @@ jobs:
     - name: Install Package
       run: |
         pip install -e ".[julia]"
-    - name: Install Philote.jl from GitHub
+    - name: Pre-warm juliacall Julia environment with Philote.jl
       run: |
-        julia -e 'using Pkg; Pkg.develop(url="https://github.com/MDO-Standards/Philote.jl.git")'
-    - name: Precompile Philote.jl and verify installation
-      run: |
-        julia -e 'using Pkg; Pkg.precompile(); using Philote; println("✓ Philote.jl loaded successfully")'
-    - name: Configure juliacall to use installed Philote.jl
-      run: |
-        python -c "from juliacall import Main as jl; jl.seval('using Pkg; Pkg.develop(url=\"https://github.com/MDO-Standards/Philote.jl.git\")'); print('✓ Philote.jl configured for juliacall')"
+        python -c "
+        import sys
+        print('Initializing juliacall Julia environment...')
+        from juliacall import Main as jl
+        print('✓ juliacall initialized')
+        print('Installing Philote.jl into juliacall environment...')
+        jl.seval('using Pkg')
+        jl.seval('Pkg.develop(url=\"https://github.com/MDO-Standards/Philote.jl.git\")')
+        print('✓ Philote.jl installed')
+        print('Precompiling packages...')
+        jl.seval('Pkg.precompile()')
+        print('✓ Packages precompiled')
+        print('Testing Philote load...')
+        jl.seval('using Philote')
+        print('✓ Philote.jl ready for tests')
+        "
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
