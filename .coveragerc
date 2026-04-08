@@ -2,6 +2,9 @@
 source = philote_mdo
 
 [report]
+# Fail if total coverage drops below 95%
+fail_under = 95
+
 # Exclude generated protobuf files from coverage reports
 exclude_lines =
     pragma: no cover

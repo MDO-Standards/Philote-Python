@@ -117,3 +117,25 @@ class Array(_message.Message):
 
     def __init__(self, name: _Optional[str]=..., subname: _Optional[str]=..., start: _Optional[int]=..., end: _Optional[int]=..., type: _Optional[_Union[VariableType, str]]=..., data: _Optional[_Iterable[float]]=...) -> None:
         ...
+
+class DiscreteVariable(_message.Message):
+    __slots__ = ('name', 'type', 'value')
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    TYPE_FIELD_NUMBER: _ClassVar[int]
+    VALUE_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    type: VariableType
+    value: _struct_pb2.Value
+
+    def __init__(self, name: _Optional[str]=..., type: _Optional[_Union[VariableType, str]]=..., value: _Optional[_Union[_struct_pb2.Value, _Mapping]]=...) -> None:
+        ...
+
+class VariableMessage(_message.Message):
+    __slots__ = ('continuous', 'discrete')
+    CONTINUOUS_FIELD_NUMBER: _ClassVar[int]
+    DISCRETE_FIELD_NUMBER: _ClassVar[int]
+    continuous: Array
+    discrete: DiscreteVariable
+
+    def __init__(self, continuous: _Optional[_Union[Array, _Mapping]]=..., discrete: _Optional[_Union[DiscreteVariable, _Mapping]]=...) -> None:
+        ...

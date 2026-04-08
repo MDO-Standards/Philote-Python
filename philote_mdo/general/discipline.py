@@ -44,6 +44,9 @@ class Discipline:
         # variable metadata
         self._var_meta = []
 
+        # discrete variable metadata (name → default value)
+        self._discrete_var_meta = []
+
         # partials metadata
         self._partials_meta = []
 
@@ -89,6 +92,44 @@ class Discipline:
         meta.shape.extend(shape)
         meta.units = units
         self._var_meta += [meta]
+
+    def add_discrete_input(self, name, default=None):
+        """
+        Define a discrete input.
+
+        Discrete inputs can hold any value that is representable as a
+        ``google.protobuf.Value`` (scalars, lists, or nested dicts).
+
+        Parameters
+        ----------
+        name : string
+            the name of the discrete input variable
+        default : object, optional
+            the default value for the discrete input
+        """
+        meta = data.VariableMetaData()
+        meta.type = data.VariableType.kDiscreteInput
+        meta.name = name
+        self._discrete_var_meta += [meta]
+
+    def add_discrete_output(self, name, default=None):
+        """
+        Define a discrete output.
+
+        Discrete outputs can hold any value that is representable as a
+        ``google.protobuf.Value`` (scalars, lists, or nested dicts).
+
+        Parameters
+        ----------
+        name : string
+            the name of the discrete output variable
+        default : object, optional
+            the default value for the discrete output
+        """
+        meta = data.VariableMetaData()
+        meta.type = data.VariableType.kDiscreteOutput
+        meta.name = name
+        self._discrete_var_meta += [meta]
 
     def add_output(self, name, shape=(1,), units=""):
         """
@@ -179,4 +220,5 @@ class Discipline:
         This function is invoked from the Setup function of the server.
         """
         self._var_meta = []
+        self._discrete_var_meta = []
         self._partials_meta = []

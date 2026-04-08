@@ -219,12 +219,12 @@ class RemoteExplicitComponent(om.ExplicitComponent):
         ----------
         inputs : dict
             Dictionary of input values with variable names as keys
-        outputs : dict  
+        outputs : dict
             Dictionary to store computed output values with variable names as keys
         discrete_inputs : dict, optional
-            Dictionary of discrete input values (currently unused), by default None
+            Dictionary of discrete input values, by default None
         discrete_outputs : dict, optional
-            Dictionary of discrete output values (currently unused), by default None
+            Dictionary of discrete output values, by default None
 
         Notes
         -----
@@ -234,8 +234,19 @@ class RemoteExplicitComponent(om.ExplicitComponent):
         - This method is called automatically by OpenMDAO during model execution
         """
         local_inputs = utils.create_local_inputs(inputs, self._client._var_meta)
-        out = self._client.run_compute(local_inputs)
-        utils.assign_global_outputs(out, outputs)
+        local_discrete = utils.create_local_discrete_inputs(
+            discrete_inputs, self._client._discrete_var_meta
+        )
+        result = self._client.run_compute(local_inputs, discrete_inputs=local_discrete)
+
+        # run_compute returns (outputs, discrete_outputs) when discrete data exists
+        if isinstance(result, tuple):
+            out, d_out = result
+            utils.assign_global_outputs(out, outputs)
+            if discrete_outputs is not None:
+                utils.assign_global_outputs(d_out, discrete_outputs)
+        else:
+            utils.assign_global_outputs(result, outputs)
 
     def compute_partials(self, inputs, partials, discrete_inputs=None, discrete_outputs=None):
         """
@@ -250,12 +261,12 @@ class RemoteExplicitComponent(om.ExplicitComponent):
         inputs : dict
             Dictionary of input values with variable names as keys
         partials : dict
-            Dictionary to store computed partial derivatives with (output, input) 
+            Dictionary to store computed partial derivatives with (output, input)
             tuples as keys
         discrete_inputs : dict, optional
-            Dictionary of discrete input values (currently unused), by default None
+            Dictionary of discrete input values, by default None
         discrete_outputs : dict, optional
-            Dictionary of discrete output values (currently unused), by default None
+            Dictionary of discrete output values, by default None
 
         Notes
         -----
@@ -266,5 +277,10 @@ class RemoteExplicitComponent(om.ExplicitComponent):
         - Sparsity patterns from the server are preserved in the OpenMDAO component
         """
         local_inputs = utils.create_local_inputs(inputs, self._client._var_meta)
-        jac = self._client.run_compute_partials(local_inputs)
+        local_discrete = utils.create_local_discrete_inputs(
+            discrete_inputs, self._client._discrete_var_meta
+        )
+        jac = self._client.run_compute_partials(
+            local_inputs, discrete_inputs=local_discrete
+        )
         utils.assign_global_outputs(jac, partials)

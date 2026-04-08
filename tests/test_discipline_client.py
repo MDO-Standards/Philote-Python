@@ -257,21 +257,29 @@ class TestDisciplineClient(unittest.TestCase):
         }
 
         expected_messages = [
-            data.Array(
-                name="x", start=0, end=1, type=data.VariableType.kInput, data=[1.0, 2.0]
+            data.VariableMessage(
+                continuous=data.Array(
+                    name="x", start=0, end=1, type=data.VariableType.kInput, data=[1.0, 2.0]
+                )
             ),
-            data.Array(
-                name="x", start=2, end=3, type=data.VariableType.kInput, data=[3.0, 4.0]
+            data.VariableMessage(
+                continuous=data.Array(
+                    name="x", start=2, end=3, type=data.VariableType.kInput, data=[3.0, 4.0]
+                )
             ),
-            data.Array(
-                name="f",
-                start=0,
-                end=1,
-                type=data.VariableType.kOutput,
-                data=[5.0, 6.0],
+            data.VariableMessage(
+                continuous=data.Array(
+                    name="f",
+                    start=0,
+                    end=1,
+                    type=data.VariableType.kOutput,
+                    data=[5.0, 6.0],
+                )
             ),
-            data.Array(
-                name="f", start=2, end=2, type=data.VariableType.kOutput, data=[7.0]
+            data.VariableMessage(
+                continuous=data.Array(
+                    name="f", start=2, end=2, type=data.VariableType.kOutput, data=[7.0]
+                )
             ),
         ]
 
@@ -294,14 +302,20 @@ class TestDisciplineClient(unittest.TestCase):
             data.VariableMetaData(name="g", type=data.kOutput, shape=(3,)),
         ]
 
-        response1 = data.Array(
-            name="f", start=0, end=1, type=data.kOutput, data=[1.0, 2.0]
+        response1 = data.VariableMessage(
+            continuous=data.Array(
+                name="f", start=0, end=1, type=data.kOutput, data=[1.0, 2.0]
+            )
         )
-        response2 = data.Array(
-            name="f", start=2, end=3, type=data.kOutput, data=[3.0, 4.0]
+        response2 = data.VariableMessage(
+            continuous=data.Array(
+                name="f", start=2, end=3, type=data.kOutput, data=[3.0, 4.0]
+            )
         )
-        response3 = data.Array(
-            name="g", start=0, end=2, type=data.kOutput, data=[4.0, 5.0, 6.0]
+        response3 = data.VariableMessage(
+            continuous=data.Array(
+                name="g", start=0, end=2, type=data.kOutput, data=[4.0, 5.0, 6.0]
+            )
         )
         mock_responses = [response1, response2, response3]
 
@@ -330,14 +344,20 @@ class TestDisciplineClient(unittest.TestCase):
             data.VariableMetaData(name="g", type=data.kResidual, shape=(3,)),
         ]
 
-        response1 = data.Array(
-            name="f", start=0, end=1, type=data.kResidual, data=[1.0, 2.0]
+        response1 = data.VariableMessage(
+            continuous=data.Array(
+                name="f", start=0, end=1, type=data.kResidual, data=[1.0, 2.0]
+            )
         )
-        response2 = data.Array(
-            name="f", start=2, end=3, type=data.kResidual, data=[3.0, 4.0]
+        response2 = data.VariableMessage(
+            continuous=data.Array(
+                name="f", start=2, end=3, type=data.kResidual, data=[3.0, 4.0]
+            )
         )
-        response3 = data.Array(
-            name="g", start=0, end=2, type=data.kResidual, data=[4.0, 5.0, 6.0]
+        response3 = data.VariableMessage(
+            continuous=data.Array(
+                name="g", start=0, end=2, type=data.kResidual, data=[4.0, 5.0, 6.0]
+            )
         )
         mock_responses = [response1, response2, response3]
 
@@ -373,19 +393,25 @@ class TestDisciplineClient(unittest.TestCase):
         client._partials_meta = [partial_metadata1, partial_metadata2]
 
         # Define mock responses
-        response1 = data.Array(
-            name="f", subname="x", type=data.kPartial, start=0, end=1, data=[1.0, 2.0]
+        response1 = data.VariableMessage(
+            continuous=data.Array(
+                name="f", subname="x", type=data.kPartial, start=0, end=1, data=[1.0, 2.0]
+            )
         )
-        response2 = data.Array(
-            name="f", subname="x", type=data.kPartial, start=2, end=3, data=[3.0, 4.0]
+        response2 = data.VariableMessage(
+            continuous=data.Array(
+                name="f", subname="x", type=data.kPartial, start=2, end=3, data=[3.0, 4.0]
+            )
         )
-        response3 = data.Array(
-            name="g",
-            subname="y",
-            type=data.kPartial,
-            start=0,
-            end=2,
-            data=[4.0, 5.0, 6.0],
+        response3 = data.VariableMessage(
+            continuous=data.Array(
+                name="g",
+                subname="y",
+                type=data.kPartial,
+                start=0,
+                end=2,
+                data=[4.0, 5.0, 6.0],
+            )
         )
         mock_responses = [response1, response2, response3]
 
@@ -420,14 +446,16 @@ class TestDisciplineClient(unittest.TestCase):
         ]
 
         # Create response with empty data array
-        response_empty = data.Array(
-            name="f", start=0, end=1, type=data.kOutput, data=[]
+        response_empty = data.VariableMessage(
+            continuous=data.Array(
+                name="f", start=0, end=1, type=data.kOutput, data=[]
+            )
         )
         mock_responses = [response_empty]
 
         with self.assertRaises(ValueError) as context:
             client._recover_outputs(mock_responses)
-        
+
         self.assertIn("Expected continuous variables, but array is empty", str(context.exception))
 
     def test_recover_residuals_empty_array_raises_error(self):
@@ -442,14 +470,16 @@ class TestDisciplineClient(unittest.TestCase):
         ]
 
         # Create response with empty data array
-        response_empty = data.Array(
-            name="f", start=0, end=1, type=data.kResidual, data=[]
+        response_empty = data.VariableMessage(
+            continuous=data.Array(
+                name="f", start=0, end=1, type=data.kResidual, data=[]
+            )
         )
         mock_responses = [response_empty]
 
         with self.assertRaises(ValueError) as context:
             client._recover_residuals(mock_responses)
-        
+
         self.assertIn("Expected continuous variables, but array is empty", str(context.exception))
 
     def test_recover_partials_empty_array_raises_error(self):
@@ -463,20 +493,22 @@ class TestDisciplineClient(unittest.TestCase):
             data.VariableMetaData(name="f", type=data.kOutput, shape=(2,)),
             data.VariableMetaData(name="x", type=data.kInput, shape=(2,)),
         ]
-        
+
         client._partials_meta = [
             data.PartialsMetaData(name="f", subname="x"),
         ]
 
         # Create response with empty data array
-        response_empty = data.Array(
-            name="f", subname="x", start=0, end=1, type=data.kPartial, data=[]
+        response_empty = data.VariableMessage(
+            continuous=data.Array(
+                name="f", subname="x", start=0, end=1, type=data.kPartial, data=[]
+            )
         )
         mock_responses = [response_empty]
 
         with self.assertRaises(ValueError) as context:
             client._recover_partials(mock_responses)
-        
+
         self.assertIn("Expected continuous outputs for the partials, but array was empty", str(context.exception))
 
 

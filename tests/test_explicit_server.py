@@ -56,15 +56,17 @@ class TestExplicitServer(unittest.TestCase):
 
         context = Mock()
         request_iterator = [
-            data.Array(
-                start=0,
-                end=2,
-                data=[0.5, 1.5, 3.5],
-                type=data.VariableType.kInput,
-                name="x",
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=2, data=[0.5, 1.5, 3.5],
+                    type=data.VariableType.kInput, name="x",
+                )
             ),
-            data.Array(
-                start=3, end=4, data=[4.5, 5.5], type=data.VariableType.kInput, name="x"
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=3, end=4, data=[4.5, 5.5],
+                    type=data.VariableType.kInput, name="x",
+                )
             ),
         ]
 
@@ -81,8 +83,8 @@ class TestExplicitServer(unittest.TestCase):
         # check that there is only one response
         self.assertEqual(len(responses), 1)
 
-        # check the function value
-        response = responses[0]
+        # check the function value (unwrap VariableMessage)
+        response = responses[0].continuous
         self.assertEqual(response.name, "f")
         self.assertEqual(response.start, 0)
         self.assertEqual(response.end, 1)
@@ -102,15 +104,17 @@ class TestExplicitServer(unittest.TestCase):
 
         context = Mock()
         request_iterator = [
-            data.Array(
-                start=0,
-                end=2,
-                data=[0.5, 1.5, 3.5],
-                type=data.VariableType.kInput,
-                name="x",
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=2, data=[0.5, 1.5, 3.5],
+                    type=data.VariableType.kInput, name="x",
+                )
             ),
-            data.Array(
-                start=3, end=4, data=[4.5, 5.5], type=data.VariableType.kInput, name="x"
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=3, end=4, data=[4.5, 5.5],
+                    type=data.VariableType.kInput, name="x",
+                )
             ),
         ]
 
@@ -124,18 +128,18 @@ class TestExplicitServer(unittest.TestCase):
         response_generator = server.ComputeGradient(request_iterator, context)
         responses = list(response_generator)
 
-        # check that there is only one response
+        # check that there are two responses
         self.assertEqual(len(responses), 2)
 
-        # check the function value
-        response = responses[0]
+        # check the function value (unwrap VariableMessage)
+        response = responses[0].continuous
         self.assertEqual(response.name, "f")
         self.assertEqual(response.subname, "x")
         self.assertEqual(response.start, 0)
         self.assertEqual(response.end, 2)
         grad = np.array(response.data)
 
-        response = responses[1]
+        response = responses[1].continuous
         grad = np.append(grad, np.array(response.data))
         self.assertTrue(
             np.array_equal(grad, np.array([-251.0, -499.0, 11105.0, 25007.0, -2950.0]))

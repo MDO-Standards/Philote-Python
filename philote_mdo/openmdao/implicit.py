@@ -220,11 +220,6 @@ class RemoteImplicitComponent(om.ImplicitComponent):
         """
         Compute residual evaluation by calling the remote Philote server.
 
-        This method transfers both input and output values to the server, requests a
-        residual evaluation, and transfers the computed residuals back to the OpenMDAO
-        component. The residuals represent R(inputs, outputs) where the goal is to
-        find outputs such that R = 0.
-
         Parameters
         ----------
         inputs : dict
@@ -234,32 +229,31 @@ class RemoteImplicitComponent(om.ImplicitComponent):
         residuals : dict
             Dictionary to store computed residual values with variable names as keys
         discrete_inputs : dict, optional
-            Dictionary of discrete input values (currently unused), by default None
+            Dictionary of discrete input values, by default None
         discrete_outputs : dict, optional
-            Dictionary of discrete output values (currently unused), by default None
-
-        Notes
-        -----
-        - Both inputs and outputs are sent to the server for residual computation
-        - Residuals are computed as R(inputs, outputs) at the current point
-        - The goal is to find outputs where residuals are zero
-        - This method is called automatically by OpenMDAO during residual evaluation
+            Dictionary of discrete output values, by default None
         """
         local_inputs = utils.create_local_inputs(inputs, self._client._var_meta)
         local_outputs = utils.create_local_inputs(
             outputs, self._client._var_meta, data.kOutput
         )
+        local_di = utils.create_local_discrete_inputs(
+            discrete_inputs, self._client._discrete_var_meta
+        )
+        local_do = utils.create_local_discrete_inputs(
+            discrete_outputs,
+            self._client._discrete_var_meta,
+            data.VariableType.kDiscreteOutput,
+        )
 
-        res = self._client.run_compute_residuals(local_inputs, local_outputs)
+        res = self._client.run_compute_residuals(
+            local_inputs, local_outputs, local_di, local_do
+        )
         utils.assign_global_outputs(res, residuals)
 
     def solve_nonlinear(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
         """
         Solve the implicit equations by calling the remote Philote server.
-
-        This method transfers input values to the server, requests the server to solve
-        the implicit equations R(inputs, outputs) = 0 for the outputs, and transfers
-        the solved output values back to the OpenMDAO component.
 
         Parameters
         ----------
@@ -268,30 +262,20 @@ class RemoteImplicitComponent(om.ImplicitComponent):
         outputs : dict
             Dictionary to store solved output values with variable names as keys
         discrete_inputs : dict, optional
-            Dictionary of discrete input values (currently unused), by default None
+            Dictionary of discrete input values, by default None
         discrete_outputs : dict, optional
-            Dictionary of discrete output values (currently unused), by default None
-
-        Notes
-        -----
-        - The server performs the nonlinear solve internally
-        - Server may use Newton's method, fixed-point iteration, or other solvers
-        - Convergence criteria are controlled by server options
-        - This method is called by OpenMDAO's nonlinear solvers
-        - Output values are updated with the converged solution
+            Dictionary of discrete output values, by default None
         """
         local_inputs = utils.create_local_inputs(inputs, self._client._var_meta)
-        out = self._client.run_solve_residuals(local_inputs)
+        local_di = utils.create_local_discrete_inputs(
+            discrete_inputs, self._client._discrete_var_meta
+        )
+        out = self._client.run_solve_residuals(local_inputs, local_di)
         utils.assign_global_outputs(out, outputs)
 
     def linearize(self, inputs, outputs, partials, discrete_inputs=None, discrete_outputs=None):
         """
         Compute partial derivatives of residuals by calling the remote Philote server.
-
-        This method transfers both input and output values to the server, requests
-        computation of the residual Jacobian (dR/dinputs and dR/doutputs), and transfers
-        the computed partial derivatives back to the OpenMDAO component. These derivatives
-        are used by OpenMDAO's linear solvers and optimization algorithms.
 
         Parameters
         ----------
@@ -300,24 +284,25 @@ class RemoteImplicitComponent(om.ImplicitComponent):
         outputs : dict
             Dictionary of output values with variable names as keys
         partials : dict
-            Dictionary to store computed partial derivatives with (residual, variable)
-            tuples as keys
+            Dictionary to store computed partial derivatives
         discrete_inputs : dict, optional
-            Dictionary of discrete input values (currently unused), by default None
+            Dictionary of discrete input values, by default None
         discrete_outputs : dict, optional
-            Dictionary of discrete output values (currently unused), by default None
-
-        Notes
-        -----
-        - Computes both dR/dinputs and dR/doutputs partial derivatives
-        - Derivatives are computed at the current (inputs, outputs) point
-        - Server determines whether to use analytic or finite difference derivatives
-        - This method is called automatically by OpenMDAO when derivatives are needed
-        - Results are used by linear solvers and optimization algorithms
+            Dictionary of discrete output values, by default None
         """
         local_inputs = utils.create_local_inputs(inputs, self._client._var_meta)
         local_outputs = utils.create_local_inputs(
             outputs, self._client._var_meta, data.kOutput
         )
-        jac = self._client.run_residual_gradients(local_inputs, local_outputs)
+        local_di = utils.create_local_discrete_inputs(
+            discrete_inputs, self._client._discrete_var_meta
+        )
+        local_do = utils.create_local_discrete_inputs(
+            discrete_outputs,
+            self._client._discrete_var_meta,
+            data.VariableType.kDiscreteOutput,
+        )
+        jac = self._client.run_residual_gradients(
+            local_inputs, local_outputs, local_di, local_do
+        )
         utils.assign_global_outputs(jac, partials)

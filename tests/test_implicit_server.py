@@ -58,9 +58,9 @@ class TestImplicitServer(unittest.TestCase):
 
         # mock request iterator
         mock_request_iterator = [
-            data.Array(name="x", start=0, end=2, type=data.kInput, data=[1.0, 2.0]),
-            data.Array(name="y", start=0, end=2, type=data.kInput, data=[3.0, 4.0]),
-            data.Array(name="f", start=0, end=2, type=data.kOutput, data=[5.0, 6.0]),
+            data.VariableMessage(continuous=data.Array(name="x", start=0, end=2, type=data.kInput, data=[1.0, 2.0])),
+            data.VariableMessage(continuous=data.Array(name="y", start=0, end=2, type=data.kInput, data=[3.0, 4.0])),
+            data.VariableMessage(continuous=data.Array(name="f", start=0, end=2, type=data.kOutput, data=[5.0, 6.0])),
         ]
 
         # mock inputs, outputs, and residuals
@@ -81,19 +81,17 @@ class TestImplicitServer(unittest.TestCase):
 
         # assert that the expected residual messages were yielded
         expected_result = [
-            data.Array(
-                name="f",
-                start=0,
-                end=1,
-                type=data.VariableType.kResidual,
-                data=[7.0],
+            data.VariableMessage(
+                continuous=data.Array(
+                    name="f", start=0, end=1,
+                    type=data.VariableType.kResidual, data=[7.0],
+                )
             ),
-            data.Array(
-                name="f",
-                start=1,
-                end=2,
-                type=data.VariableType.kResidual,
-                data=[8.0],
+            data.VariableMessage(
+                continuous=data.Array(
+                    name="f", start=1, end=2,
+                    type=data.VariableType.kResidual, data=[8.0],
+                )
             ),
         ]
         self.assertEqual(result, expected_result)
@@ -115,9 +113,9 @@ class TestImplicitServer(unittest.TestCase):
 
         # mock request iterator
         mock_request_iterator = [
-            data.Array(name="x", start=0, end=2, type=data.kInput, data=[1.0, 2.0]),
-            data.Array(name="y", start=0, end=2, type=data.kInput, data=[3.0, 4.0]),
-            data.Array(name="f", start=0, end=2, type=data.kOutput, data=[5.0, 6.0]),
+            data.VariableMessage(continuous=data.Array(name="x", start=0, end=2, type=data.kInput, data=[1.0, 2.0])),
+            data.VariableMessage(continuous=data.Array(name="y", start=0, end=2, type=data.kInput, data=[3.0, 4.0])),
+            data.VariableMessage(continuous=data.Array(name="f", start=0, end=2, type=data.kOutput, data=[5.0, 6.0])),
         ]
 
         # mock inputs, outputs, and residuals
@@ -132,25 +130,23 @@ class TestImplicitServer(unittest.TestCase):
 
         server._discipline.solve_residuals = solve_residuals
 
-        # call the ComputeResiduals method
+        # call the SolveResiduals method
         response_generator = server.SolveResiduals(mock_request_iterator, None)
         result = list(response_generator)
 
-        # assert that the expected residual messages were yielded
+        # assert that the expected output messages were yielded
         expected_result = [
-            data.Array(
-                name="f",
-                start=0,
-                end=1,
-                type=data.VariableType.kOutput,
-                data=[7.0],
+            data.VariableMessage(
+                continuous=data.Array(
+                    name="f", start=0, end=1,
+                    type=data.VariableType.kOutput, data=[7.0],
+                )
             ),
-            data.Array(
-                name="f",
-                start=1,
-                end=2,
-                type=data.VariableType.kOutput,
-                data=[8.0],
+            data.VariableMessage(
+                continuous=data.Array(
+                    name="f", start=1, end=2,
+                    type=data.VariableType.kOutput, data=[8.0],
+                )
             ),
         ]
         self.assertEqual(result, expected_result)
@@ -168,19 +164,17 @@ class TestImplicitServer(unittest.TestCase):
 
         context = Mock()
         request_iterator = [
-            data.Array(
-                start=0,
-                end=2,
-                data=[0.5, 1.5, 3.5],
-                type=data.VariableType.kInput,
-                name="x",
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=2, data=[0.5, 1.5, 3.5],
+                    type=data.VariableType.kInput, name="x",
+                )
             ),
-            data.Array(
-                start=3,
-                end=4,
-                data=[4.5, 5.5],
-                type=data.VariableType.kInput,
-                name="x",
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=3, end=4, data=[4.5, 5.5],
+                    type=data.VariableType.kInput, name="x",
+                )
             ),
         ]
 
@@ -194,18 +188,18 @@ class TestImplicitServer(unittest.TestCase):
         response_generator = server.ComputeResidualGradients(request_iterator, context)
         responses = list(response_generator)
 
-        # check that there is only one response
+        # check that there are two responses
         self.assertEqual(len(responses), 2)
 
-        # check the function value
-        response = responses[0]
+        # check the function value (unwrap VariableMessage)
+        response = responses[0].continuous
         self.assertEqual(response.name, "f")
         self.assertEqual(response.subname, "x")
         self.assertEqual(response.start, 0)
         self.assertEqual(response.end, 3)
         grad = np.array(response.data)
 
-        response = responses[1]
+        response = responses[1].continuous
         grad = np.append(grad, np.array(response.data))
         self.assertTrue(
             np.array_equal(grad, np.array([-251.0, -499.0, 11105.0, 25007.0, -2950.0]))
