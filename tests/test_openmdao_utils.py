@@ -55,6 +55,7 @@ class TestOpenMdaoUtils(unittest.TestCase):
         var2.shape = [1]
 
         comp._client._var_meta = [var1, var2]
+        comp._client._discrete_var_meta = []
 
         utils.client_setup(comp)
 

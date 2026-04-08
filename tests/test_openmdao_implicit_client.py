@@ -228,7 +228,9 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
         )
 
         # asserting that the method calls are made correctly
-        client_mock.run_compute_residuals.assert_called_once_with(inputs, outputs)
+        client_mock.run_compute_residuals.assert_called_once_with(
+            inputs, outputs, None, None
+        )
         for res_name, expected_data in expected_residuals.items():
             self.assertTrue(res_name in residuals)
             np.testing.assert_array_equal(residuals[res_name], expected_data)
@@ -277,7 +279,7 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
         comp.solve_nonlinear(inputs, outputs, discrete_inputs, discrete_outputs)
 
         # asserting that the method calls are made correctly
-        client_mock.run_solve_residuals.assert_called_once_with(inputs)
+        client_mock.run_solve_residuals.assert_called_once_with(inputs, None)
         for output_name, expected_data in expected_outputs.items():
             self.assertTrue(output_name in outputs)
             np.testing.assert_array_equal(outputs[output_name], expected_data)
@@ -343,7 +345,9 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
         comp.linearize(inputs, outputs, partials, discrete_inputs, discrete_outputs)
 
         # asserting that the method calls are made correctly
-        client_mock.run_residual_gradients.assert_called_once_with(inputs, outputs)
+        client_mock.run_residual_gradients.assert_called_once_with(
+            inputs, outputs, None, None
+        )
         for jac_key, expected_data in expected_jac.items():
             self.assertTrue(jac_key in partials)
             np.testing.assert_array_equal(partials[jac_key], expected_data)

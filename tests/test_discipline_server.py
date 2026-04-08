@@ -325,22 +325,28 @@ class TestDisciplineServer(unittest.TestCase):
     def test_process_inputs(self):
         # create a mock request_iterator
         request_iterator = [
-            data.Array(
-                start=0,
-                end=2,
-                data=[1.0, 2.0, 3.0],
-                type=data.VariableType.kInput,
-                name="x",
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0,
+                    end=2,
+                    data=[1.0, 2.0, 3.0],
+                    type=data.VariableType.kInput,
+                    name="x",
+                )
             ),
-            data.Array(
-                start=3, end=4, data=[4.0, 5.0], type=data.VariableType.kInput, name="x"
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=3, end=4, data=[4.0, 5.0], type=data.VariableType.kInput, name="x"
+                )
             ),
-            data.Array(
-                start=0,
-                end=1,
-                data=[0.1, 0.2],
-                type=data.VariableType.kOutput,
-                name="f",
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0,
+                    end=1,
+                    data=[0.1, 0.2],
+                    type=data.VariableType.kOutput,
+                    name="f",
+                )
             ),
         ]
 
@@ -379,24 +385,26 @@ class TestDisciplineServer(unittest.TestCase):
         Tests that process_inputs raises ValueError when array data is empty.
         """
         server = DisciplineServer()
-        
+
         # Create request with empty data array
         request_iterator = [
-            data.Array(
-                start=0,
-                end=2,
-                data=[],  # Empty data array
-                type=data.VariableType.kInput,
-                name="x",
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0,
+                    end=2,
+                    data=[],  # Empty data array
+                    type=data.VariableType.kInput,
+                    name="x",
+                )
             ),
         ]
-        
+
         flat_inputs = {"x": np.zeros(3)}
         flat_outputs = {}
-        
+
         with self.assertRaises(ValueError) as context:
             server.process_inputs(request_iterator, flat_inputs, flat_outputs)
-        
+
         self.assertIn("Expected continuous variables but arrays were empty for variable x", str(context.exception))
 
 

@@ -224,7 +224,9 @@ class TestOpenMdaoExplicitClient(unittest.TestCase):
         instance.compute(inputs, outputs, discrete_inputs, discrete_outputs)
 
         # Asserting that the method calls are made correctly
-        client_mock.run_compute.assert_called_once_with({"input1": 10, "input2": 20})
+        client_mock.run_compute.assert_called_once_with(
+            {"input1": 10, "input2": 20}, discrete_inputs=None
+        )
         self.assertEqual(outputs["output1"], 30)
         self.assertEqual(outputs["output2"], 40)
 
@@ -281,7 +283,7 @@ class TestOpenMdaoExplicitClient(unittest.TestCase):
 
         # Asserting that the method calls are made correctly
         client_mock.run_compute_partials.assert_called_once_with(
-            {"input1": 10, "input2": 20}
+            {"input1": 10, "input2": 20}, discrete_inputs=None
         )
         self.assertEqual(partials["output1"]["input1"], 1)
         self.assertEqual(partials["output1"]["input2"], 2)

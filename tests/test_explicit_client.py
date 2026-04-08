@@ -60,11 +60,15 @@ class TestExplicitClient(unittest.TestCase):
             "x": np.array([1.0, 2.0, 3.0, 4.0]).reshape(2, 2),
         }
 
-        response1 = data.Array(
-            name="f", type=data.kOutput, start=0, end=2, data=[5.0, 6.0, 7.0]
+        response1 = data.VariableMessage(
+            continuous=data.Array(
+                name="f", type=data.kOutput, start=0, end=2, data=[5.0, 6.0, 7.0]
+            )
         )
-        response2 = data.Array(
-            name="g", type=data.kOutput, start=0, end=2, data=[8.0, 9.0, 10.0]
+        response2 = data.VariableMessage(
+            continuous=data.Array(
+                name="g", type=data.kOutput, start=0, end=2, data=[8.0, 9.0, 10.0]
+            )
         )
         mock_responses = [response1, response2]
 
@@ -101,16 +105,20 @@ class TestExplicitClient(unittest.TestCase):
             "x": np.array([1.0, 2.0, 3.0, 4.0]).reshape(2, 2),
         }
 
-        response1 = data.Array(
-            name="f",
-            subname="x",
-            type=data.kPartial,
-            start=0,
-            end=2,
-            data=[5.0, 6.0, 7.0],
+        response1 = data.VariableMessage(
+            continuous=data.Array(
+                name="f",
+                subname="x",
+                type=data.kPartial,
+                start=0,
+                end=2,
+                data=[5.0, 6.0, 7.0],
+            )
         )
-        response2 = data.Array(
-            name="f", subname="x", type=data.kPartial, start=3, end=3, data=[4.0]
+        response2 = data.VariableMessage(
+            continuous=data.Array(
+                name="f", subname="x", type=data.kPartial, start=3, end=3, data=[4.0]
+            )
         )
         mock_responses = [response1, response2]
 
