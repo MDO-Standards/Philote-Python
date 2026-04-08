@@ -1,10 +1,26 @@
-# Change Log
+# Changelog
 
-## Version 0.8.0
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
 
 ### Features
 
 ### Bug Fixes
+
+- Fixed `SellarMDA` promoted-input ambiguity that newer OpenMDAO releases
+  reject during `final_setup`. The `x` and `z` defaults were being set on
+  the inner `cycle` subgroup, but `obj_cmp` promoted the same variables
+  to the top level with different defaults. Moved the `set_input_defaults`
+  calls to the top-level `SellarMDA` group so the promoted values agree.
+- Updated `test_implicit_discipline_apply_linear_not_implemented` to call
+  `apply_linear` with its current six-argument signature (`inputs`,
+  `outputs`, `d_inputs`, `d_outputs`, `d_residuals`, `mode`); the stale
+  three-argument call raised `TypeError` before the `NotImplementedError`
+  assertion could fire.
 
 ### Documentation & Infrastructure
 
@@ -12,9 +28,20 @@
 - Added documentation for implicit disciplines.
 - Added documentation for OpenMDAO clients
 - Added documentation for the OpenMDOA subproblem discipline.
+- Migrated documentation from Jupyter Book to Docusaurus, mirroring the
+  Delphi docs setup (dark-mode theme, KaTeX math, custom landing page,
+  versioned docs).
+- Replaced the Jupyter Book `gh-pages` deploy job with a Docusaurus
+  GitHub Pages artifact pipeline triggered on `develop` for `docs/**`.
+- Added a `Release` GitHub Actions workflow mirroring Delphi's release
+  flow: PR-label-driven version bumps, signed commits, `pyproject.toml`
+  version update, CHANGELOG rewrite, Docusaurus version snapshots on
+  stable releases, GitHub Release creation, and auto-merge of `main`
+  back to `develop`.
+- Reformatted `CHANGELOG.md` to the Keep a Changelog convention so the
+  release workflow can drive header rewrites and comparison links.
 
-
-## Version 0.7.0
+## [0.7.0]
 
 ### Features
 
@@ -42,8 +69,7 @@
 
 - Updated copyright statements across the codebase
 
-
-## Version 0.6.1
+## [0.6.1]
 
 ### Features
 
@@ -55,8 +81,7 @@
   installation will fail due to an incompatible grpcio-tools version getting installed at build time. The grpcio-tools
   version has been fixed for the build at 1.59. As a result the grpcio version also must at least be 1.59
 
-
-## Version 0.6.0
+## [0.6.0]
 
 ### Features
 
@@ -70,8 +95,7 @@
 
 - None
 
-
-## Version 0.5.3
+## [0.5.3]
 
 ### Features
 
@@ -81,8 +105,7 @@
 
 - Added missing function arguments to explicit discipline.
 
-
-## Version 0.5.2
+## [0.5.2]
 
 ### Features
 
@@ -95,8 +118,7 @@
   a platform-specific wheel. The wheel must be platform-specific, because gRPC
   has C underpinnings.
 
-
-## Version 0.5.1
+## [0.5.1]
 
 ### Features
 
@@ -114,13 +136,11 @@
   a platform-specific wheel. The wheel must be platform-specific, because gRPC
   has C underpinnings.
 
-
-## Version 0.5.0
+## [0.5.0]
 
 - yanked due to source distribution issues. All features present in 0.5.1
 
-
-## Version 0.4.0
+## [0.4.0]
 
 ### Features
 
@@ -130,8 +150,7 @@
 
 - None
 
-
-## Version 0.3.0
+## [0.3.0]
 
 This release is one of the biggest changes to the code to date. It contains a
 fundamental reorganization and adds a number of features. Notably, it adds
@@ -151,7 +170,6 @@ unit and integration testing of almost all the code.
 - Completed implicit discipline functionality and testing.
 - Fixed unit tests for GetVariableDefinitions and GetPartialsDefinitions.
 - Added edge case handling for partials of variables that are scalar.
-- 
 
 ### Bug Fixes
 
@@ -162,8 +180,7 @@ unit and integration testing of almost all the code.
 - Added jupyter book for documentation.
 - Added a quick start guide.
 
-
-## Version 0.2.1
+## [0.2.1]
 
 This is purely a bugfix release. Thanks to Alex Xu for finding these bugs and fixing them.
 
@@ -176,8 +193,7 @@ This is purely a bugfix release. Thanks to Alex Xu for finding these bugs and fi
 - Fixed bug that prevented proper chunking of array data
 - Fixed flat view of arrays used during variable transfer
 
-
-## Version 0.2.0
+## [0.2.0]
 
 This version augments the Philote MDO version to 0.3.0.
 
@@ -193,8 +209,7 @@ This version augments the Philote MDO version to 0.3.0.
   error for n-dimensional arrays, as the slices would not work unless the array
   was flattened.
 
-
-## Version 0.1.0
+## [0.1.0]
 
 Initial release of the Philote MDO Python bindings. Includes working remote 
 explicit disciplines. Only the generic API currently works, so there is no
@@ -218,3 +233,17 @@ considered pre-release. While they may work in production environments,
 it is expected that bugs may surface and that several features are still
 missing. Because of this, the API may still change frequently before version
 1.0.0 is released.
+
+[Unreleased]: https://github.com/MDO-Standards/Philote-Python/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.7.0
+[0.6.1]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.6.1
+[0.6.0]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.6.0
+[0.5.3]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.5.3
+[0.5.2]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.5.2
+[0.5.1]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.5.1
+[0.5.0]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.5.0
+[0.4.0]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.4.0
+[0.3.0]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.3.0
+[0.2.1]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.2.1
+[0.2.0]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.2.0
+[0.1.0]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.1.0

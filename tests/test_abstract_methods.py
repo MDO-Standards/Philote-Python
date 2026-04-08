@@ -98,7 +98,7 @@ class TestAbstractMethods(unittest.TestCase):
         discipline = ImplicitDiscipline()
         
         with self.assertRaises(NotImplementedError) as context:
-            discipline.apply_linear({}, {}, "fwd")
+            discipline.apply_linear({}, {}, {}, {}, {}, "fwd")
         
         self.assertEqual(str(context.exception), "apply_linear not implemented")
 

@@ -1,47 +1,58 @@
-name: Deploy Documentation
+name: Deploy Docs
 
-# Only run this when the master branch changes
 on:
   push:
-    branches:
-      - main
-    # If your git repository has the Jupyter Book within some-subfolder next to
-    # unrelated files, you can make this run only if a file within that specific
-    # folder has been modified.
-    #
-    # paths:
-    # - some-subfolder/**
-permissions:
-  contents: write
-  
-# This job installs dependencies, builds the book, and pushes it to `gh-pages`
-jobs:
-  deploy-book:
-    runs-on: ubuntu-latest
-    defaults:
-        run:
-          working-directory: doc
-    steps:
-    - uses: actions/checkout@v2
+    branches: [develop]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/documentation.yaml'
 
-    # Install dependencies
-    - name: Set up Python 3.9
-      uses: actions/setup-python@v2
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy-docs:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+    - name: Checkout develop
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
       with:
-        python-version: 3.9
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: docs/package-lock.json
 
     - name: Install dependencies
-      run: |
-        pip install -r requirements.txt
+      run: npm ci
+      working-directory: docs
 
-    # Build the book
-    - name: Build the book
-      run: |
-        jupyter-book build .
+    - name: Build Docusaurus
+      run: npm run build
+      working-directory: docs
 
-    # Push the book's HTML to github-pages
-    - name: GitHub Pages action
-      uses: peaceiris/actions-gh-pages@v3.6.1
+    - name: Setup Pages
+      uses: actions/configure-pages@v5
+
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./doc/_build/html
+        path: docs/build
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
