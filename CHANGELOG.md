@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- Fixed bare `except` to `except ImportError` in `examples/__init__.py`.
 - Fixed `SellarMDA` promoted-input ambiguity that newer OpenMDAO releases
   reject during `final_setup`. The `x` and `z` defaults were being set on
   the inner `cycle` subgroup, but `obj_cmp` promoted the same variables
@@ -33,6 +34,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation & Infrastructure
 
+- Added Codecov configuration (`codecov.yml`) requiring 95% coverage on
+  both project total and patch (new/changed lines).
+- Added `fail_under = 95` to `.coveragerc` for local coverage enforcement.
+- Marked unreachable import guards and defensive branches with
+  `pragma: no cover`.
 - Updated installation instructions to reflect PyPI install option.
 - Added documentation for implicit disciplines.
 - Added documentation for OpenMDAO clients
