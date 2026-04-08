@@ -285,7 +285,7 @@ def _value_to_python(value):
         return [_value_to_python(v) for v in value.list_value.values]
     elif kind == "struct_value":
         return {k: _value_to_python(v) for k, v in value.struct_value.fields.items()}
-    else:
+    else:  # pragma: no cover – all protobuf Value kinds are handled above
         return None
 
 

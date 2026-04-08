@@ -34,5 +34,5 @@ from .rosenbrock import Rosenbrock
 try:
     import openmdao.api
     from .sellar import SellarGroup
-except:
+except ImportError:  # pragma: no cover
     pass
