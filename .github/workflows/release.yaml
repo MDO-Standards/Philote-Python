@@ -1,0 +1,293 @@
+name: Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: >
+      github.event.pull_request.merged == true &&
+      (contains(github.event.pull_request.labels.*.name, 'release') ||
+       contains(github.event.pull_request.labels.*.name, 'prerelease'))
+    runs-on: ubuntu-latest
+
+    steps:
+    # ── Checkout ──────────────────────────────────────────────────────
+    - name: Checkout main
+      uses: actions/checkout@v4
+      with:
+        ref: main
+        fetch-depth: 0
+        token: ${{ secrets.RELEASE_TOKEN }}
+
+    # ── GPG setup for signed commits ─────────────────────────────────
+    - name: Generate ephemeral GPG key
+      run: |
+        cat > /tmp/gpg-key-params <<GPGEOF
+        %no-protection
+        Key-Type: RSA
+        Key-Length: 4096
+        Subkey-Type: RSA
+        Subkey-Length: 4096
+        Name-Real: github-actions[bot]
+        Name-Email: 41898282+github-actions[bot]@users.noreply.github.com
+        Expire-Date: 1d
+        GPGEOF
+        gpg --batch --gen-key /tmp/gpg-key-params
+        KEY_ID=$(gpg --list-secret-keys --keyid-format=long | grep sec | awk '{print $2}' | cut -d'/' -f2)
+        echo "GPG_KEY_ID=${KEY_ID}" >> "$GITHUB_ENV"
+
+        git config user.name  "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git config user.signingkey "${KEY_ID}"
+        git config commit.gpgsign true
+        git config tag.gpgsign true
+
+    # ── Extract and validate PR labels ───────────────────────────────
+    - name: Extract labels
+      id: labels
+      env:
+        LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
+      run: |
+        echo "Labels on PR: $LABELS"
+
+        # Release type
+        IS_RELEASE=false
+        IS_PRERELEASE=false
+        for l in $LABELS; do
+          case "$l" in
+            release)    IS_RELEASE=true ;;
+            prerelease) IS_PRERELEASE=true ;;
+          esac
+        done
+
+        if $IS_RELEASE && $IS_PRERELEASE; then
+          echo "::error::PR must have exactly one of 'release' or 'prerelease', not both."
+          exit 1
+        fi
+
+        # Version bump
+        BUMP=""
+        BUMP_COUNT=0
+        for l in $LABELS; do
+          case "$l" in
+            major|minor|patch)
+              BUMP="$l"
+              BUMP_COUNT=$((BUMP_COUNT + 1))
+              ;;
+          esac
+        done
+
+        if [ "$BUMP_COUNT" -ne 1 ]; then
+          echo "::error::PR must have exactly one of 'major', 'minor', or 'patch' labels."
+          exit 1
+        fi
+
+        # Pre-release qualifier
+        QUALIFIER=""
+        QUAL_COUNT=0
+        for l in $LABELS; do
+          case "$l" in
+            alpha|beta|rc)
+              QUALIFIER="$l"
+              QUAL_COUNT=$((QUAL_COUNT + 1))
+              ;;
+          esac
+        done
+
+        if $IS_PRERELEASE && [ "$QUAL_COUNT" -ne 1 ]; then
+          echo "::error::Pre-release PRs must have exactly one of 'alpha', 'beta', or 'rc' labels."
+          exit 1
+        fi
+
+        if $IS_RELEASE && [ "$QUAL_COUNT" -ne 0 ]; then
+          echo "::error::Stable release PRs must not have 'alpha', 'beta', or 'rc' labels."
+          exit 1
+        fi
+
+        echo "is_release=$IS_RELEASE"       >> "$GITHUB_OUTPUT"
+        echo "is_prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
+        echo "bump=$BUMP"                   >> "$GITHUB_OUTPUT"
+        echo "qualifier=$QUALIFIER"         >> "$GITHUB_OUTPUT"
+
+    # ── Calculate new version ────────────────────────────────────────
+    - name: Calculate version
+      id: version
+      run: |
+        # Read current version from pyproject.toml
+        CURRENT=$(grep -oP '^version\s*=\s*"\K[0-9]+\.[0-9]+\.[0-9]+' pyproject.toml | head -1)
+        IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+        echo "Current version: ${MAJOR}.${MINOR}.${PATCH}"
+
+        BUMP="${{ steps.labels.outputs.bump }}"
+        case "$BUMP" in
+          major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+          minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+          patch) PATCH=$((PATCH + 1)) ;;
+        esac
+
+        NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+
+        if [ "${{ steps.labels.outputs.is_prerelease }}" = "true" ]; then
+          QUALIFIER="${{ steps.labels.outputs.qualifier }}"
+
+          # Find the latest pre-release tag for this version+qualifier
+          PRERELEASE_NUM=1
+          PATTERN="v${NEW_VERSION}-${QUALIFIER}."
+          LATEST_TAG=$(git tag -l "${PATTERN}*" | sort -V | tail -n1 || true)
+          if [ -n "$LATEST_TAG" ]; then
+            PREV_NUM=$(echo "$LATEST_TAG" | grep -oP "${QUALIFIER}\.\K[0-9]+")
+            PRERELEASE_NUM=$((PREV_NUM + 1))
+          fi
+
+          TAG_VERSION="v${NEW_VERSION}-${QUALIFIER}.${PRERELEASE_NUM}"
+          IS_PRERELEASE=true
+        else
+          TAG_VERSION="v${NEW_VERSION}"
+          IS_PRERELEASE=false
+        fi
+
+        echo "new_version=${NEW_VERSION}"     >> "$GITHUB_OUTPUT"
+        echo "tag_version=${TAG_VERSION}"     >> "$GITHUB_OUTPUT"
+        echo "is_prerelease=${IS_PRERELEASE}" >> "$GITHUB_OUTPUT"
+        echo "New version: ${NEW_VERSION}, Tag: ${TAG_VERSION}"
+
+    # ── Update pyproject.toml version ────────────────────────────────
+    - name: Update pyproject.toml version
+      run: |
+        NEW_VERSION="${{ steps.version.outputs.new_version }}"
+        sed -i 's/^version\s*=\s*"[0-9]\+\.[0-9]\+\.[0-9]\+"/version = "'"$NEW_VERSION"'"/' pyproject.toml
+
+        echo "pyproject.toml updated:"
+        grep '^version' pyproject.toml
+
+    # ── Update CHANGELOG.md ──────────────────────────────────────────
+    - name: Update CHANGELOG.md
+      run: |
+        TAG="${{ steps.version.outputs.tag_version }}"
+        VERSION="${{ steps.version.outputs.new_version }}"
+        DATE=$(date +%Y-%m-%d)
+        REPO="https://github.com/chrislupp/Philote-Python"
+
+        if [ "${{ steps.version.outputs.is_prerelease }}" = "true" ]; then
+          HEADER="${TAG#v}"
+        else
+          HEADER="${VERSION}"
+        fi
+
+        # Replace [Unreleased] header with version header and add new [Unreleased]
+        sed -i "s/^## \[Unreleased\]/## [Unreleased]\n\n## [${HEADER}] - ${DATE}/" CHANGELOG.md
+
+        # Update comparison links
+        # Remove existing [Unreleased] link
+        sed -i '/^\[Unreleased\]:/d' CHANGELOG.md
+
+        # Add new links at the bottom
+        echo "[Unreleased]: ${REPO}/compare/${TAG}...HEAD" >> CHANGELOG.md
+        echo "[${HEADER}]: ${REPO}/releases/tag/${TAG}" >> CHANGELOG.md
+
+    # ── Create docs version snapshot (stable releases only) ────────
+    - name: Setup Node.js
+      if: steps.labels.outputs.is_release == 'true'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: docs/package-lock.json
+
+    - name: Install docs dependencies
+      if: steps.labels.outputs.is_release == 'true'
+      run: npm ci
+      working-directory: docs
+
+    - name: Create docs version snapshot
+      if: steps.labels.outputs.is_release == 'true'
+      run: npx docusaurus docs:version ${{ steps.version.outputs.new_version }}
+      working-directory: docs
+
+    - name: Update docs default version
+      if: steps.labels.outputs.is_release == 'true'
+      run: |
+        VERSION="${{ steps.version.outputs.new_version }}"
+        sed -i "s/lastVersion: \"[^\"]*\"/lastVersion: \"${VERSION}\"/" docs/docusaurus.config.ts
+
+    # ── Commit and tag ───────────────────────────────────────────────
+    - name: Commit release changes
+      run: |
+        TAG="${{ steps.version.outputs.tag_version }}"
+        VERSION="${TAG#v}"
+
+        git add -A
+        git commit -S -m "chore: release version ${VERSION}"
+
+    - name: Create annotated tag
+      run: |
+        TAG="${{ steps.version.outputs.tag_version }}"
+        git tag -a "$TAG" -m "Release ${TAG}"
+
+    - name: Push commit and tag
+      run: |
+        git push origin main
+        git push origin "${{ steps.version.outputs.tag_version }}"
+
+    # ── Extract release notes ────────────────────────────────────────
+    - name: Extract release notes
+      id: notes
+      run: |
+        TAG="${{ steps.version.outputs.tag_version }}"
+        VERSION="${TAG#v}"
+
+        # Extract the section for this version from CHANGELOG.md
+        NOTES=$(awk -v ver="$VERSION" '
+          /^## \[/ {
+            if (found) exit
+            if (index($0, "[" ver "]")) found=1
+            next
+          }
+          found { print }
+        ' CHANGELOG.md)
+
+        # Write to file for the release action
+        echo "$NOTES" > /tmp/release-notes.md
+        echo "Release notes:"
+        cat /tmp/release-notes.md
+
+    # ── Create GitHub Release ────────────────────────────────────────
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.version.outputs.tag_version }}
+        name: ${{ steps.version.outputs.tag_version }}
+        body_path: /tmp/release-notes.md
+        prerelease: ${{ steps.version.outputs.is_prerelease }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+
+    # ── Merge back to develop ───────────────────────────────────────
+    - name: Merge main back to develop
+      env:
+        GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+      run: |
+        git fetch origin develop
+        git checkout develop
+
+        if git merge main --no-edit; then
+          git push origin develop
+          echo "Successfully merged main back to develop"
+        else
+          git merge --abort
+          echo "::warning::Auto-merge failed due to conflicts. Creating PR."
+          gh pr create \
+            --base develop \
+            --head main \
+            --title "chore: merge release ${{ steps.version.outputs.tag_version }} back to develop" \
+            --body "Automatic merge of release changes back to develop failed due to conflicts. Please resolve manually."
+        fi

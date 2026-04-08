@@ -1,0 +1,104 @@
+@import url("https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap");
+
+/* ── CSS custom properties for use in modules ── */
+:root {
+    --font-display: "Instrument Sans", sans-serif;
+    --font-mono: "JetBrains Mono", monospace;
+    --font-body: "Crimson Pro", serif;
+
+    --ifm-color-primary: #00829e;
+    --ifm-color-primary-dark: #00748e;
+    --ifm-color-primary-darker: #006d86;
+    --ifm-color-primary-darkest: #005a6e;
+    --ifm-color-primary-light: #0090ae;
+    --ifm-color-primary-lighter: #0097b6;
+    --ifm-color-primary-lightest: #00aed2;
+    --ifm-code-font-size: 95%;
+    --ifm-font-family-base: "Instrument Sans", sans-serif;
+    --ifm-font-family-monospace: "JetBrains Mono", monospace;
+    --ifm-heading-font-family: "Instrument Sans", sans-serif;
+    --docusaurus-highlighted-code-line-bg: rgba(0, 130, 158, 0.08);
+}
+
+/* ── Dark mode ── */
+[data-theme="dark"] {
+    --ifm-color-primary: #00d4ff;
+    --ifm-color-primary-dark: #00bfe6;
+    --ifm-color-primary-darker: #00b4d9;
+    --ifm-color-primary-darkest: #0094b3;
+    --ifm-color-primary-light: #1ad9ff;
+    --ifm-color-primary-lighter: #26dbff;
+    --ifm-color-primary-lightest: #52e3ff;
+    --ifm-background-color: #08101d;
+    --ifm-background-surface-color: #0c1829;
+    --ifm-navbar-background-color: #04080fee;
+    --ifm-footer-background-color: #04080f;
+    --ifm-font-color-base: #c8d8e8;
+    --ifm-heading-color: #e8f0f8;
+    --docusaurus-highlighted-code-line-bg: rgba(0, 212, 255, 0.12);
+}
+
+/* ── Dark navbar & footer ── */
+[data-theme="dark"] .navbar {
+    backdrop-filter: blur(16px) saturate(1.2);
+    border-bottom: 1px solid rgba(0, 212, 255, 0.08);
+}
+
+[data-theme="dark"] .footer {
+    border-top: 1px solid rgba(0, 212, 255, 0.06);
+}
+
+[data-theme="dark"] .footer .footer__title {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    color: #5a7089;
+}
+
+/* ── Markdown content ── */
+[data-theme="dark"] .markdown h1,
+[data-theme="dark"] .markdown h2,
+[data-theme="dark"] .markdown h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+[data-theme="dark"] .markdown p,
+[data-theme="dark"] .markdown li {
+    font-family: var(--font-body);
+    font-size: 1.08rem;
+    line-height: 1.72;
+    color: #b0c4d8;
+}
+
+[data-theme="dark"] .markdown code {
+    font-family: var(--font-mono);
+    background: #0c182966;
+    border: 1px solid rgba(0, 212, 255, 0.08);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+}
+
+[data-theme="dark"] pre.prism-code {
+    border: 1px solid rgba(0, 212, 255, 0.06);
+    border-radius: 6px;
+}
+
+/* ── Sidebar ── */
+[data-theme="dark"] .menu__link {
+    font-family: var(--font-display);
+    font-size: 0.88rem;
+    font-weight: 500;
+}
+
+[data-theme="dark"] .theme-doc-sidebar-container {
+    border-right: 1px solid rgba(0, 212, 255, 0.06) !important;
+}
+
+/* ── Table of contents ── */
+[data-theme="dark"] .table-of-contents__link {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+}
