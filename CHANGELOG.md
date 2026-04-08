@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
+- Added discrete variable support throughout the stack.  Disciplines can
+  now declare discrete inputs/outputs via `add_discrete_input` /
+  `add_discrete_output`.  Discrete data is serialized as
+  `google.protobuf.Value` (supporting scalars, lists, and nested
+  structures) and multiplexed alongside continuous `Array` chunks in
+  the new `VariableMessage` wrapper.  The OpenMDAO bindings
+  (`RemoteExplicitComponent`, `RemoteImplicitComponent`) automatically
+  discover and forward discrete variables.
+
 ### Bug Fixes
 
 - Fixed `SellarMDA` promoted-input ambiguity that newer OpenMDAO releases

@@ -119,7 +119,9 @@ class ImplicitClient(DisciplineClient):
         super().__init__(channel=channel)
         self._impl_stub = disc.ImplicitServiceStub(channel)
 
-    def run_compute_residuals(self, inputs, outputs):
+    def run_compute_residuals(
+        self, inputs, outputs, discrete_inputs=None, discrete_outputs=None
+    ):
         """
         Compute residuals R(inputs, outputs) by calling the remote server.
 
@@ -167,13 +169,18 @@ class ImplicitClient(DisciplineClient):
         - This is typically used for residual evaluation during Newton iterations
         """
         # Assemble input messages and call server
-        messages = self._assemble_input_messages(inputs, outputs)
+        messages = self._assemble_input_messages(
+            inputs,
+            outputs,
+            discrete_inputs=discrete_inputs,
+            discrete_outputs=discrete_outputs,
+        )
         responses = self._impl_stub.ComputeResiduals(iter(messages))
         residuals = self._recover_residuals(responses)
 
         return residuals
 
-    def run_solve_residuals(self, inputs):
+    def run_solve_residuals(self, inputs, discrete_inputs=None):
         """
         Solve implicit equations R(inputs, outputs) = 0 by calling the remote server.
 
@@ -225,12 +232,16 @@ class ImplicitClient(DisciplineClient):
         - Solution quality depends on the server's implementation and input conditioning
         """
         # Assemble input messages and call server
-        messages = self._assemble_input_messages(inputs)
+        messages = self._assemble_input_messages(
+            inputs, discrete_inputs=discrete_inputs
+        )
         responses = self._impl_stub.SolveResiduals(iter(messages))
         outputs = self._recover_outputs(responses)
         return outputs
 
-    def run_residual_gradients(self, inputs, outputs):
+    def run_residual_gradients(
+        self, inputs, outputs, discrete_inputs=None, discrete_outputs=None
+    ):
         """
         Compute Jacobian of residuals dR/d[inputs,outputs] by calling the remote server.
 
@@ -289,7 +300,12 @@ class ImplicitClient(DisciplineClient):
         - For large problems, consider matrix-free methods if available
         """
         # Assemble input messages and call server
-        messages = self._assemble_input_messages(inputs, outputs)
+        messages = self._assemble_input_messages(
+            inputs,
+            outputs,
+            discrete_inputs=discrete_inputs,
+            discrete_outputs=discrete_outputs,
+        )
         responses = self._impl_stub.ComputeResidualGradients(iter(messages))
         partials = self._recover_partials(responses)
         return partials

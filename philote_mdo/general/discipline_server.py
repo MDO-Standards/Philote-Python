@@ -32,6 +32,7 @@ import numpy as np
 import philote_mdo.generated.data_pb2 as data
 import philote_mdo.generated.disciplines_pb2_grpc as disc
 from google.protobuf.empty_pb2 import Empty
+from google.protobuf import struct_pb2
 from philote_mdo.utils import PairDict, get_flattened_view
 
 
@@ -128,8 +129,13 @@ class DisciplineServer(disc.DisciplineService):
     def GetVariableDefinitions(self, request, context):
         """
         Transmits variable metadata about the analysis discipline to the client.
+
+        Both continuous and discrete variable metadata are streamed.
         """
         for var in self._discipline._var_meta:
+            yield var
+
+        for var in self._discipline._discrete_var_meta:
             yield var
 
     def GetPartialDefinitions(self, request, context):
@@ -193,27 +199,127 @@ class DisciplineServer(disc.DisciplineService):
 
         return jac
 
-    def process_inputs(self, request_iterator, flat_inputs, flat_outputs=None):
+    def process_inputs(
+        self,
+        request_iterator,
+        flat_inputs,
+        flat_outputs=None,
+        discrete_inputs=None,
+        discrete_outputs=None,
+    ):
         """
         Processes the message inputs from a gRPC stream.
+
+        The stream consists of ``VariableMessage`` wrappers, each of which
+        contains either a continuous ``Array`` or a ``DiscreteVariable``.
 
         Note, for implicit disciplines, the function values are considered
         inputs to evaluate the residuals and the partials of the residuals.
         """
-        # process inputs
-        for message in request_iterator:
-            # start and end indices for the array chunk
-            b = message.start
-            e = message.end
+        if discrete_inputs is None:
+            discrete_inputs = {}
+        if discrete_outputs is None:
+            discrete_outputs = {}
 
-            # assign either continuous or discrete data
-            if len(message.data) > 0:
-                if message.type == data.VariableType.kInput:
-                    flat_inputs[message.name][b : e + 1] = message.data
-                elif message.type == data.VariableType.kOutput:
-                    flat_outputs[message.name][b : e + 1] = message.data
-            else:
-                raise ValueError(
-                    "Expected continuous variables but arrays were"
-                    " empty for variable %s." % (message.name)
-                )
+        for message in request_iterator:
+            variant = message.WhichOneof("payload")
+
+            if variant == "continuous":
+                arr = message.continuous
+                b = arr.start
+                e = arr.end
+
+                if len(arr.data) > 0:
+                    if arr.type == data.VariableType.kInput:
+                        flat_inputs[arr.name][b : e + 1] = arr.data
+                    elif arr.type == data.VariableType.kOutput:
+                        flat_outputs[arr.name][b : e + 1] = arr.data
+                else:
+                    raise ValueError(
+                        "Expected continuous variables but arrays were"
+                        " empty for variable %s." % (arr.name)
+                    )
+
+            elif variant == "discrete":
+                dv = message.discrete
+                # Convert protobuf Value to native Python type
+                native_value = _value_to_python(dv.value)
+
+                if dv.type == data.VariableType.kDiscreteInput:
+                    discrete_inputs[dv.name] = native_value
+                elif dv.type == data.VariableType.kDiscreteOutput:
+                    discrete_outputs[dv.name] = native_value
+
+        return discrete_inputs, discrete_outputs
+
+
+def _value_to_python(value):
+    """
+    Converts a ``google.protobuf.Value`` to a native Python object.
+
+    Parameters
+    ----------
+    value : google.protobuf.Value
+        protobuf Value message
+
+    Returns
+    -------
+    object
+        Native Python equivalent (None, bool, int/float, str, list, or dict)
+    """
+    kind = value.WhichOneof("kind")
+
+    if kind == "null_value":
+        return None
+    elif kind == "bool_value":
+        return value.bool_value
+    elif kind == "number_value":
+        # protobuf stores all numbers as doubles; return int if lossless
+        num = value.number_value
+        if num == int(num):
+            return int(num)
+        return num
+    elif kind == "string_value":
+        return value.string_value
+    elif kind == "list_value":
+        return [_value_to_python(v) for v in value.list_value.values]
+    elif kind == "struct_value":
+        return {k: _value_to_python(v) for k, v in value.struct_value.fields.items()}
+    else:
+        return None
+
+
+def _python_to_value(obj):
+    """
+    Converts a native Python object to a ``google.protobuf.Value``.
+
+    Parameters
+    ----------
+    obj : object
+        A Python scalar, list, or dict
+
+    Returns
+    -------
+    google.protobuf.Value
+        protobuf Value message
+    """
+    val = struct_pb2.Value()
+
+    if obj is None:
+        val.null_value = 0
+    elif isinstance(obj, bool):
+        val.bool_value = obj
+    elif isinstance(obj, (int, float)):
+        val.number_value = float(obj)
+    elif isinstance(obj, str):
+        val.string_value = obj
+    elif isinstance(obj, (list, tuple)):
+        for item in obj:
+            val.list_value.values.append(_python_to_value(item))
+    elif isinstance(obj, dict):
+        for k, v in obj.items():
+            val.struct_value.fields[str(k)].CopyFrom(_python_to_value(v))
+    else:
+        val.string_value = str(obj)
+
+    return val

@@ -142,8 +142,8 @@ class ExplicitServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.ComputeFunction = channel.stream_stream('/philote.ExplicitService/ComputeFunction', request_serializer=data__pb2.Array.SerializeToString, response_deserializer=data__pb2.Array.FromString, _registered_method=True)
-        self.ComputeGradient = channel.stream_stream('/philote.ExplicitService/ComputeGradient', request_serializer=data__pb2.Array.SerializeToString, response_deserializer=data__pb2.Array.FromString, _registered_method=True)
+        self.ComputeFunction = channel.stream_stream('/philote.ExplicitService/ComputeFunction', request_serializer=data__pb2.VariableMessage.SerializeToString, response_deserializer=data__pb2.VariableMessage.FromString, _registered_method=True)
+        self.ComputeGradient = channel.stream_stream('/philote.ExplicitService/ComputeGradient', request_serializer=data__pb2.VariableMessage.SerializeToString, response_deserializer=data__pb2.VariableMessage.FromString, _registered_method=True)
 
 class ExplicitServiceServicer(object):
     """Definition of the generic Explicit Component RPC
@@ -164,7 +164,7 @@ class ExplicitServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
 def add_ExplicitServiceServicer_to_server(servicer, server):
-    rpc_method_handlers = {'ComputeFunction': grpc.stream_stream_rpc_method_handler(servicer.ComputeFunction, request_deserializer=data__pb2.Array.FromString, response_serializer=data__pb2.Array.SerializeToString), 'ComputeGradient': grpc.stream_stream_rpc_method_handler(servicer.ComputeGradient, request_deserializer=data__pb2.Array.FromString, response_serializer=data__pb2.Array.SerializeToString)}
+    rpc_method_handlers = {'ComputeFunction': grpc.stream_stream_rpc_method_handler(servicer.ComputeFunction, request_deserializer=data__pb2.VariableMessage.FromString, response_serializer=data__pb2.VariableMessage.SerializeToString), 'ComputeGradient': grpc.stream_stream_rpc_method_handler(servicer.ComputeGradient, request_deserializer=data__pb2.VariableMessage.FromString, response_serializer=data__pb2.VariableMessage.SerializeToString)}
     generic_handler = grpc.method_handlers_generic_handler('philote.ExplicitService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
     server.add_registered_method_handlers('philote.ExplicitService', rpc_method_handlers)
@@ -175,14 +175,14 @@ class ExplicitService(object):
 
     @staticmethod
     def ComputeFunction(request_iterator, target, options=(), channel_credentials=None, call_credentials=None, insecure=False, compression=None, wait_for_ready=None, timeout=None, metadata=None):
-        return grpc.experimental.stream_stream(request_iterator, target, '/philote.ExplicitService/ComputeFunction', data__pb2.Array.SerializeToString, data__pb2.Array.FromString, options, channel_credentials, insecure, call_credentials, compression, wait_for_ready, timeout, metadata, _registered_method=True)
+        return grpc.experimental.stream_stream(request_iterator, target, '/philote.ExplicitService/ComputeFunction', data__pb2.VariableMessage.SerializeToString, data__pb2.VariableMessage.FromString, options, channel_credentials, insecure, call_credentials, compression, wait_for_ready, timeout, metadata, _registered_method=True)
 
     @staticmethod
     def ComputeGradient(request_iterator, target, options=(), channel_credentials=None, call_credentials=None, insecure=False, compression=None, wait_for_ready=None, timeout=None, metadata=None):
-        return grpc.experimental.stream_stream(request_iterator, target, '/philote.ExplicitService/ComputeGradient', data__pb2.Array.SerializeToString, data__pb2.Array.FromString, options, channel_credentials, insecure, call_credentials, compression, wait_for_ready, timeout, metadata, _registered_method=True)
+        return grpc.experimental.stream_stream(request_iterator, target, '/philote.ExplicitService/ComputeGradient', data__pb2.VariableMessage.SerializeToString, data__pb2.VariableMessage.FromString, options, channel_credentials, insecure, call_credentials, compression, wait_for_ready, timeout, metadata, _registered_method=True)
 
 class ImplicitServiceStub(object):
-    """Definition of the generic Explicit Discipline RPC
+    """Definition of the generic Implicit Discipline RPC
     """
 
     def __init__(self, channel):
@@ -191,12 +191,12 @@ class ImplicitServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.ComputeResiduals = channel.stream_stream('/philote.ImplicitService/ComputeResiduals', request_serializer=data__pb2.Array.SerializeToString, response_deserializer=data__pb2.Array.FromString, _registered_method=True)
-        self.SolveResiduals = channel.stream_stream('/philote.ImplicitService/SolveResiduals', request_serializer=data__pb2.Array.SerializeToString, response_deserializer=data__pb2.Array.FromString, _registered_method=True)
-        self.ComputeResidualGradients = channel.stream_stream('/philote.ImplicitService/ComputeResidualGradients', request_serializer=data__pb2.Array.SerializeToString, response_deserializer=data__pb2.Array.FromString, _registered_method=True)
+        self.ComputeResiduals = channel.stream_stream('/philote.ImplicitService/ComputeResiduals', request_serializer=data__pb2.VariableMessage.SerializeToString, response_deserializer=data__pb2.VariableMessage.FromString, _registered_method=True)
+        self.SolveResiduals = channel.stream_stream('/philote.ImplicitService/SolveResiduals', request_serializer=data__pb2.VariableMessage.SerializeToString, response_deserializer=data__pb2.VariableMessage.FromString, _registered_method=True)
+        self.ComputeResidualGradients = channel.stream_stream('/philote.ImplicitService/ComputeResidualGradients', request_serializer=data__pb2.VariableMessage.SerializeToString, response_deserializer=data__pb2.VariableMessage.FromString, _registered_method=True)
 
 class ImplicitServiceServicer(object):
-    """Definition of the generic Explicit Discipline RPC
+    """Definition of the generic Implicit Discipline RPC
     """
 
     def ComputeResiduals(self, request_iterator, context):
@@ -221,23 +221,23 @@ class ImplicitServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
 def add_ImplicitServiceServicer_to_server(servicer, server):
-    rpc_method_handlers = {'ComputeResiduals': grpc.stream_stream_rpc_method_handler(servicer.ComputeResiduals, request_deserializer=data__pb2.Array.FromString, response_serializer=data__pb2.Array.SerializeToString), 'SolveResiduals': grpc.stream_stream_rpc_method_handler(servicer.SolveResiduals, request_deserializer=data__pb2.Array.FromString, response_serializer=data__pb2.Array.SerializeToString), 'ComputeResidualGradients': grpc.stream_stream_rpc_method_handler(servicer.ComputeResidualGradients, request_deserializer=data__pb2.Array.FromString, response_serializer=data__pb2.Array.SerializeToString)}
+    rpc_method_handlers = {'ComputeResiduals': grpc.stream_stream_rpc_method_handler(servicer.ComputeResiduals, request_deserializer=data__pb2.VariableMessage.FromString, response_serializer=data__pb2.VariableMessage.SerializeToString), 'SolveResiduals': grpc.stream_stream_rpc_method_handler(servicer.SolveResiduals, request_deserializer=data__pb2.VariableMessage.FromString, response_serializer=data__pb2.VariableMessage.SerializeToString), 'ComputeResidualGradients': grpc.stream_stream_rpc_method_handler(servicer.ComputeResidualGradients, request_deserializer=data__pb2.VariableMessage.FromString, response_serializer=data__pb2.VariableMessage.SerializeToString)}
     generic_handler = grpc.method_handlers_generic_handler('philote.ImplicitService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
     server.add_registered_method_handlers('philote.ImplicitService', rpc_method_handlers)
 
 class ImplicitService(object):
-    """Definition of the generic Explicit Discipline RPC
+    """Definition of the generic Implicit Discipline RPC
     """
 
     @staticmethod
     def ComputeResiduals(request_iterator, target, options=(), channel_credentials=None, call_credentials=None, insecure=False, compression=None, wait_for_ready=None, timeout=None, metadata=None):
-        return grpc.experimental.stream_stream(request_iterator, target, '/philote.ImplicitService/ComputeResiduals', data__pb2.Array.SerializeToString, data__pb2.Array.FromString, options, channel_credentials, insecure, call_credentials, compression, wait_for_ready, timeout, metadata, _registered_method=True)
+        return grpc.experimental.stream_stream(request_iterator, target, '/philote.ImplicitService/ComputeResiduals', data__pb2.VariableMessage.SerializeToString, data__pb2.VariableMessage.FromString, options, channel_credentials, insecure, call_credentials, compression, wait_for_ready, timeout, metadata, _registered_method=True)
 
     @staticmethod
     def SolveResiduals(request_iterator, target, options=(), channel_credentials=None, call_credentials=None, insecure=False, compression=None, wait_for_ready=None, timeout=None, metadata=None):
-        return grpc.experimental.stream_stream(request_iterator, target, '/philote.ImplicitService/SolveResiduals', data__pb2.Array.SerializeToString, data__pb2.Array.FromString, options, channel_credentials, insecure, call_credentials, compression, wait_for_ready, timeout, metadata, _registered_method=True)
+        return grpc.experimental.stream_stream(request_iterator, target, '/philote.ImplicitService/SolveResiduals', data__pb2.VariableMessage.SerializeToString, data__pb2.VariableMessage.FromString, options, channel_credentials, insecure, call_credentials, compression, wait_for_ready, timeout, metadata, _registered_method=True)
 
     @staticmethod
     def ComputeResidualGradients(request_iterator, target, options=(), channel_credentials=None, call_credentials=None, insecure=False, compression=None, wait_for_ready=None, timeout=None, metadata=None):
-        return grpc.experimental.stream_stream(request_iterator, target, '/philote.ImplicitService/ComputeResidualGradients', data__pb2.Array.SerializeToString, data__pb2.Array.FromString, options, channel_credentials, insecure, call_credentials, compression, wait_for_ready, timeout, metadata, _registered_method=True)
+        return grpc.experimental.stream_stream(request_iterator, target, '/philote.ImplicitService/ComputeResidualGradients', data__pb2.VariableMessage.SerializeToString, data__pb2.VariableMessage.FromString, options, channel_credentials, insecure, call_credentials, compression, wait_for_ready, timeout, metadata, _registered_method=True)

@@ -30,6 +30,7 @@
 import philote_mdo.generated.disciplines_pb2_grpc as disc
 import philote_mdo.generated.data_pb2 as data
 import philote_mdo.general as pmdo
+from philote_mdo.general.discipline_server import _python_to_value
 from philote_mdo.utils import get_chunk_indices
 
 
@@ -136,15 +137,15 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
 
         Parameters
         ----------
-        request_iterator : Iterator[data.Array]
-            Stream of input and output arrays from the client
+        request_iterator : Iterator[data.VariableMessage]
+            Stream of input and output variable messages from the client
         context : grpc.ServicerContext
             gRPC context for the request
 
         Yields
         ------
-        data.Array
-            Stream of residual arrays back to the client
+        data.VariableMessage
+            Stream of residual variable messages back to the client
 
         Notes
         -----
@@ -159,21 +160,36 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         outputs = {}
         flat_outputs = {}
         residuals = {}
+        discrete_inputs = {}
+        discrete_outputs = {}
 
         self.preallocate_inputs(inputs, flat_inputs, outputs, flat_outputs)
-        self.process_inputs(request_iterator, flat_inputs, flat_outputs)
+        discrete_inputs, discrete_outputs = self.process_inputs(
+            request_iterator,
+            flat_inputs,
+            flat_outputs,
+            discrete_inputs=discrete_inputs,
+            discrete_outputs=discrete_outputs,
+        )
 
         # Call the user-defined compute_residuals function
-        self._discipline.compute_residuals(inputs, outputs, residuals)
+        if discrete_inputs or self._discipline._discrete_var_meta:
+            self._discipline.compute_residuals(
+                inputs, outputs, residuals, discrete_inputs, discrete_outputs
+            )
+        else:
+            self._discipline.compute_residuals(inputs, outputs, residuals)
 
         for res_name, value in residuals.items():
             for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
-                yield data.Array(
-                    name=res_name,
-                    start=b,
-                    end=e,
-                    type=data.kResidual,
-                    data=value.ravel()[b:e],
+                yield data.VariableMessage(
+                    continuous=data.Array(
+                        name=res_name,
+                        start=b,
+                        end=e,
+                        type=data.kResidual,
+                        data=value.ravel()[b:e],
+                    )
                 )
 
     def SolveResiduals(self, request_iterator, context):
@@ -186,15 +202,15 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
 
         Parameters
         ----------
-        request_iterator : Iterator[data.Array]
-            Stream of input arrays from the client
+        request_iterator : Iterator[data.VariableMessage]
+            Stream of input variable messages from the client
         context : grpc.ServicerContext
             gRPC context for the request
 
         Yields
         ------
-        data.Array
-            Stream of solved output arrays back to the client
+        data.VariableMessage
+            Stream of solved output variable messages back to the client
 
         Notes
         -----
@@ -208,21 +224,32 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         flat_inputs = {}
         outputs = {}
         flat_outputs = {}
+        discrete_inputs = {}
 
         self.preallocate_inputs(inputs, flat_inputs, outputs, flat_outputs)
-        self.process_inputs(request_iterator, flat_inputs, flat_outputs)
+        discrete_inputs, _ = self.process_inputs(
+            request_iterator,
+            flat_inputs,
+            flat_outputs,
+            discrete_inputs=discrete_inputs,
+        )
 
         # Call the user-defined solve function
-        self._discipline.solve_residuals(inputs, outputs)
+        if discrete_inputs or self._discipline._discrete_var_meta:
+            self._discipline.solve_residuals(inputs, outputs, discrete_inputs)
+        else:
+            self._discipline.solve_residuals(inputs, outputs)
 
         for output_name, value in outputs.items():
             for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
-                yield data.Array(
-                    name=output_name,
-                    start=b,
-                    end=e,
-                    type=data.kOutput,
-                    data=value.ravel()[b:e],
+                yield data.VariableMessage(
+                    continuous=data.Array(
+                        name=output_name,
+                        start=b,
+                        end=e,
+                        type=data.kOutput,
+                        data=value.ravel()[b:e],
+                    )
                 )
 
     def ComputeResidualGradients(self, request_iterator, context):
@@ -235,15 +262,15 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
 
         Parameters
         ----------
-        request_iterator : Iterator[data.Array]
-            Stream of input and output arrays from the client
+        request_iterator : Iterator[data.VariableMessage]
+            Stream of input and output variable messages from the client
         context : grpc.ServicerContext
             gRPC context for the request
 
         Yields
         ------
-        data.Array
-            Stream of partial derivative arrays back to the client
+        data.VariableMessage
+            Stream of partial derivative variable messages back to the client
 
         Notes
         -----
@@ -257,23 +284,38 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         flat_inputs = {}
         outputs = {}
         flat_outputs = {}
+        discrete_inputs = {}
+        discrete_outputs = {}
 
         self.preallocate_inputs(inputs, flat_inputs, outputs, flat_outputs)
         jac = self.preallocate_partials()
-        self.process_inputs(request_iterator, flat_inputs, flat_outputs)
+        discrete_inputs, discrete_outputs = self.process_inputs(
+            request_iterator,
+            flat_inputs,
+            flat_outputs,
+            discrete_inputs=discrete_inputs,
+            discrete_outputs=discrete_outputs,
+        )
 
         # Call the user-defined residual partials function
-        self._discipline.residual_partials(inputs, outputs, jac)
+        if discrete_inputs or self._discipline._discrete_var_meta:
+            self._discipline.residual_partials(
+                inputs, outputs, jac, discrete_inputs, discrete_outputs
+            )
+        else:
+            self._discipline.residual_partials(inputs, outputs, jac)
 
         for jac, value in jac.items():
             for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
-                yield data.Array(
-                    name=jac[0],
-                    subname=jac[1],
-                    type=data.kPartial,
-                    start=b,
-                    end=e,
-                    data=value.ravel()[b:e],
+                yield data.VariableMessage(
+                    continuous=data.Array(
+                        name=jac[0],
+                        subname=jac[1],
+                        type=data.kPartial,
+                        start=b,
+                        end=e,
+                        data=value.ravel()[b:e],
+                    )
                 )
 
     # def MatrixFreeGradients(self, request_iterator, context):

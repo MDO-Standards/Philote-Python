@@ -53,13 +53,14 @@ def client_setup(comp):
     Sets up the OpenMDAO component with all required inputs and outputs.
 
     This function will call the required RPCs to obtain the variables
-    from the remote discipline server.
+    from the remote discipline server.  Both continuous and discrete
+    variables are declared.
     """
     # set up the remote discipline and get the variable definitions
     comp._client.run_setup()
     comp._client.get_variable_definitions()
 
-    # define inputs and outputs based on the discipline metadata
+    # define continuous inputs and outputs based on the discipline metadata
     for var in comp._client._var_meta:
         if not var.units:
             units = None
@@ -71,6 +72,14 @@ def client_setup(comp):
 
         if var.type == data.kOutput:
             comp.add_output(var.name, shape=tuple(var.shape), units=units)
+
+    # define discrete inputs and outputs
+    for var in comp._client._discrete_var_meta:
+        if var.type == data.VariableType.kDiscreteInput:
+            comp.add_discrete_input(var.name, val=None)
+
+        if var.type == data.VariableType.kDiscreteOutput:
+            comp.add_discrete_output(var.name, val=None)
 
 
 def client_setup_partials(comp):
@@ -86,6 +95,20 @@ def client_setup_partials(comp):
     # declare partials based on the discipline meta data
     for partial in comp._client._partials_meta:
         comp.declare_partials(partial.name, partial.subname)
+
+
+def create_local_discrete_inputs(discrete_inputs, discrete_var_meta, type=data.VariableType.kDiscreteInput):
+    """
+    Creates a Philote-Python local discrete inputs dictionary from OpenMDAO
+    discrete inputs.
+    """
+    if discrete_inputs is None:
+        return None
+    local = {}
+    for var in discrete_var_meta:
+        if var.type == type:
+            local[var.name] = discrete_inputs[var.name]
+    return local if local else None
 
 
 def create_local_inputs(inputs, var_meta, type=data.kInput):
