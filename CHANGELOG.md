@@ -17,7 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added documentation for implicit disciplines.
 - Added documentation for OpenMDAO clients
 - Added documentation for the OpenMDOA subproblem discipline.
-- Migrated documentation from Jupyter Book to Docusaurus.
+- Migrated documentation from Jupyter Book to Docusaurus, mirroring the
+  Delphi docs setup (dark-mode theme, KaTeX math, custom landing page,
+  versioned docs).
+- Replaced the Jupyter Book `gh-pages` deploy job with a Docusaurus
+  GitHub Pages artifact pipeline triggered on `develop` for `docs/**`.
+- Added a `Release` GitHub Actions workflow mirroring Delphi's release
+  flow: PR-label-driven version bumps, signed commits, `pyproject.toml`
+  version update, CHANGELOG rewrite, Docusaurus version snapshots on
+  stable releases, GitHub Release creation, and auto-merge of `main`
+  back to `develop`.
+- Reformatted `CHANGELOG.md` to the Keep a Changelog convention so the
+  release workflow can drive header rewrites and comparison links.
 
 ## [0.7.0]
 
@@ -212,16 +223,16 @@ it is expected that bugs may surface and that several features are still
 missing. Because of this, the API may still change frequently before version
 1.0.0 is released.
 
-[Unreleased]: https://github.com/chrislupp/Philote-Python/compare/v0.7.0...HEAD
-[0.7.0]: https://github.com/chrislupp/Philote-Python/releases/tag/v0.7.0
-[0.6.1]: https://github.com/chrislupp/Philote-Python/releases/tag/v0.6.1
-[0.6.0]: https://github.com/chrislupp/Philote-Python/releases/tag/v0.6.0
-[0.5.3]: https://github.com/chrislupp/Philote-Python/releases/tag/v0.5.3
-[0.5.2]: https://github.com/chrislupp/Philote-Python/releases/tag/v0.5.2
-[0.5.1]: https://github.com/chrislupp/Philote-Python/releases/tag/v0.5.1
-[0.5.0]: https://github.com/chrislupp/Philote-Python/releases/tag/v0.5.0
-[0.4.0]: https://github.com/chrislupp/Philote-Python/releases/tag/v0.4.0
-[0.3.0]: https://github.com/chrislupp/Philote-Python/releases/tag/v0.3.0
-[0.2.1]: https://github.com/chrislupp/Philote-Python/releases/tag/v0.2.1
-[0.2.0]: https://github.com/chrislupp/Philote-Python/releases/tag/v0.2.0
-[0.1.0]: https://github.com/chrislupp/Philote-Python/releases/tag/v0.1.0
+[Unreleased]: https://github.com/MDO-Standards/Philote-Python/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.7.0
+[0.6.1]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.6.1
+[0.6.0]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.6.0
+[0.5.3]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.5.3
+[0.5.2]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.5.2
+[0.5.1]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.5.1
+[0.5.0]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.5.0
+[0.4.0]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.4.0
+[0.3.0]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.3.0
+[0.2.1]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.2.1
+[0.2.0]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.2.0
+[0.1.0]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.1.0

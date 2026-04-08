@@ -14,10 +14,10 @@ const config: Config = {
         v4: true,
     },
 
-    url: "https://chrislupp.github.io",
+    url: "https://mdo-standards.github.io",
     baseUrl: "/Philote-Python/",
 
-    organizationName: "chrislupp",
+    organizationName: "MDO-Standards",
     projectName: "Philote-Python",
 
     onBrokenLinks: "throw",
@@ -46,7 +46,7 @@ const config: Config = {
                     remarkPlugins: [remarkMath],
                     rehypePlugins: [rehypeKatex],
                     editUrl:
-                        "https://github.com/chrislupp/Philote-Python/tree/develop/docs/",
+                        "https://github.com/MDO-Standards/Philote-Python/tree/develop/docs/",
                     lastVersion: "current",
                     versions: {
                         current: {
@@ -81,7 +81,7 @@ const config: Config = {
                     position: "right",
                 },
                 {
-                    href: "https://github.com/chrislupp/Philote-Python",
+                    href: "https://github.com/MDO-Standards/Philote-Python",
                     label: "GitHub",
                     position: "right",
                 },
@@ -112,11 +112,11 @@ const config: Config = {
                     items: [
                         {
                             label: "GitHub",
-                            href: "https://github.com/chrislupp/Philote-Python",
+                            href: "https://github.com/MDO-Standards/Philote-Python",
                         },
                         {
                             label: "Changelog",
-                            href: "https://github.com/chrislupp/Philote-Python/blob/main/CHANGELOG.md",
+                            href: "https://github.com/MDO-Standards/Philote-Python/blob/main/CHANGELOG.md",
                         },
                         {
                             label: "PyPI",

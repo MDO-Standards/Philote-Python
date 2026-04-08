@@ -175,7 +175,7 @@ jobs:
         TAG="${{ steps.version.outputs.tag_version }}"
         VERSION="${{ steps.version.outputs.new_version }}"
         DATE=$(date +%Y-%m-%d)
-        REPO="https://github.com/chrislupp/Philote-Python"
+        REPO="https://github.com/MDO-Standards/Philote-Python"
 
         if [ "${{ steps.version.outputs.is_prerelease }}" = "true" ]; then
           HEADER="${TAG#v}"
