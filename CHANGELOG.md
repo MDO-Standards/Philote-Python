@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- Fixed `SellarMDA` promoted-input ambiguity that newer OpenMDAO releases
+  reject during `final_setup`. The `x` and `z` defaults were being set on
+  the inner `cycle` subgroup, but `obj_cmp` promoted the same variables
+  to the top level with different defaults. Moved the `set_input_defaults`
+  calls to the top-level `SellarMDA` group so the promoted values agree.
+- Updated `test_implicit_discipline_apply_linear_not_implemented` to call
+  `apply_linear` with its current six-argument signature (`inputs`,
+  `outputs`, `d_inputs`, `d_outputs`, `d_residuals`, `mode`); the stale
+  three-argument call raised `TypeError` before the `NotImplementedError`
+  assertion could fire.
+
 ### Documentation & Infrastructure
 
 - Updated installation instructions to reflect PyPI install option.
