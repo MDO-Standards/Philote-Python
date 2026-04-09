@@ -305,6 +305,15 @@ class TestOpenMdaoExplicitClient(unittest.TestCase):
         
         self.assertIn("No channel provided", str(context.exception))
 
+    def test_invalid_num_par_fd_raises(self, mock_explicit_component):
+        """
+        Tests that an invalid num_par_fd raises a ValueError.
+        """
+        mock_channel = Mock()
+        with self.assertRaises(ValueError) as context:
+            RemoteExplicitComponent(channel=mock_channel, num_par_fd=0)
+        self.assertIn("num_par_fd must be a positive integer", str(context.exception))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

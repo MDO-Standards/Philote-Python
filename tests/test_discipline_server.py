@@ -463,6 +463,111 @@ class TestDisciplineServer(unittest.TestCase):
 
         self.assertIn("Expected continuous variables but arrays were empty for variable x", str(context.exception))
 
+    def test_get_available_options_general_exception_aborts(self):
+        """
+        Tests that GetAvailableOptions calls context.abort with INTERNAL
+        for unexpected exceptions.
+        """
+        server = DisciplineServer()
+        discipline = Mock()
+        # options_list property raises an unexpected error
+        type(discipline).options_list = property(
+            lambda self: (_ for _ in ()).throw(RuntimeError("unexpected"))
+        )
+        server._discipline = discipline
+
+        request = Mock()
+        context = Mock()
+
+        server.GetAvailableOptions(request, context)
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INTERNAL)
+        self.assertIn("GetAvailableOptions failed", args[0][1])
+
+    def test_set_options_validation_error_aborts(self):
+        """
+        Tests that SetOptions calls context.abort with INVALID_ARGUMENT
+        for PhiloteValidationError.
+        """
+        server = DisciplineServer()
+        discipline = Mock()
+        discipline.set_options.side_effect = PhiloteValidationError("bad option")
+        server._discipline = discipline
+
+        request = Mock()
+        request.options = {}
+        context = Mock()
+
+        server.SetOptions(request, context)
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INVALID_ARGUMENT)
+        self.assertIn("bad option", args[0][1])
+
+    def test_set_options_general_exception_aborts(self):
+        """
+        Tests that SetOptions calls context.abort with INTERNAL for
+        unexpected exceptions.
+        """
+        server = DisciplineServer()
+        discipline = Mock()
+        discipline.set_options.side_effect = RuntimeError("boom")
+        server._discipline = discipline
+
+        request = Mock()
+        request.options = {}
+        context = Mock()
+
+        server.SetOptions(request, context)
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INTERNAL)
+        self.assertIn("SetOptions failed", args[0][1])
+
+    def test_setup_validation_error_aborts(self):
+        """
+        Tests that Setup calls context.abort with INVALID_ARGUMENT
+        for PhiloteValidationError.
+        """
+        server = DisciplineServer()
+        discipline = Mock()
+        discipline.setup.side_effect = PhiloteValidationError("bad setup")
+        server._discipline = discipline
+
+        request = Mock()
+        context = Mock()
+
+        server.Setup(request, context)
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INVALID_ARGUMENT)
+        self.assertIn("bad setup", args[0][1])
+
+    def test_setup_general_exception_aborts(self):
+        """
+        Tests that Setup calls context.abort with INTERNAL for
+        unexpected exceptions.
+        """
+        server = DisciplineServer()
+        discipline = Mock()
+        discipline._clear_data.side_effect = RuntimeError("crash")
+        server._discipline = discipline
+
+        request = Mock()
+        context = Mock()
+
+        server.Setup(request, context)
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INTERNAL)
+        self.assertIn("Setup failed", args[0][1])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

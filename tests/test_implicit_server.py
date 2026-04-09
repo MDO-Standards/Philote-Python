@@ -35,6 +35,7 @@ import numpy as np
 import numpy.testing as np_testing
 from google.protobuf.empty_pb2 import Empty
 from philote_mdo.general import ImplicitDiscipline, ImplicitServer
+from philote_mdo.utils.validation import PhiloteValidationError
 import philote_mdo.generated.data_pb2 as data
 
 
@@ -207,6 +208,148 @@ class TestImplicitServer(unittest.TestCase):
             np.array_equal(grad, np.array([-251.0, -499.0, 11105.0, 25007.0, -2950.0]))
         )
 
+
+    def test_compute_residuals_aborts_on_validation_error(self):
+        """
+        Tests that ComputeResiduals calls context.abort with INVALID_ARGUMENT
+        when a PhiloteValidationError is raised.
+        """
+        server = ImplicitServer()
+        discipline = server._discipline = ImplicitDiscipline()
+        discipline.add_input("x", shape=(1,), units="")
+        discipline.add_output("f", shape=(1,), units="")
+
+        context = Mock()
+        request_iterator = [
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kInput, name="x",
+                )
+            ),
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kOutput, name="f",
+                )
+            ),
+        ]
+
+        def bad_residuals(inputs, outputs, residuals):
+            raise PhiloteValidationError("bad residual input")
+
+        server._discipline.compute_residuals = bad_residuals
+
+        list(server.ComputeResiduals(request_iterator, context))
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INVALID_ARGUMENT)
+        self.assertIn("bad residual input", args[0][1])
+
+    def test_solve_residuals_aborts_on_validation_error(self):
+        """
+        Tests that SolveResiduals calls context.abort with INVALID_ARGUMENT
+        when a PhiloteValidationError is raised.
+        """
+        server = ImplicitServer()
+        discipline = server._discipline = ImplicitDiscipline()
+        discipline.add_input("x", shape=(1,), units="")
+        discipline.add_output("f", shape=(1,), units="")
+
+        context = Mock()
+        request_iterator = [
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kInput, name="x",
+                )
+            ),
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kOutput, name="f",
+                )
+            ),
+        ]
+
+        def bad_solve(inputs, outputs):
+            raise PhiloteValidationError("bad solve input")
+
+        server._discipline.solve_residuals = bad_solve
+
+        list(server.SolveResiduals(request_iterator, context))
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INVALID_ARGUMENT)
+        self.assertIn("bad solve input", args[0][1])
+
+    def test_compute_residual_gradients_aborts_on_validation_error(self):
+        """
+        Tests that ComputeResidualGradients calls context.abort with
+        INVALID_ARGUMENT when a PhiloteValidationError is raised.
+        """
+        server = ImplicitServer()
+        discipline = server._discipline = ImplicitDiscipline()
+        discipline.add_input("x", shape=(1,), units="")
+        discipline.add_output("f", shape=(1,), units="")
+        discipline.declare_partials("f", "x")
+
+        context = Mock()
+        request_iterator = [
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kInput, name="x",
+                )
+            ),
+        ]
+
+        def bad_partials(inputs, outputs, jac):
+            raise PhiloteValidationError("bad partials input")
+
+        server._discipline.residual_partials = bad_partials
+
+        list(server.ComputeResidualGradients(request_iterator, context))
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INVALID_ARGUMENT)
+        self.assertIn("bad partials input", args[0][1])
+
+    def test_compute_residual_gradients_aborts_on_discipline_error(self):
+        """
+        Tests that ComputeResidualGradients calls context.abort with INTERNAL
+        when an unexpected exception is raised.
+        """
+        server = ImplicitServer()
+        discipline = server._discipline = ImplicitDiscipline()
+        discipline.add_input("x", shape=(1,), units="")
+        discipline.add_output("f", shape=(1,), units="")
+        discipline.declare_partials("f", "x")
+
+        context = Mock()
+        request_iterator = [
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kInput, name="x",
+                )
+            ),
+        ]
+
+        def bad_partials(inputs, outputs, jac):
+            raise RuntimeError("unexpected crash")
+
+        server._discipline.residual_partials = bad_partials
+
+        list(server.ComputeResidualGradients(request_iterator, context))
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INTERNAL)
+        self.assertIn("ComputeResidualGradients failed", args[0][1])
 
     def test_compute_residuals_aborts_on_discipline_error(self):
         """
