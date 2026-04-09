@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
+- Added support for struct (dict) options via the new `kStruct` DataType enum
+  value, enabling complex nested data to be declared and passed as discipline
+  options (#49).
 - Added discrete variable support throughout the stack.  Disciplines can
   now declare discrete inputs/outputs via `add_discrete_input` /
   `add_discrete_output`.  Discrete data is serialized as

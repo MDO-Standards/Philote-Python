@@ -69,7 +69,7 @@ class Discipline:
             the name of the option being added
         type : string
             the data type of the option. acceptable types are 'bool', 'int',
-            'float'
+            'float', 'str', 'dict'
         """
         self.options_list[name] = type
 

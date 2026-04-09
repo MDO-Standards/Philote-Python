@@ -188,21 +188,23 @@ class TestOpenMdaoUtils(unittest.TestCase):
             ("max_iter", "int"),
             ("tolerance", "float"),
             ("method", "str"),
-            ("verbose", "bool")
+            ("verbose", "bool"),
+            ("config", "dict"),
         ]
         declare_options(opt_list, options_mock)
-        
+
         expected_calls = [
             ("max_iter", int),
             ("tolerance", float),
             ("method", str),
-            ("verbose", bool)
+            ("verbose", bool),
+            ("config", dict),
         ]
-        
+
         for name, opt_type in expected_calls:
             options_mock.declare.assert_any_call(name, types=opt_type)
-        
-        self.assertEqual(options_mock.declare.call_count, 4)
+
+        self.assertEqual(options_mock.declare.call_count, 5)
         
         # Test case 3: Unknown type (should result in None)
         options_mock.reset_mock()
