@@ -33,6 +33,11 @@ import philote_mdo.generated.data_pb2 as data
 import philote_mdo.generated.disciplines_pb2_grpc as disc
 import philote_mdo.utils as utils
 from philote_mdo.general.discipline_server import _python_to_value, _value_to_python
+from philote_mdo.utils.validation import (
+    PhiloteValidationError,
+    validate_is_dict,
+    validate_numpy_array,
+)
 
 
 class DisciplineClient:
@@ -114,6 +119,7 @@ class DisciplineClient:
         -------
             None
         """
+        validate_is_dict(options, "send_options")
         proto_options = data.DisciplineOptions()
         proto_options.options.update(options)
         self._disc_stub.SetOptions(proto_options)
@@ -158,6 +164,14 @@ class DisciplineClient:
         Both continuous and discrete inputs are wrapped in ``VariableMessage``
         envelopes.
         """
+        validate_is_dict(inputs, "_assemble_input_messages (inputs)")
+        for input_name, value in inputs.items():
+            validate_numpy_array(value, input_name)
+        if outputs is not None:
+            validate_is_dict(outputs, "_assemble_input_messages (outputs)")
+            for output_name, value in outputs.items():
+                validate_numpy_array(value, output_name)
+
         messages = []
 
         # Continuous inputs
@@ -251,7 +265,7 @@ class DisciplineClient:
                     if len(arr.data) > 0:
                         flat_outputs[arr.name][b:e] = arr.data
                     else:
-                        raise ValueError(
+                        raise PhiloteValidationError(
                             "Expected continuous variables, but array is empty."
                         )
 
@@ -289,7 +303,7 @@ class DisciplineClient:
                     if len(arr.data) > 0:
                         flat_residuals[arr.name][b:e] = arr.data
                     else:
-                        raise ValueError(
+                        raise PhiloteValidationError(
                             "Expected continuous variables, but array is empty."
                         )
 
@@ -336,7 +350,7 @@ class DisciplineClient:
                     if len(arr.data) > 0:
                         flat_p[(arr.name, arr.subname)][b:e] = arr.data
                     else:
-                        raise ValueError(
+                        raise PhiloteValidationError(
                             "Expected continuous outputs for the "
                             "partials, but array was empty."
                         )

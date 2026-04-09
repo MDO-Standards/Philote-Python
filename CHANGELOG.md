@@ -20,10 +20,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the new `VariableMessage` wrapper.  The OpenMDAO bindings
   (`RemoteExplicitComponent`, `RemoteImplicitComponent`) automatically
   discover and forward discrete variables.
+- Added comprehensive input validation and error handling across the
+  framework.  Introduces custom exception classes (`PhiloteValidationError`,
+  `PhiloteServerError`), parameter validation in discipline base classes
+  (`add_input`, `add_output`, `add_option`, `declare_partials`), proper
+  gRPC error propagation via `context.abort()` with appropriate status
+  codes in all server RPC methods, and client-side input validation with
+  gRPC error wrapping (#46).
 
 ### Bug Fixes
 
 - Fixed bare `except` to `except ImportError` in `examples/__init__.py`.
+- Fixed missing space in `RemoteImplicitComponent` error message
+  ("will notbe" -> "will not be").
 - Fixed `SellarMDA` promoted-input ambiguity that newer OpenMDAO releases
   reject during `final_setup`. The `x` and `z` defaults were being set on
   the inner `cycle` subgroup, but `obj_cmp` promoted the same variables

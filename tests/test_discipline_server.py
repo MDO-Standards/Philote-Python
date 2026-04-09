@@ -30,11 +30,13 @@
 import unittest
 from unittest.mock import Mock
 
+import grpc
 import numpy as np
 
 from google.protobuf.empty_pb2 import Empty
 
 from philote_mdo.general import Discipline, DisciplineServer
+from philote_mdo.utils.validation import PhiloteValidationError
 import philote_mdo.generated.data_pb2 as data
 
 
@@ -411,27 +413,32 @@ class TestDisciplineServer(unittest.TestCase):
             }
         )
 
-    def test_get_available_options_invalid_type_raises_error(self):
+    def test_get_available_options_invalid_type_aborts(self):
         """
-        Tests that GetAvailableOptions raises ValueError for invalid option types.
+        Tests that GetAvailableOptions calls context.abort for invalid option
+        types.
         """
         server = DisciplineServer()
         discipline = server._discipline = Discipline()
-        
-        # Add option with invalid type
-        discipline.add_option("invalid_option", "unknown_type")
-        
+
+        # Add option with invalid type (bypasses add_option validation by
+        # writing directly to options_list)
+        discipline.options_list["invalid_option"] = "unknown_type"
+
         request = Empty()
         context = Mock()
-        
-        with self.assertRaises(ValueError) as error_context:
-            server.GetAvailableOptions(request, context)
-        
-        self.assertIn("Invalid value for discipline option 'invalid_option'", str(error_context.exception))
+
+        server.GetAvailableOptions(request, context)
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INVALID_ARGUMENT)
+        self.assertIn("Invalid value for discipline option 'invalid_option'", args[0][1])
 
     def test_process_inputs_empty_array_raises_error(self):
         """
-        Tests that process_inputs raises ValueError when array data is empty.
+        Tests that process_inputs raises PhiloteValidationError when array
+        data is empty.
         """
         server = DisciplineServer()
 
@@ -451,10 +458,115 @@ class TestDisciplineServer(unittest.TestCase):
         flat_inputs = {"x": np.zeros(3)}
         flat_outputs = {}
 
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(PhiloteValidationError) as context:
             server.process_inputs(request_iterator, flat_inputs, flat_outputs)
 
         self.assertIn("Expected continuous variables but arrays were empty for variable x", str(context.exception))
+
+    def test_get_available_options_general_exception_aborts(self):
+        """
+        Tests that GetAvailableOptions calls context.abort with INTERNAL
+        for unexpected exceptions.
+        """
+        server = DisciplineServer()
+        discipline = Mock()
+        # options_list property raises an unexpected error
+        type(discipline).options_list = property(
+            lambda self: (_ for _ in ()).throw(RuntimeError("unexpected"))
+        )
+        server._discipline = discipline
+
+        request = Mock()
+        context = Mock()
+
+        server.GetAvailableOptions(request, context)
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INTERNAL)
+        self.assertIn("GetAvailableOptions failed", args[0][1])
+
+    def test_set_options_validation_error_aborts(self):
+        """
+        Tests that SetOptions calls context.abort with INVALID_ARGUMENT
+        for PhiloteValidationError.
+        """
+        server = DisciplineServer()
+        discipline = Mock()
+        discipline.set_options.side_effect = PhiloteValidationError("bad option")
+        server._discipline = discipline
+
+        request = Mock()
+        request.options = {}
+        context = Mock()
+
+        server.SetOptions(request, context)
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INVALID_ARGUMENT)
+        self.assertIn("bad option", args[0][1])
+
+    def test_set_options_general_exception_aborts(self):
+        """
+        Tests that SetOptions calls context.abort with INTERNAL for
+        unexpected exceptions.
+        """
+        server = DisciplineServer()
+        discipline = Mock()
+        discipline.set_options.side_effect = RuntimeError("boom")
+        server._discipline = discipline
+
+        request = Mock()
+        request.options = {}
+        context = Mock()
+
+        server.SetOptions(request, context)
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INTERNAL)
+        self.assertIn("SetOptions failed", args[0][1])
+
+    def test_setup_validation_error_aborts(self):
+        """
+        Tests that Setup calls context.abort with INVALID_ARGUMENT
+        for PhiloteValidationError.
+        """
+        server = DisciplineServer()
+        discipline = Mock()
+        discipline.setup.side_effect = PhiloteValidationError("bad setup")
+        server._discipline = discipline
+
+        request = Mock()
+        context = Mock()
+
+        server.Setup(request, context)
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INVALID_ARGUMENT)
+        self.assertIn("bad setup", args[0][1])
+
+    def test_setup_general_exception_aborts(self):
+        """
+        Tests that Setup calls context.abort with INTERNAL for
+        unexpected exceptions.
+        """
+        server = DisciplineServer()
+        discipline = Mock()
+        discipline._clear_data.side_effect = RuntimeError("crash")
+        server._discipline = discipline
+
+        request = Mock()
+        context = Mock()
+
+        server.Setup(request, context)
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INTERNAL)
+        self.assertIn("Setup failed", args[0][1])
 
 
 if __name__ == "__main__":

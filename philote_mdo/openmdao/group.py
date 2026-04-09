@@ -29,6 +29,12 @@
 # control over the information you may find at these locations.
 import openmdao.api as om
 import philote_mdo.general as pm
+from philote_mdo.utils.validation import (
+    PhiloteValidationError,
+    validate_name,
+    validate_shape,
+    validate_units,
+)
 
 
 class OpenMdaoSubProblem(pm.ExplicitDiscipline):
@@ -115,6 +121,11 @@ class OpenMdaoSubProblem(pm.ExplicitDiscipline):
         >>> subprob = OpenMdaoSubProblem()
         >>> subprob.add_group(MyGroup())
         """
+        if not isinstance(group, om.Group):
+            raise PhiloteValidationError(
+                f"add_group: expected an om.Group instance, "
+                f"got {type(group).__name__}."
+            )
         self._prob = om.Problem(model=group)
         self._model = self._prob.model
 
@@ -142,6 +153,14 @@ class OpenMdaoSubProblem(pm.ExplicitDiscipline):
         >>> subprob.add_mapped_input('x_local', 'x', shape=(1,), units='m')
         >>> subprob.add_mapped_input('design_vars', 'z', shape=(2,), units='')
         """
+        validate_name(local_var, "add_mapped_input (local_var)")
+        validate_name(subprob_var, "add_mapped_input (subprob_var)")
+        validate_shape(shape, "add_mapped_input")
+        validate_units(units, "add_mapped_input")
+        if local_var in self._input_map:
+            raise PhiloteValidationError(
+                f"add_mapped_input: '{local_var}' is already mapped."
+            )
         self._input_map[local_var] = {
             "sub_prob_name": subprob_var,
             "shape": shape,
@@ -172,6 +191,14 @@ class OpenMdaoSubProblem(pm.ExplicitDiscipline):
         >>> subprob.add_mapped_output('objective', 'obj', shape=(1,), units='')
         >>> subprob.add_mapped_output('constraint1', 'con1', shape=(1,), units='N')
         """
+        validate_name(local_var, "add_mapped_output (local_var)")
+        validate_name(subprob_var, "add_mapped_output (subprob_var)")
+        validate_shape(shape, "add_mapped_output")
+        validate_units(units, "add_mapped_output")
+        if local_var in self._output_map:
+            raise PhiloteValidationError(
+                f"add_mapped_output: '{local_var}' is already mapped."
+            )
         self._output_map[local_var] = {
             "sub_prob_name": subprob_var,
             "shape": shape,
@@ -222,6 +249,18 @@ class OpenMdaoSubProblem(pm.ExplicitDiscipline):
         >>> subprob.add_mapped_output('y_local', 'y')
         >>> subprob.declare_subproblem_partial('y_local', 'x_local')
         """
+        validate_name(local_func, "declare_subproblem_partial (local_func)")
+        validate_name(local_var, "declare_subproblem_partial (local_var)")
+        if local_func not in self._output_map:
+            raise PhiloteValidationError(
+                f"declare_subproblem_partial: output '{local_func}' has not "
+                f"been mapped. Call add_mapped_output first."
+            )
+        if local_var not in self._input_map:
+            raise PhiloteValidationError(
+                f"declare_subproblem_partial: input '{local_var}' has not "
+                f"been mapped. Call add_mapped_input first."
+            )
         self._partials_map[(local_func, local_var)] = (
             self._output_map[local_func]["sub_prob_name"],
             self._input_map[local_var]["sub_prob_name"],

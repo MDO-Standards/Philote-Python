@@ -30,9 +30,11 @@
 import unittest
 from unittest.mock import Mock, patch
 
+import grpc
 import numpy as np
 
 from philote_mdo.general import ImplicitClient
+from philote_mdo.utils.validation import PhiloteValidationError, PhiloteServerError
 import philote_mdo.generated.data_pb2 as data
 import philote_mdo.utils as utils
 
@@ -200,6 +202,95 @@ class TestImplicitClient(unittest.TestCase):
         for key, expected_data in expected_partials.items():
             self.assertTrue(key in partials)
             np.testing.assert_array_equal(partials[key], expected_data)
+
+
+    @patch("philote_mdo.generated.disciplines_pb2_grpc.ImplicitServiceStub")
+    def test_run_compute_residuals_grpc_error_wraps(self, mock_implicit_stub):
+        mock_channel = Mock()
+        mock_stub = mock_implicit_stub.return_value
+        client = ImplicitClient(mock_channel)
+        client._var_meta = [
+            data.VariableMetaData(name="x", type=data.kInput, shape=(1,)),
+            data.VariableMetaData(name="f", type=data.kOutput, shape=(1,)),
+            data.VariableMetaData(name="f", type=data.kResidual, shape=(1,)),
+        ]
+
+        rpc_error = grpc.RpcError()
+        rpc_error.details = lambda: "residual failed"
+        rpc_error.code = lambda: grpc.StatusCode.INTERNAL
+        mock_stub.ComputeResiduals.side_effect = rpc_error
+
+        with self.assertRaises(PhiloteServerError) as ctx:
+            client.run_compute_residuals(
+                {"x": np.array([1.0])}, {"f": np.array([1.0])}
+            )
+        self.assertIn("residual failed", str(ctx.exception))
+
+    @patch("philote_mdo.generated.disciplines_pb2_grpc.ImplicitServiceStub")
+    def test_run_solve_residuals_grpc_error_wraps(self, mock_implicit_stub):
+        mock_channel = Mock()
+        mock_stub = mock_implicit_stub.return_value
+        client = ImplicitClient(mock_channel)
+        client._var_meta = [
+            data.VariableMetaData(name="x", type=data.kInput, shape=(1,)),
+            data.VariableMetaData(name="f", type=data.kOutput, shape=(1,)),
+        ]
+
+        rpc_error = grpc.RpcError()
+        rpc_error.details = lambda: "solve failed"
+        rpc_error.code = lambda: grpc.StatusCode.INTERNAL
+        mock_stub.SolveResiduals.side_effect = rpc_error
+
+        with self.assertRaises(PhiloteServerError) as ctx:
+            client.run_solve_residuals({"x": np.array([1.0])})
+        self.assertIn("solve failed", str(ctx.exception))
+
+    @patch("philote_mdo.generated.disciplines_pb2_grpc.ImplicitServiceStub")
+    def test_run_residual_gradients_grpc_error_wraps(self, mock_implicit_stub):
+        mock_channel = Mock()
+        mock_stub = mock_implicit_stub.return_value
+        client = ImplicitClient(mock_channel)
+        client._var_meta = [
+            data.VariableMetaData(name="x", type=data.kInput, shape=(1,)),
+            data.VariableMetaData(name="f", type=data.kOutput, shape=(1,)),
+            data.VariableMetaData(name="f", type=data.kResidual, shape=(1,)),
+        ]
+        client._partials_meta = [data.PartialsMetaData(name="f", subname="x")]
+
+        rpc_error = grpc.RpcError()
+        rpc_error.details = lambda: "gradient failed"
+        rpc_error.code = lambda: grpc.StatusCode.INTERNAL
+        mock_stub.ComputeResidualGradients.side_effect = rpc_error
+
+        with self.assertRaises(PhiloteServerError) as ctx:
+            client.run_residual_gradients(
+                {"x": np.array([1.0])}, {"f": np.array([1.0])}
+            )
+        self.assertIn("gradient failed", str(ctx.exception))
+
+    def test_run_compute_residuals_non_dict_inputs_raises(self):
+        mock_channel = Mock()
+        client = ImplicitClient(mock_channel)
+        with self.assertRaises(PhiloteValidationError):
+            client.run_compute_residuals("not a dict", {"f": np.array([1.0])})
+
+    def test_run_compute_residuals_non_dict_outputs_raises(self):
+        mock_channel = Mock()
+        client = ImplicitClient(mock_channel)
+        with self.assertRaises(PhiloteValidationError):
+            client.run_compute_residuals({"x": np.array([1.0])}, "not a dict")
+
+    def test_run_solve_residuals_non_dict_raises(self):
+        mock_channel = Mock()
+        client = ImplicitClient(mock_channel)
+        with self.assertRaises(PhiloteValidationError):
+            client.run_solve_residuals(42)
+
+    def test_run_residual_gradients_non_dict_raises(self):
+        mock_channel = Mock()
+        client = ImplicitClient(mock_channel)
+        with self.assertRaises(PhiloteValidationError):
+            client.run_residual_gradients("bad", {"f": np.array([1.0])})
 
 
 if __name__ == "__main__":

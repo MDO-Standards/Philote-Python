@@ -30,9 +30,11 @@
 import unittest
 from unittest.mock import Mock, patch
 
+import grpc
 import numpy as np
 
 from philote_mdo.general import ExplicitClient
+from philote_mdo.utils.validation import PhiloteValidationError, PhiloteServerError
 import philote_mdo.generated.data_pb2 as data
 import philote_mdo.utils as utils
 
@@ -135,3 +137,53 @@ class TestExplicitClient(unittest.TestCase):
         for output_name, expected_data in expected_outputs.items():
             self.assertTrue(output_name in outputs)
             np.testing.assert_array_equal(outputs[output_name], expected_data)
+
+    def test_run_compute_non_dict_raises(self):
+        mock_channel = Mock()
+        client = ExplicitClient(mock_channel)
+        with self.assertRaises(PhiloteValidationError):
+            client.run_compute("not a dict")
+
+    @patch("philote_mdo.generated.disciplines_pb2_grpc.ExplicitServiceStub")
+    def test_run_compute_grpc_error_wraps(self, mock_explicit_stub):
+        mock_channel = Mock()
+        mock_stub = mock_explicit_stub.return_value
+        client = ExplicitClient(mock_channel)
+        client._var_meta = [
+            data.VariableMetaData(name="x", type=data.kInput, shape=(1,)),
+        ]
+
+        rpc_error = grpc.RpcError()
+        rpc_error.details = lambda: "server crashed"
+        rpc_error.code = lambda: grpc.StatusCode.INTERNAL
+        mock_stub.ComputeFunction.side_effect = rpc_error
+
+        with self.assertRaises(PhiloteServerError) as ctx:
+            client.run_compute({"x": np.array([1.0])})
+        self.assertIn("server crashed", str(ctx.exception))
+
+    @patch("philote_mdo.generated.disciplines_pb2_grpc.ExplicitServiceStub")
+    def test_run_compute_partials_grpc_error_wraps(self, mock_explicit_stub):
+        mock_channel = Mock()
+        mock_stub = mock_explicit_stub.return_value
+        client = ExplicitClient(mock_channel)
+        client._var_meta = [
+            data.VariableMetaData(name="f", type=data.kOutput, shape=(1,)),
+            data.VariableMetaData(name="x", type=data.kInput, shape=(1,)),
+        ]
+        client._partials_meta = [data.PartialsMetaData(name="f", subname="x")]
+
+        rpc_error = grpc.RpcError()
+        rpc_error.details = lambda: "gradient computation failed"
+        rpc_error.code = lambda: grpc.StatusCode.INTERNAL
+        mock_stub.ComputeGradient.side_effect = rpc_error
+
+        with self.assertRaises(PhiloteServerError) as ctx:
+            client.run_compute_partials({"x": np.array([1.0])})
+        self.assertIn("gradient computation failed", str(ctx.exception))
+
+    def test_run_compute_partials_non_dict_raises(self):
+        mock_channel = Mock()
+        client = ExplicitClient(mock_channel)
+        with self.assertRaises(PhiloteValidationError):
+            client.run_compute_partials(42)
