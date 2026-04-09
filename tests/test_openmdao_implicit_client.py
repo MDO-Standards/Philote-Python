@@ -171,6 +171,7 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
         component = RemoteImplicitComponent(channel=mock_channel)
         component._client = Mock()
         component._client._partials_meta = [par1, par2]
+        component._client._var_meta = []
 
         # call the function
         component.setup_partials()

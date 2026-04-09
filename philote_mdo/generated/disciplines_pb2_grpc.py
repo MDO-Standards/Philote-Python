@@ -34,6 +34,7 @@ class DisciplineServiceStub(object):
         self.Setup = channel.unary_unary('/philote.DisciplineService/Setup', request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString, response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, _registered_method=True)
         self.GetVariableDefinitions = channel.unary_stream('/philote.DisciplineService/GetVariableDefinitions', request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString, response_deserializer=data__pb2.VariableMetaData.FromString, _registered_method=True)
         self.GetPartialDefinitions = channel.unary_stream('/philote.DisciplineService/GetPartialDefinitions', request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString, response_deserializer=data__pb2.PartialsMetaData.FromString, _registered_method=True)
+        self.SetVariableShapes = channel.stream_unary('/philote.DisciplineService/SetVariableShapes', request_serializer=data__pb2.VariableMetaData.SerializeToString, response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, _registered_method=True)
 
 class DisciplineServiceServicer(object):
     """Generic Discipline Definition
@@ -91,8 +92,16 @@ class DisciplineServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def SetVariableShapes(self, request_iterator, context):
+        """Sets shapes for variables flagged as dynamic_shape.
+        Must be called after GetVariableDefinitions and before compute RPCs.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 def add_DisciplineServiceServicer_to_server(servicer, server):
-    rpc_method_handlers = {'GetInfo': grpc.unary_unary_rpc_method_handler(servicer.GetInfo, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=data__pb2.DisciplineProperties.SerializeToString), 'SetStreamOptions': grpc.unary_unary_rpc_method_handler(servicer.SetStreamOptions, request_deserializer=data__pb2.StreamOptions.FromString, response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString), 'GetAvailableOptions': grpc.unary_unary_rpc_method_handler(servicer.GetAvailableOptions, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=data__pb2.OptionsList.SerializeToString), 'SetOptions': grpc.unary_unary_rpc_method_handler(servicer.SetOptions, request_deserializer=data__pb2.DisciplineOptions.FromString, response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString), 'Setup': grpc.unary_unary_rpc_method_handler(servicer.Setup, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString), 'GetVariableDefinitions': grpc.unary_stream_rpc_method_handler(servicer.GetVariableDefinitions, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=data__pb2.VariableMetaData.SerializeToString), 'GetPartialDefinitions': grpc.unary_stream_rpc_method_handler(servicer.GetPartialDefinitions, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=data__pb2.PartialsMetaData.SerializeToString)}
+    rpc_method_handlers = {'GetInfo': grpc.unary_unary_rpc_method_handler(servicer.GetInfo, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=data__pb2.DisciplineProperties.SerializeToString), 'SetStreamOptions': grpc.unary_unary_rpc_method_handler(servicer.SetStreamOptions, request_deserializer=data__pb2.StreamOptions.FromString, response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString), 'GetAvailableOptions': grpc.unary_unary_rpc_method_handler(servicer.GetAvailableOptions, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=data__pb2.OptionsList.SerializeToString), 'SetOptions': grpc.unary_unary_rpc_method_handler(servicer.SetOptions, request_deserializer=data__pb2.DisciplineOptions.FromString, response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString), 'Setup': grpc.unary_unary_rpc_method_handler(servicer.Setup, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString), 'GetVariableDefinitions': grpc.unary_stream_rpc_method_handler(servicer.GetVariableDefinitions, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=data__pb2.VariableMetaData.SerializeToString), 'GetPartialDefinitions': grpc.unary_stream_rpc_method_handler(servicer.GetPartialDefinitions, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=data__pb2.PartialsMetaData.SerializeToString), 'SetVariableShapes': grpc.stream_unary_rpc_method_handler(servicer.SetVariableShapes, request_deserializer=data__pb2.VariableMetaData.FromString, response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString)}
     generic_handler = grpc.method_handlers_generic_handler('philote.DisciplineService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
     server.add_registered_method_handlers('philote.DisciplineService', rpc_method_handlers)
@@ -131,6 +140,10 @@ class DisciplineService(object):
     @staticmethod
     def GetPartialDefinitions(request, target, options=(), channel_credentials=None, call_credentials=None, insecure=False, compression=None, wait_for_ready=None, timeout=None, metadata=None):
         return grpc.experimental.unary_stream(request, target, '/philote.DisciplineService/GetPartialDefinitions', google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString, data__pb2.PartialsMetaData.FromString, options, channel_credentials, insecure, call_credentials, compression, wait_for_ready, timeout, metadata, _registered_method=True)
+
+    @staticmethod
+    def SetVariableShapes(request_iterator, target, options=(), channel_credentials=None, call_credentials=None, insecure=False, compression=None, wait_for_ready=None, timeout=None, metadata=None):
+        return grpc.experimental.stream_unary(request_iterator, target, '/philote.DisciplineService/SetVariableShapes', data__pb2.VariableMetaData.SerializeToString, google_dot_protobuf_dot_empty__pb2.Empty.FromString, options, channel_credentials, insecure, call_credentials, compression, wait_for_ready, timeout, metadata, _registered_method=True)
 
 class ExplicitServiceStub(object):
     """Definition of the generic Explicit Component RPC

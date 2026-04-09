@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
+- Added dynamic shapes for inputs and outputs.  Disciplines can now
+  declare variables with `dynamic_shape=True` in `add_input` /
+  `add_output`, indicating that the client is allowed to set the
+  variable's shape at runtime.  A new `SetVariableShapes` gRPC RPC
+  lets clients send resolved shapes after querying variable definitions.
+  The OpenMDAO bindings automatically map dynamic-shape variables to
+  `shape_by_conn=True` and send resolved shapes back to the server
+  (MDO-Standards/Philote-MDO#6).
 - Added support for struct (dict) options via the new `kStruct` DataType enum
   value, enabling complex nested data to be declared and passed as discipline
   options (#49).

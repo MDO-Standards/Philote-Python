@@ -77,17 +77,19 @@ class DisciplineOptions(_message.Message):
         ...
 
 class VariableMetaData(_message.Message):
-    __slots__ = ('type', 'name', 'shape', 'units')
+    __slots__ = ('type', 'name', 'shape', 'units', 'dynamic_shape')
     TYPE_FIELD_NUMBER: _ClassVar[int]
     NAME_FIELD_NUMBER: _ClassVar[int]
     SHAPE_FIELD_NUMBER: _ClassVar[int]
     UNITS_FIELD_NUMBER: _ClassVar[int]
+    DYNAMIC_SHAPE_FIELD_NUMBER: _ClassVar[int]
     type: VariableType
     name: str
     shape: _containers.RepeatedScalarFieldContainer[int]
     units: str
+    dynamic_shape: bool
 
-    def __init__(self, type: _Optional[_Union[VariableType, str]]=..., name: _Optional[str]=..., shape: _Optional[_Iterable[int]]=..., units: _Optional[str]=...) -> None:
+    def __init__(self, type: _Optional[_Union[VariableType, str]]=..., name: _Optional[str]=..., shape: _Optional[_Iterable[int]]=..., units: _Optional[str]=..., dynamic_shape: bool=...) -> None:
         ...
 
 class PartialsMetaData(_message.Message):
