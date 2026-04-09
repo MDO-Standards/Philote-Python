@@ -12,6 +12,7 @@ class DataType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     kInt: _ClassVar[DataType]
     kDouble: _ClassVar[DataType]
     kString: _ClassVar[DataType]
+    kStruct: _ClassVar[DataType]
 
 class VariableType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -25,6 +26,7 @@ kBool: DataType
 kInt: DataType
 kDouble: DataType
 kString: DataType
+kStruct: DataType
 kInput: VariableType
 kDiscreteInput: VariableType
 kResidual: VariableType

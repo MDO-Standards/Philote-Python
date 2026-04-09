@@ -130,6 +130,51 @@ class TestDisciplineClient(unittest.TestCase):
         }
         self.assertEqual(instance.options_list, expected_options_list)
 
+    @patch("philote_mdo.generated.disciplines_pb2_grpc.DisciplineServiceStub")
+    def test_get_available_options_with_dict_type(self, mock_discipline_stub):
+        """
+        Tests that get_available_options correctly maps kStruct to 'dict'.
+        """
+        mock_channel = Mock()
+        mock_stub = mock_discipline_stub.return_value
+
+        instance = DisciplineClient(channel=mock_channel)
+
+        mock_options = MagicMock()
+        mock_options.options = ["config", "flag"]
+        mock_options.type = [data.kStruct, data.kBool]
+        instance._disc_stub.GetAvailableOptions.return_value = mock_options
+
+        instance.get_available_options()
+
+        expected_options_list = {
+            "config": "dict",
+            "flag": "bool",
+        }
+        self.assertEqual(instance.options_list, expected_options_list)
+
+    def test_send_options_with_nested_dict(self):
+        """
+        Tests that send_options correctly serializes nested dict values via Struct.
+        """
+        mock_stub = Mock()
+        mock_channel = Mock()
+        mock_channel.stub.return_value = mock_stub
+
+        client = DisciplineClient(channel=mock_channel)
+        client._disc_stub = mock_stub
+
+        options = {
+            "config": {"solver": "newton", "tol": 1e-6},
+            "name": "test",
+        }
+
+        client.send_options(options)
+
+        expected_proto_options = data.DisciplineOptions()
+        expected_proto_options.options.update(options)
+        mock_stub.SetOptions.assert_called_once_with(expected_proto_options)
+
     def test_send_options(self):
         # mock gRPC stub and channel
         mock_stub = Mock()

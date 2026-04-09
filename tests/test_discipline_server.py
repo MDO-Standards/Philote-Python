@@ -362,6 +362,55 @@ class TestDisciplineServer(unittest.TestCase):
         self.assertEqual(flat_inputs["x"].tolist(), [1.0, 2.0, 3.0, 4.0, 5.0, 0.0])
         self.assertEqual(flat_outputs["f"].tolist(), [0.1, 0.2, 0.0])
 
+    def test_get_available_options_with_dict_type(self):
+        """
+        Tests that GetAvailableOptions correctly maps dict options to kStruct.
+        """
+        server = DisciplineServer()
+
+        request_mock = Mock()
+        context_mock = None
+
+        server._discipline = Discipline()
+        server._discipline.options_list = {
+            "config": "dict",
+            "flag": "bool",
+        }
+
+        results = server.GetAvailableOptions(request_mock, context_mock)
+
+        expected_options = ["config", "flag"]
+        expected_types = [data.kStruct, data.kBool]
+
+        self.assertEqual(results.options, expected_options)
+        self.assertEqual(results.type, expected_types)
+
+    def test_set_options_with_nested_dict(self):
+        """
+        Tests that SetOptions correctly passes nested dict values through.
+        """
+        server = DisciplineServer()
+
+        request_mock = Mock()
+        context_mock = Mock()
+
+        request_mock.options = {
+            "config": {"solver": "newton", "tol": 1e-6, "nested": {"a": 1}},
+            "name": "test",
+        }
+
+        discipline_mock = Mock()
+        server._discipline = discipline_mock
+
+        server.SetOptions(request_mock, context_mock)
+
+        server._discipline.set_options.assert_called_once_with(
+            {
+                "config": {"solver": "newton", "tol": 1e-6, "nested": {"a": 1}},
+                "name": "test",
+            }
+        )
+
     def test_get_available_options_invalid_type_raises_error(self):
         """
         Tests that GetAvailableOptions raises ValueError for invalid option types.

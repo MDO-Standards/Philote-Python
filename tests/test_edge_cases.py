@@ -73,6 +73,26 @@ class TestDisciplineServerEdgeCases(unittest.TestCase):
         # The method should complete without error and return options
         self.assertIsNotNone(result)
 
+    def test_get_available_options_with_dict_type(self):
+        """
+        Test GetAvailableOptions with dict option type (covers kStruct mapping).
+        """
+        server = DisciplineServer()
+        discipline = Mock()
+
+        discipline.options_list = {"config": "dict"}
+
+        server.attach_discipline(discipline)
+
+        request = Mock()
+        context = Mock()
+
+        result = server.GetAvailableOptions(request, context)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(list(result.options), ["config"])
+        self.assertEqual(list(result.type), [data.kStruct])
+
     def test_get_available_options_with_invalid_type(self):
         """
         Test GetAvailableOptions with invalid option type (covers lines 100-103).
