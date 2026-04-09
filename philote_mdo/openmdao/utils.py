@@ -44,6 +44,8 @@ def declare_options(opt_list, options):
             opt_type = float
         elif type_str == "str":
             opt_type = str
+        elif type_str == "dict":
+            opt_type = dict
 
         options.declare(name, types=opt_type)
 

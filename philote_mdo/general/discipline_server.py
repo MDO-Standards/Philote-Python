@@ -100,6 +100,8 @@ class DisciplineServer(disc.DisciplineService):
                 type = data.kDouble
             elif val == "str":
                 type = data.kString
+            elif val == "dict":
+                type = data.kStruct
             else:
                 raise ValueError(
                     "Invalid value for discipline option '{}'".format(name)

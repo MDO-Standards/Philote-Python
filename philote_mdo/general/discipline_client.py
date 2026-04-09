@@ -97,6 +97,8 @@ class DisciplineClient:
                 type_str = "float"
             if val == data.kString:
                 type_str = "str"
+            if val == data.kStruct:
+                type_str = "dict"
             self.options_list[name] = type_str
 
     def send_options(self, options):
