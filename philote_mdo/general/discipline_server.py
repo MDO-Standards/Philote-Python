@@ -35,7 +35,7 @@ import philote_mdo.generated.disciplines_pb2_grpc as disc
 from google.protobuf.empty_pb2 import Empty
 from google.protobuf import struct_pb2
 from philote_mdo.utils import PairDict, get_flattened_view
-from philote_mdo.utils.validation import PhiloteValidationError
+from philote_mdo.utils.validation import PhiloteValidationError, validate_shape
 
 
 class DisciplineServer(disc.DisciplineService):
@@ -170,6 +170,57 @@ class DisciplineServer(disc.DisciplineService):
         for jac in self._discipline._partials_meta:
             yield jac
 
+    def SetVariableShapes(self, request_iterator, context):
+        """
+        Receives client-defined shapes for variables flagged as
+        dynamic_shape.
+
+        The client must call this RPC after GetVariableDefinitions and
+        before any compute RPCs for disciplines that contain variables
+        with dynamic shapes.
+        """
+        try:
+            for meta in request_iterator:
+                validate_shape(tuple(meta.shape), "SetVariableShapes")
+
+                # find the matching variable and update its shape
+                for var in self._discipline._var_meta:
+                    if var.name == meta.name and var.type == meta.type:
+                        if not var.dynamic_shape:
+                            raise PhiloteValidationError(
+                                f"Variable '{meta.name}' does not allow "
+                                f"dynamic shapes."
+                            )
+                        var.shape[:] = []
+                        var.shape.extend(meta.shape)
+                        break
+                else:
+                    raise PhiloteValidationError(
+                        f"SetVariableShapes: variable '{meta.name}' "
+                        f"not found."
+                    )
+
+                # if the variable is an output on an implicit discipline,
+                # also update the matching residual entry
+                if meta.type == data.VariableType.kOutput:
+                    for var in self._discipline._var_meta:
+                        if (
+                            var.name == meta.name
+                            and var.type == data.VariableType.kResidual
+                            and var.dynamic_shape
+                        ):
+                            var.shape[:] = []
+                            var.shape.extend(meta.shape)
+                            break
+
+            return Empty()
+        except PhiloteValidationError as e:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
+        except Exception as e:
+            context.abort(
+                grpc.StatusCode.INTERNAL, f"SetVariableShapes failed: {e}"
+            )
+
     def preallocate_inputs(self, inputs, flat_inputs, outputs=None, flat_outputs=None):
         """
         Preallocates the inputs before receiving data from the client.
@@ -178,6 +229,14 @@ class DisciplineServer(disc.DisciplineService):
         inputs to evaluate the residuals and the partials of the residuals.
         """
         for var in self._discipline._var_meta:
+            # validate that dynamic-shape variables have been resolved
+            if var.dynamic_shape and len(var.shape) == 0:
+                raise PhiloteValidationError(
+                    f"Variable '{var.name}' has dynamic_shape=True but "
+                    f"no shape has been set. Call SetVariableShapes "
+                    f"before computing."
+                )
+
             if var.type == data.kInput:
                 inputs[var.name] = np.zeros(var.shape)
                 flat_inputs[var.name] = get_flattened_view(inputs[var.name])

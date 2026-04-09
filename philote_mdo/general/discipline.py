@@ -86,7 +86,7 @@ class Discipline:
             )
         self.options_list[name] = type
 
-    def add_input(self, name, shape=(1,), units=""):
+    def add_input(self, name, shape=(1,), units="", dynamic_shape=False):
         """
         Define a continuous input.
 
@@ -95,12 +95,16 @@ class Discipline:
         name : string
             the name of the input variable
         shape : tuple
-            the shape of the input variable
+            the shape of the input variable (ignored when dynamic_shape
+            is True)
         units : string
             the unit definition for the input variable
+        dynamic_shape : bool
+            when True, the client is allowed to set this variable's shape
         """
         validate_name(name, "add_input")
-        validate_shape(shape, "add_input")
+        if not dynamic_shape:
+            validate_shape(shape, "add_input")
         validate_units(units, "add_input")
         if any(v.name == name and v.type == data.VariableType.kInput for v in self._var_meta):
             raise PhiloteValidationError(
@@ -109,8 +113,10 @@ class Discipline:
         meta = data.VariableMetaData()
         meta.type = data.VariableType.kInput
         meta.name = name
-        meta.shape.extend(shape)
+        if not dynamic_shape:
+            meta.shape.extend(shape)
         meta.units = units
+        meta.dynamic_shape = dynamic_shape
         self._var_meta += [meta]
 
     def add_discrete_input(self, name, default=None):
@@ -167,7 +173,7 @@ class Discipline:
         meta.name = name
         self._discrete_var_meta += [meta]
 
-    def add_output(self, name, shape=(1,), units=""):
+    def add_output(self, name, shape=(1,), units="", dynamic_shape=False):
         """
         Defines a continuous output.
 
@@ -176,12 +182,16 @@ class Discipline:
         name : string
             the name of the output variable
         shape : tuple
-            the shape of the output variable
+            the shape of the output variable (ignored when dynamic_shape
+            is True)
         units : string
             the unit definition for the output variable
+        dynamic_shape : bool
+            when True, the client is allowed to set this variable's shape
         """
         validate_name(name, "add_output")
-        validate_shape(shape, "add_output")
+        if not dynamic_shape:
+            validate_shape(shape, "add_output")
         validate_units(units, "add_output")
         if any(v.name == name and v.type == data.VariableType.kOutput for v in self._var_meta):
             raise PhiloteValidationError(
@@ -190,17 +200,21 @@ class Discipline:
         out_meta = data.VariableMetaData()
         out_meta.type = data.VariableType.kOutput
         out_meta.name = name
-        out_meta.shape.extend(shape)
+        if not dynamic_shape:
+            out_meta.shape.extend(shape)
         out_meta.units = units
+        out_meta.dynamic_shape = dynamic_shape
         self._var_meta += [out_meta]
 
         if self._is_implicit:
             res_meta = data.VariableMetaData()
             res_meta.type = data.VariableType.kOutput
             res_meta.name = name
-            res_meta.shape.extend(shape)
+            if not dynamic_shape:
+                res_meta.shape.extend(shape)
             res_meta.units = units
             res_meta.type = data.VariableType.kResidual
+            res_meta.dynamic_shape = dynamic_shape
             self._var_meta += [res_meta]
 
     def declare_partials(self, func, var):

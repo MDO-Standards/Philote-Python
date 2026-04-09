@@ -48,12 +48,14 @@ class TestOpenMdaoUtils(unittest.TestCase):
         var1.units = "m"
         var1.type = kInput
         var1.shape = [2]
+        var1.dynamic_shape = False
 
         var2 = Mock()
         var2.name = "var2"
         var2.units = None
         var2.type = kOutput
         var2.shape = [1]
+        var2.dynamic_shape = False
 
         comp._client._var_meta = [var1, var2]
         comp._client._discrete_var_meta = []

@@ -209,6 +209,10 @@ class RemoteImplicitComponent(om.ImplicitComponent):
         pairs based on the server's partial derivative metadata. For implicit components,
         this includes both dR/dinputs and dR/doutputs terms needed for Newton-type solvers.
 
+        If any variables were declared with ``dynamic_shape=True`` on the server,
+        the shapes resolved by OpenMDAO (e.g. via ``shape_by_conn``) are sent
+        back to the server before querying partial definitions.
+
         The method is called automatically by OpenMDAO during component setup and should
         not be called directly by users.
 
@@ -218,6 +222,7 @@ class RemoteImplicitComponent(om.ImplicitComponent):
         - Both dR/dinputs and dR/doutputs partials are declared
         - Sparsity patterns are preserved when available from server metadata
         """
+        utils.send_resolved_shapes(self)
         utils.client_setup_partials(self)
 
     def apply_nonlinear(self, inputs, outputs, residuals, discrete_inputs=None, discrete_outputs=None):

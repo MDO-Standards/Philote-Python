@@ -154,6 +154,71 @@ class DisciplineClient:
             if message.name not in self._partials_meta:
                 self._partials_meta += [message]
 
+    def get_dynamic_variables(self):
+        """
+        Returns a list of variable metadata entries that have
+        ``dynamic_shape`` set to ``True``.
+        """
+        return [v for v in self._var_meta if v.dynamic_shape]
+
+    def set_variable_shape(self, name, shape, var_type=data.VariableType.kInput):
+        """
+        Creates a ``VariableMetaData`` message for setting a dynamic
+        variable's shape.
+
+        Parameters
+        ----------
+        name : str
+            the name of the variable
+        shape : tuple
+            the desired shape
+        var_type : VariableType
+            the variable type (kInput or kOutput)
+
+        Returns
+        -------
+        VariableMetaData
+            protobuf message ready for ``send_variable_shapes``
+        """
+        meta = data.VariableMetaData()
+        meta.type = var_type
+        meta.name = name
+        meta.shape.extend(shape)
+        return meta
+
+    def send_variable_shapes(self, variable_metadata):
+        """
+        Sends shapes for variables flagged as ``dynamic_shape``.
+
+        Call after ``get_variable_definitions()`` and before compute
+        calls.
+
+        Parameters
+        ----------
+        variable_metadata : list of VariableMetaData
+            shapes for dynamic variables
+        """
+        self._disc_stub.SetVariableShapes(iter(variable_metadata))
+
+        # update local metadata to reflect the new shapes
+        for meta in variable_metadata:
+            for var in self._var_meta:
+                if var.name == meta.name and var.type == meta.type:
+                    var.shape[:] = []
+                    var.shape.extend(meta.shape)
+                    break
+
+            # for implicit outputs, also update the matching residual
+            if meta.type == data.VariableType.kOutput:
+                for var in self._var_meta:
+                    if (
+                        var.name == meta.name
+                        and var.type == data.VariableType.kResidual
+                    ):
+                        var.shape[:] = []
+                        var.shape.extend(meta.shape)
+                        break
+
     def _assemble_input_messages(
         self, inputs, outputs=None, discrete_inputs=None, discrete_outputs=None
     ):

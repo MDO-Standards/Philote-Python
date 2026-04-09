@@ -200,6 +200,10 @@ class RemoteExplicitComponent(om.ExplicitComponent):
         the server's partial derivative metadata. The component can compute partials
         either analytically (if supported by the server) or via finite differencing.
 
+        If any variables were declared with ``dynamic_shape=True`` on the server,
+        the shapes resolved by OpenMDAO (e.g. via ``shape_by_conn``) are sent
+        back to the server before querying partial definitions.
+
         The method is called automatically by OpenMDAO during component setup and should
         not be called directly by users.
 
@@ -209,6 +213,7 @@ class RemoteExplicitComponent(om.ExplicitComponent):
         - Both analytic and finite difference methods are supported
         - Sparsity patterns are preserved when available from server metadata
         """
+        utils.send_resolved_shapes(self)
         utils.client_setup_partials(self)
 
     def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):

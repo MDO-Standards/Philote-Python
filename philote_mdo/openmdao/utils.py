@@ -74,11 +74,19 @@ def client_setup(comp):
         else:
             units = var.units
 
-        if var.type == data.kInput:
-            comp.add_input(var.name, shape=tuple(var.shape), units=units)
+        if var.dynamic_shape:
+            # let OpenMDAO resolve the shape from connections
+            if var.type == data.kInput:
+                comp.add_input(var.name, shape_by_conn=True, units=units)
 
-        if var.type == data.kOutput:
-            comp.add_output(var.name, shape=tuple(var.shape), units=units)
+            if var.type == data.kOutput:
+                comp.add_output(var.name, shape_by_conn=True, units=units)
+        else:
+            if var.type == data.kInput:
+                comp.add_input(var.name, shape=tuple(var.shape), units=units)
+
+            if var.type == data.kOutput:
+                comp.add_output(var.name, shape=tuple(var.shape), units=units)
 
     # define discrete inputs and outputs
     for var in comp._client._discrete_var_meta:
@@ -87,6 +95,30 @@ def client_setup(comp):
 
         if var.type == data.VariableType.kDiscreteOutput:
             comp.add_discrete_output(var.name, val=None)
+
+
+def send_resolved_shapes(comp):
+    """
+    Sends resolved shapes for dynamic-shape variables back to the server.
+
+    After OpenMDAO resolves shapes (e.g. via ``shape_by_conn``), this
+    function reads the resolved metadata from the component and transmits
+    the shapes to the remote discipline server.
+    """
+    dynamic_shapes = []
+    for var in comp._client._var_meta:
+        if not var.dynamic_shape:
+            continue
+
+        resolved_meta = comp._var_rel2meta[var.name]
+        dynamic_shapes.append(
+            comp._client.set_variable_shape(
+                var.name, resolved_meta["shape"], var.type
+            )
+        )
+
+    if dynamic_shapes:
+        comp._client.send_variable_shapes(dynamic_shapes)
 
 
 def client_setup_partials(comp):

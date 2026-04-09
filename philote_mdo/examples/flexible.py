@@ -27,13 +27,29 @@
 # the linked websites, of the information, products, or services contained
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
-from .flexible import FlexibleDiscipline
-from .paraboloid import Paraboloid
-from .quadratic import QuadradicImplicit
-from .rosenbrock import Rosenbrock
+import numpy as np
+import philote_mdo.general as pmdo
 
-try:
-    import openmdao.api
-    from .sellar import SellarGroup
-except ImportError:  # pragma: no cover
-    pass
+
+class FlexibleDiscipline(pmdo.ExplicitDiscipline):
+    """
+    Example explicit discipline with dynamic shapes.
+
+    This discipline doubles every element of the input vector.  The input
+    and output shapes are not fixed by the server — the client is
+    expected to set them via ``SetVariableShapes`` before computation.
+    """
+
+    def setup(self):
+        self.add_input("x", dynamic_shape=True, units="m")
+        self.add_output("y", dynamic_shape=True, units="m")
+
+    def setup_partials(self):
+        self.declare_partials("y", "x")
+
+    def compute(self, inputs, outputs):
+        outputs["y"] = 2.0 * inputs["x"]
+
+    def compute_partials(self, inputs, partials):
+        n = inputs["x"].size
+        partials["y", "x"] = 2.0 * np.eye(n)
