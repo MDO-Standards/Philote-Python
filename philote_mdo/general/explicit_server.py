@@ -27,6 +27,7 @@
 # the linked websites, of the information, products, or services contained
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
+import grpc
 import philote_mdo.generated.disciplines_pb2_grpc as disc
 import philote_mdo.generated.data_pb2 as data
 from philote_mdo.general.discipline_server import (
@@ -34,6 +35,7 @@ from philote_mdo.general.discipline_server import (
     _python_to_value,
 )
 from philote_mdo.utils import get_chunk_indices
+from philote_mdo.utils.validation import PhiloteValidationError
 
 
 class ExplicitServer(DisciplineServer, disc.ExplicitServiceServicer):
@@ -55,76 +57,90 @@ class ExplicitServer(DisciplineServer, disc.ExplicitServiceServicer):
         """
         Computes the function evaluation and sends the result to the client.
         """
-        inputs = {}
-        flat_inputs = {}
-        outputs = {}
-        discrete_inputs = {}
-        discrete_outputs = {}
+        try:
+            inputs = {}
+            flat_inputs = {}
+            outputs = {}
+            discrete_inputs = {}
+            discrete_outputs = {}
 
-        self.preallocate_inputs(inputs, flat_inputs)
-        discrete_inputs, _ = self.process_inputs(
-            request_iterator, flat_inputs, discrete_inputs=discrete_inputs
-        )
-
-        # Call compute with discrete data when discrete variables are present
-        if discrete_inputs or self._discipline._discrete_var_meta:
-            self._discipline.compute(
-                inputs, outputs, discrete_inputs, discrete_outputs
+            self.preallocate_inputs(inputs, flat_inputs)
+            discrete_inputs, _ = self.process_inputs(
+                request_iterator, flat_inputs, discrete_inputs=discrete_inputs
             )
-        else:
-            self._discipline.compute(inputs, outputs)
 
-        # Stream continuous outputs
-        for output_name, value in outputs.items():
-            for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
+            # Call compute with discrete data when discrete variables are present
+            if discrete_inputs or self._discipline._discrete_var_meta:
+                self._discipline.compute(
+                    inputs, outputs, discrete_inputs, discrete_outputs
+                )
+            else:
+                self._discipline.compute(inputs, outputs)
+
+            # Stream continuous outputs
+            for output_name, value in outputs.items():
+                for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
+                    yield data.VariableMessage(
+                        continuous=data.Array(
+                            name=output_name,
+                            type=data.kOutput,
+                            start=b,
+                            end=e - 1,
+                            data=value.ravel()[b:e],
+                        )
+                    )
+
+            # Stream discrete outputs
+            for name, value in discrete_outputs.items():
                 yield data.VariableMessage(
-                    continuous=data.Array(
-                        name=output_name,
-                        type=data.kOutput,
-                        start=b,
-                        end=e - 1,
-                        data=value.ravel()[b:e],
+                    discrete=data.DiscreteVariable(
+                        name=name,
+                        type=data.VariableType.kDiscreteOutput,
+                        value=_python_to_value(value),
                     )
                 )
-
-        # Stream discrete outputs
-        for name, value in discrete_outputs.items():
-            yield data.VariableMessage(
-                discrete=data.DiscreteVariable(
-                    name=name,
-                    type=data.VariableType.kDiscreteOutput,
-                    value=_python_to_value(value),
-                )
+        except PhiloteValidationError as e:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
+        except Exception as e:
+            context.abort(
+                grpc.StatusCode.INTERNAL, f"ComputeFunction failed: {e}"
             )
 
     def ComputeGradient(self, request_iterator, context):
         """
         Computes the gradient evaluation and sends the result to the client.
         """
-        inputs = {}
-        flat_inputs = {}
-        discrete_inputs = {}
+        try:
+            inputs = {}
+            flat_inputs = {}
+            discrete_inputs = {}
 
-        self.preallocate_inputs(inputs, flat_inputs)
-        jac = self.preallocate_partials()
-        discrete_inputs, _ = self.process_inputs(
-            request_iterator, flat_inputs, discrete_inputs=discrete_inputs
-        )
+            self.preallocate_inputs(inputs, flat_inputs)
+            jac = self.preallocate_partials()
+            discrete_inputs, _ = self.process_inputs(
+                request_iterator, flat_inputs, discrete_inputs=discrete_inputs
+            )
 
-        if discrete_inputs or self._discipline._discrete_var_meta:
-            self._discipline.compute_partials(inputs, jac, discrete_inputs)
-        else:
-            self._discipline.compute_partials(inputs, jac)
+            if discrete_inputs or self._discipline._discrete_var_meta:
+                self._discipline.compute_partials(inputs, jac, discrete_inputs)
+            else:
+                self._discipline.compute_partials(inputs, jac)
 
-        for jac, value in jac.items():
-            for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
-                yield data.VariableMessage(
-                    continuous=data.Array(
-                        name=jac[0],
-                        subname=jac[1],
-                        type=data.kPartial,
-                        start=b,
-                        end=e - 1,
-                        data=value.ravel()[b:e],
+            for jac, value in jac.items():
+                for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
+                    yield data.VariableMessage(
+                        continuous=data.Array(
+                            name=jac[0],
+                            subname=jac[1],
+                            type=data.kPartial,
+                            start=b,
+                            end=e - 1,
+                            data=value.ravel()[b:e],
+                        )
                     )
-                )
+        except PhiloteValidationError as e:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
+        except Exception as e:
+            context.abort(
+                grpc.StatusCode.INTERNAL, f"ComputeGradient failed: {e}"
+            )

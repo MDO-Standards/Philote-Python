@@ -29,6 +29,7 @@
 # control over the information you may find at these locations.
 import grpc
 from philote_mdo.general.discipline_client import DisciplineClient
+from philote_mdo.utils.validation import PhiloteServerError, validate_is_dict
 import philote_mdo.generated.data_pb2 as data
 import philote_mdo.generated.disciplines_pb2_grpc as disc
 
@@ -168,17 +169,24 @@ class ImplicitClient(DisciplineClient):
         - Large arrays are automatically streamed for efficiency
         - This is typically used for residual evaluation during Newton iterations
         """
-        # Assemble input messages and call server
-        messages = self._assemble_input_messages(
-            inputs,
-            outputs,
-            discrete_inputs=discrete_inputs,
-            discrete_outputs=discrete_outputs,
-        )
-        responses = self._impl_stub.ComputeResiduals(iter(messages))
-        residuals = self._recover_residuals(responses)
+        validate_is_dict(inputs, "run_compute_residuals (inputs)")
+        validate_is_dict(outputs, "run_compute_residuals (outputs)")
+        try:
+            # Assemble input messages and call server
+            messages = self._assemble_input_messages(
+                inputs,
+                outputs,
+                discrete_inputs=discrete_inputs,
+                discrete_outputs=discrete_outputs,
+            )
+            responses = self._impl_stub.ComputeResiduals(iter(messages))
+            residuals = self._recover_residuals(responses)
 
-        return residuals
+            return residuals
+        except grpc.RpcError as e:
+            raise PhiloteServerError(
+                f"Server error during run_compute_residuals: {e.details()}"
+            ) from e
 
     def run_solve_residuals(self, inputs, discrete_inputs=None):
         """
@@ -231,13 +239,19 @@ class ImplicitClient(DisciplineClient):
         - May raise exceptions for ill-conditioned or non-convergent problems
         - Solution quality depends on the server's implementation and input conditioning
         """
-        # Assemble input messages and call server
-        messages = self._assemble_input_messages(
-            inputs, discrete_inputs=discrete_inputs
-        )
-        responses = self._impl_stub.SolveResiduals(iter(messages))
-        outputs = self._recover_outputs(responses)
-        return outputs
+        validate_is_dict(inputs, "run_solve_residuals (inputs)")
+        try:
+            # Assemble input messages and call server
+            messages = self._assemble_input_messages(
+                inputs, discrete_inputs=discrete_inputs
+            )
+            responses = self._impl_stub.SolveResiduals(iter(messages))
+            outputs = self._recover_outputs(responses)
+            return outputs
+        except grpc.RpcError as e:
+            raise PhiloteServerError(
+                f"Server error during run_solve_residuals: {e.details()}"
+            ) from e
 
     def run_residual_gradients(
         self, inputs, outputs, discrete_inputs=None, discrete_outputs=None
@@ -299,13 +313,20 @@ class ImplicitClient(DisciplineClient):
         - Used by optimization algorithms and sensitivity analysis tools
         - For large problems, consider matrix-free methods if available
         """
-        # Assemble input messages and call server
-        messages = self._assemble_input_messages(
-            inputs,
-            outputs,
-            discrete_inputs=discrete_inputs,
-            discrete_outputs=discrete_outputs,
-        )
-        responses = self._impl_stub.ComputeResidualGradients(iter(messages))
-        partials = self._recover_partials(responses)
-        return partials
+        validate_is_dict(inputs, "run_residual_gradients (inputs)")
+        validate_is_dict(outputs, "run_residual_gradients (outputs)")
+        try:
+            # Assemble input messages and call server
+            messages = self._assemble_input_messages(
+                inputs,
+                outputs,
+                discrete_inputs=discrete_inputs,
+                discrete_outputs=discrete_outputs,
+            )
+            responses = self._impl_stub.ComputeResidualGradients(iter(messages))
+            partials = self._recover_partials(responses)
+            return partials
+        except grpc.RpcError as e:
+            raise PhiloteServerError(
+                f"Server error during run_residual_gradients: {e.details()}"
+            ) from e

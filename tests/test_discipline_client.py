@@ -33,6 +33,7 @@ import numpy as np
 from google.protobuf.empty_pb2 import Empty
 from google.protobuf.struct_pb2 import Struct
 from philote_mdo.general import DisciplineClient
+from philote_mdo.utils.validation import PhiloteValidationError
 import philote_mdo.generated.data_pb2 as data
 import philote_mdo.generated.disciplines_pb2_grpc as disc
 import philote_mdo.utils as utils
@@ -555,6 +556,24 @@ class TestDisciplineClient(unittest.TestCase):
             client._recover_partials(mock_responses)
 
         self.assertIn("Expected continuous outputs for the partials, but array was empty", str(context.exception))
+
+    def test_send_options_non_dict_raises(self):
+        mock_channel = Mock()
+        client = DisciplineClient(mock_channel)
+        with self.assertRaises(PhiloteValidationError):
+            client.send_options("not a dict")
+
+    def test_assemble_input_messages_non_dict_raises(self):
+        mock_channel = Mock()
+        client = DisciplineClient(mock_channel)
+        with self.assertRaises(PhiloteValidationError):
+            client._assemble_input_messages("not a dict")
+
+    def test_assemble_input_messages_non_array_value_raises(self):
+        mock_channel = Mock()
+        client = DisciplineClient(mock_channel)
+        with self.assertRaises(PhiloteValidationError):
+            client._assemble_input_messages({"x": [1.0, 2.0]})
 
 
 if __name__ == "__main__":

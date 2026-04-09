@@ -30,6 +30,7 @@
 import unittest
 from unittest.mock import Mock
 
+import grpc
 import numpy as np
 from scipy.optimize import rosen, rosen_der
 
@@ -144,6 +145,73 @@ class TestExplicitServer(unittest.TestCase):
         self.assertTrue(
             np.array_equal(grad, np.array([-251.0, -499.0, 11105.0, 25007.0, -2950.0]))
         )
+
+
+    def test_compute_function_aborts_on_discipline_error(self):
+        """
+        Tests that ComputeFunction calls context.abort when the discipline's
+        compute raises an exception.
+        """
+        server = ExplicitServer()
+        discipline = server._discipline = ExplicitDiscipline()
+        discipline.add_input("x", shape=(1,), units="")
+        discipline.add_output("f", shape=(1,), units="")
+
+        context = Mock()
+        request_iterator = [
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kInput, name="x",
+                )
+            ),
+        ]
+
+        def bad_compute(inputs, outputs):
+            raise RuntimeError("division by zero in compute")
+
+        server._discipline.compute = bad_compute
+
+        # Exhaust the generator
+        list(server.ComputeFunction(request_iterator, context))
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INTERNAL)
+        self.assertIn("ComputeFunction failed", args[0][1])
+
+    def test_compute_gradient_aborts_on_discipline_error(self):
+        """
+        Tests that ComputeGradient calls context.abort when the discipline's
+        compute_partials raises an exception.
+        """
+        server = ExplicitServer()
+        discipline = server._discipline = ExplicitDiscipline()
+        discipline.add_input("x", shape=(1,), units="")
+        discipline.add_output("f", shape=(1,), units="")
+        discipline.declare_partials("f", "x")
+
+        context = Mock()
+        request_iterator = [
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kInput, name="x",
+                )
+            ),
+        ]
+
+        def bad_partials(inputs, jac):
+            raise RuntimeError("singular matrix")
+
+        server._discipline.compute_partials = bad_partials
+
+        list(server.ComputeGradient(request_iterator, context))
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INTERNAL)
+        self.assertIn("ComputeGradient failed", args[0][1])
 
 
 if __name__ == "__main__":

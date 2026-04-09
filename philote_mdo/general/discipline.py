@@ -28,6 +28,13 @@
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
 import philote_mdo.generated.data_pb2 as data
+from philote_mdo.utils.validation import (
+    validate_name,
+    validate_shape,
+    validate_units,
+    validate_option_type,
+    PhiloteValidationError,
+)
 
 
 class Discipline:
@@ -71,6 +78,12 @@ class Discipline:
             the data type of the option. acceptable types are 'bool', 'int',
             'float', 'str', 'dict'
         """
+        validate_name(name, "add_option")
+        validate_option_type(type, name)
+        if name in self.options_list:
+            raise PhiloteValidationError(
+                f"add_option: option '{name}' is already defined."
+            )
         self.options_list[name] = type
 
     def add_input(self, name, shape=(1,), units=""):
@@ -86,6 +99,13 @@ class Discipline:
         units : string
             the unit definition for the input variable
         """
+        validate_name(name, "add_input")
+        validate_shape(shape, "add_input")
+        validate_units(units, "add_input")
+        if any(v.name == name and v.type == data.VariableType.kInput for v in self._var_meta):
+            raise PhiloteValidationError(
+                f"add_input: input '{name}' is already defined."
+            )
         meta = data.VariableMetaData()
         meta.type = data.VariableType.kInput
         meta.name = name
@@ -107,6 +127,14 @@ class Discipline:
         default : object, optional
             the default value for the discrete input
         """
+        validate_name(name, "add_discrete_input")
+        if any(
+            v.name == name and v.type == data.VariableType.kDiscreteInput
+            for v in self._discrete_var_meta
+        ):
+            raise PhiloteValidationError(
+                f"add_discrete_input: discrete input '{name}' is already defined."
+            )
         meta = data.VariableMetaData()
         meta.type = data.VariableType.kDiscreteInput
         meta.name = name
@@ -126,6 +154,14 @@ class Discipline:
         default : object, optional
             the default value for the discrete output
         """
+        validate_name(name, "add_discrete_output")
+        if any(
+            v.name == name and v.type == data.VariableType.kDiscreteOutput
+            for v in self._discrete_var_meta
+        ):
+            raise PhiloteValidationError(
+                f"add_discrete_output: discrete output '{name}' is already defined."
+            )
         meta = data.VariableMetaData()
         meta.type = data.VariableType.kDiscreteOutput
         meta.name = name
@@ -144,6 +180,13 @@ class Discipline:
         units : string
             the unit definition for the output variable
         """
+        validate_name(name, "add_output")
+        validate_shape(shape, "add_output")
+        validate_units(units, "add_output")
+        if any(v.name == name and v.type == data.VariableType.kOutput for v in self._var_meta):
+            raise PhiloteValidationError(
+                f"add_output: output '{name}' is already defined."
+            )
         out_meta = data.VariableMetaData()
         out_meta.type = data.VariableType.kOutput
         out_meta.name = name
@@ -164,6 +207,8 @@ class Discipline:
         """
         Defines partials that will be determined using the analysis server.
         """
+        validate_name(func, "declare_partials (func)")
+        validate_name(var, "declare_partials (var)")
         self._partials_meta += [data.PartialsMetaData(name=func, subname=var)]
 
     def initialize(self):

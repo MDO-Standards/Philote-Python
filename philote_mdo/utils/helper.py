@@ -29,8 +29,21 @@
 # control over the information you may find at these locations.
 import numpy as np
 
+from philote_mdo.utils.validation import PhiloteValidationError
+
 
 def get_chunk_indices(num_values, chunk_size):
+    if not isinstance(num_values, (int, np.integer)) or num_values < 0:
+        raise PhiloteValidationError(
+            f"get_chunk_indices: num_values must be a non-negative integer, "
+            f"got {num_values!r}."
+        )
+    if not isinstance(chunk_size, (int, np.integer)) or chunk_size < 1:
+        raise PhiloteValidationError(
+            f"get_chunk_indices: chunk_size must be a positive integer, "
+            f"got {chunk_size!r}."
+        )
+
     beg_i = np.arange(0, num_values, chunk_size)
 
     if beg_i.size == 1:
@@ -48,6 +61,11 @@ def get_flattened_view(arr):
     :param arr: Array to get a flattened view
     :return: A view of the input array, guaranteed to not be a copy
     """
+    if not isinstance(arr, np.ndarray):
+        raise PhiloteValidationError(
+            f"get_flattened_view: expected a numpy ndarray, "
+            f"got {type(arr).__name__}."
+        )
     flat_view = arr.view()
     flat_view.shape = -1
     return flat_view

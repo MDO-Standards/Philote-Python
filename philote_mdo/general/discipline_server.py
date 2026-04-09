@@ -27,6 +27,7 @@
 # the linked websites, of the information, products, or services contained
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
+import grpc
 import numpy as np
 
 import philote_mdo.generated.data_pb2 as data
@@ -34,6 +35,7 @@ import philote_mdo.generated.disciplines_pb2_grpc as disc
 from google.protobuf.empty_pb2 import Empty
 from google.protobuf import struct_pb2
 from philote_mdo.utils import PairDict, get_flattened_view
+from philote_mdo.utils.validation import PhiloteValidationError
 
 
 class DisciplineServer(disc.DisciplineService):
@@ -85,48 +87,69 @@ class DisciplineServer(disc.DisciplineService):
         """
         RPC that gets the names and types of all available discipline options.
         """
-        opts_dict = self._discipline.options_list
-        opts = data.OptionsList()
+        try:
+            opts_dict = self._discipline.options_list
+            opts = data.OptionsList()
 
-        for name, val in opts_dict.items():
-            opts.options.append(name)
+            for name, val in opts_dict.items():
+                opts.options.append(name)
 
-            # assign the correct data type
-            if val == "bool":
-                type = data.kBool
-            elif val == "int":
-                type = data.kInt
-            elif val == "float":
-                type = data.kDouble
-            elif val == "str":
-                type = data.kString
-            elif val == "dict":
-                type = data.kStruct
-            else:
-                raise ValueError(
-                    "Invalid value for discipline option '{}'".format(name)
-                )
+                # assign the correct data type
+                if val == "bool":
+                    type = data.kBool
+                elif val == "int":
+                    type = data.kInt
+                elif val == "float":
+                    type = data.kDouble
+                elif val == "str":
+                    type = data.kString
+                elif val == "dict":
+                    type = data.kStruct
+                else:
+                    raise PhiloteValidationError(
+                        "Invalid value for discipline option '{}'".format(name)
+                    )
 
-            opts.type.append(type)
+                opts.type.append(type)
 
-        return opts
+            return opts
+        except PhiloteValidationError as e:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
+        except Exception as e:
+            context.abort(
+                grpc.StatusCode.INTERNAL, f"GetAvailableOptions failed: {e}"
+            )
 
     def SetOptions(self, request, context):
         """
         RPC that sets the discipline options.
         """
-        options = request.options
-        self._discipline.set_options(options)
-        return Empty()
+        try:
+            options = request.options
+            self._discipline.set_options(options)
+            return Empty()
+        except PhiloteValidationError as e:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
+        except Exception as e:
+            context.abort(
+                grpc.StatusCode.INTERNAL, f"SetOptions failed: {e}"
+            )
 
     def Setup(self, request, context):
         """
         RPC that runs the setup function
         """
-        self._discipline._clear_data()
-        self._discipline.setup()
-        self._discipline.setup_partials()
-        return Empty()
+        try:
+            self._discipline._clear_data()
+            self._discipline.setup()
+            self._discipline.setup_partials()
+            return Empty()
+        except PhiloteValidationError as e:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
+        except Exception as e:
+            context.abort(
+                grpc.StatusCode.INTERNAL, f"Setup failed: {e}"
+            )
 
     def GetVariableDefinitions(self, request, context):
         """
@@ -237,7 +260,7 @@ class DisciplineServer(disc.DisciplineService):
                     elif arr.type == data.VariableType.kOutput:
                         flat_outputs[arr.name][b : e + 1] = arr.data
                 else:
-                    raise ValueError(
+                    raise PhiloteValidationError(
                         "Expected continuous variables but arrays were"
                         " empty for variable %s." % (arr.name)
                     )

@@ -33,6 +33,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 
 from philote_mdo.general import ImplicitClient
+from philote_mdo.utils.validation import PhiloteValidationError, PhiloteServerError
 import philote_mdo.generated.data_pb2 as data
 import philote_mdo.utils as utils
 
@@ -200,6 +201,31 @@ class TestImplicitClient(unittest.TestCase):
         for key, expected_data in expected_partials.items():
             self.assertTrue(key in partials)
             np.testing.assert_array_equal(partials[key], expected_data)
+
+
+    def test_run_compute_residuals_non_dict_inputs_raises(self):
+        mock_channel = Mock()
+        client = ImplicitClient(mock_channel)
+        with self.assertRaises(PhiloteValidationError):
+            client.run_compute_residuals("not a dict", {"f": np.array([1.0])})
+
+    def test_run_compute_residuals_non_dict_outputs_raises(self):
+        mock_channel = Mock()
+        client = ImplicitClient(mock_channel)
+        with self.assertRaises(PhiloteValidationError):
+            client.run_compute_residuals({"x": np.array([1.0])}, "not a dict")
+
+    def test_run_solve_residuals_non_dict_raises(self):
+        mock_channel = Mock()
+        client = ImplicitClient(mock_channel)
+        with self.assertRaises(PhiloteValidationError):
+            client.run_solve_residuals(42)
+
+    def test_run_residual_gradients_non_dict_raises(self):
+        mock_channel = Mock()
+        client = ImplicitClient(mock_channel)
+        with self.assertRaises(PhiloteValidationError):
+            client.run_residual_gradients("bad", {"f": np.array([1.0])})
 
 
 if __name__ == "__main__":

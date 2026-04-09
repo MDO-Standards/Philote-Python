@@ -32,6 +32,7 @@ from unittest.mock import Mock, MagicMock
 import numpy as np
 
 from philote_mdo.generated.data_pb2 import kInput, kOutput
+from philote_mdo.utils.validation import PhiloteValidationError
 import philote_mdo.openmdao.utils as utils
 
 
@@ -206,11 +207,11 @@ class TestOpenMdaoUtils(unittest.TestCase):
 
         self.assertEqual(options_mock.declare.call_count, 5)
         
-        # Test case 3: Unknown type (should result in None)
+        # Test case 3: Unknown type now raises PhiloteValidationError
         options_mock.reset_mock()
         opt_list = [("unknown_param", "unknown_type")]
-        declare_options(opt_list, options_mock)
-        options_mock.declare.assert_called_once_with("unknown_param", types=None)
+        with self.assertRaises(PhiloteValidationError):
+            declare_options(opt_list, options_mock)
 
 
 if __name__ == "__main__":

@@ -128,6 +128,10 @@ class RemoteExplicitComponent(om.ExplicitComponent):
             raise ValueError(
                 "No channel provided, the Philote client will not be able to connect."
             )
+        if not isinstance(num_par_fd, int) or num_par_fd < 1:
+            raise ValueError(
+                f"num_par_fd must be a positive integer, got {num_par_fd!r}."
+            )
 
         # generic Philote client
         # The setting of OpenMDAO options requires the list of available

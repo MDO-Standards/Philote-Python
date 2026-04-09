@@ -29,7 +29,11 @@
 # control over the information you may find at these locations.
 import unittest
 from unittest.mock import Mock, MagicMock
+
+import grpc
+
 from philote_mdo.general import DisciplineServer, DisciplineClient, ExplicitDiscipline
+from philote_mdo.utils.validation import PhiloteValidationError
 import philote_mdo.generated.data_pb2 as data
 
 
@@ -95,26 +99,27 @@ class TestDisciplineServerEdgeCases(unittest.TestCase):
 
     def test_get_available_options_with_invalid_type(self):
         """
-        Test GetAvailableOptions with invalid option type (covers lines 100-103).
+        Test GetAvailableOptions with invalid option type aborts with
+        INVALID_ARGUMENT.
         """
         server = DisciplineServer()
         discipline = Mock()
-        
+
         # Mock the options_list attribute to return a dict with invalid type
         discipline.options_list = {"invalid_option": "invalid_type"}
-        
+
         server.attach_discipline(discipline)
-        
+
         # Create a mock request and context
         request = Mock()
         context = Mock()
-        
-        # This should raise a ValueError
-        with self.assertRaises(ValueError) as context_err:
-            server.GetAvailableOptions(request, context)
-        
-        self.assertIn("Invalid value for discipline option", str(context_err.exception))
-        self.assertIn("invalid_option", str(context_err.exception))
+
+        server.GetAvailableOptions(request, context)
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INVALID_ARGUMENT)
+        self.assertIn("Invalid value for discipline option", args[0][1])
 
     def test_process_inputs_with_empty_continuous_data(self):
         """

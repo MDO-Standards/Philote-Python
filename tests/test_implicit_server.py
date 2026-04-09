@@ -29,6 +29,8 @@
 # control over the information you may find at these locations.
 import unittest
 from unittest.mock import Mock
+
+import grpc
 import numpy as np
 import numpy.testing as np_testing
 from google.protobuf.empty_pb2 import Empty
@@ -204,6 +206,83 @@ class TestImplicitServer(unittest.TestCase):
         self.assertTrue(
             np.array_equal(grad, np.array([-251.0, -499.0, 11105.0, 25007.0, -2950.0]))
         )
+
+
+    def test_compute_residuals_aborts_on_discipline_error(self):
+        """
+        Tests that ComputeResiduals calls context.abort when the discipline's
+        compute_residuals raises an exception.
+        """
+        server = ImplicitServer()
+        discipline = server._discipline = ImplicitDiscipline()
+        discipline.add_input("x", shape=(1,), units="")
+        discipline.add_output("f", shape=(1,), units="")
+
+        context = Mock()
+        request_iterator = [
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kInput, name="x",
+                )
+            ),
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kOutput, name="f",
+                )
+            ),
+        ]
+
+        def bad_residuals(inputs, outputs, residuals):
+            raise RuntimeError("residual computation failed")
+
+        server._discipline.compute_residuals = bad_residuals
+
+        list(server.ComputeResiduals(request_iterator, context))
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INTERNAL)
+        self.assertIn("ComputeResiduals failed", args[0][1])
+
+    def test_solve_residuals_aborts_on_discipline_error(self):
+        """
+        Tests that SolveResiduals calls context.abort when the discipline's
+        solve_residuals raises an exception.
+        """
+        server = ImplicitServer()
+        discipline = server._discipline = ImplicitDiscipline()
+        discipline.add_input("x", shape=(1,), units="")
+        discipline.add_output("f", shape=(1,), units="")
+
+        context = Mock()
+        request_iterator = [
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kInput, name="x",
+                )
+            ),
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kOutput, name="f",
+                )
+            ),
+        ]
+
+        def bad_solve(inputs, outputs):
+            raise RuntimeError("solver did not converge")
+
+        server._discipline.solve_residuals = bad_solve
+
+        list(server.SolveResiduals(request_iterator, context))
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INTERNAL)
+        self.assertIn("SolveResiduals failed", args[0][1])
 
 
 if __name__ == "__main__":

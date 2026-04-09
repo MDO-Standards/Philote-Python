@@ -31,6 +31,7 @@ import unittest
 import numpy as np
 import openmdao.api as om
 from philote_mdo.openmdao.group import OpenMdaoSubProblem
+from philote_mdo.utils.validation import PhiloteValidationError
 
 
 class SimpleGroup(om.Group):
@@ -255,6 +256,46 @@ class TestOpenMdaoSubProblem(unittest.TestCase):
         self.assertEqual(subprob._input_map['vector_in']['units'], 'm')
         self.assertEqual(subprob._output_map['vector_out']['shape'], (3,))
         self.assertEqual(subprob._output_map['vector_out']['units'], 'kg')
+
+
+    def test_add_group_non_group_raises(self):
+        subprob = OpenMdaoSubProblem()
+        with self.assertRaises(PhiloteValidationError):
+            subprob.add_group("not a group")
+
+    def test_add_mapped_input_invalid_name_raises(self):
+        subprob = OpenMdaoSubProblem()
+        with self.assertRaises(PhiloteValidationError):
+            subprob.add_mapped_input("", "x")
+
+    def test_add_mapped_input_invalid_shape_raises(self):
+        subprob = OpenMdaoSubProblem()
+        with self.assertRaises(PhiloteValidationError):
+            subprob.add_mapped_input("x", "sub_x", shape=[2])
+
+    def test_add_mapped_input_duplicate_raises(self):
+        subprob = OpenMdaoSubProblem()
+        subprob.add_mapped_input("x", "sub_x")
+        with self.assertRaises(PhiloteValidationError):
+            subprob.add_mapped_input("x", "sub_x2")
+
+    def test_add_mapped_output_duplicate_raises(self):
+        subprob = OpenMdaoSubProblem()
+        subprob.add_mapped_output("y", "sub_y")
+        with self.assertRaises(PhiloteValidationError):
+            subprob.add_mapped_output("y", "sub_y2")
+
+    def test_declare_subproblem_partial_unmapped_output_raises(self):
+        subprob = OpenMdaoSubProblem()
+        subprob.add_mapped_input("x", "sub_x")
+        with self.assertRaises(PhiloteValidationError):
+            subprob.declare_subproblem_partial("unmapped_y", "x")
+
+    def test_declare_subproblem_partial_unmapped_input_raises(self):
+        subprob = OpenMdaoSubProblem()
+        subprob.add_mapped_output("y", "sub_y")
+        with self.assertRaises(PhiloteValidationError):
+            subprob.declare_subproblem_partial("y", "unmapped_x")
 
 
 if __name__ == "__main__":
