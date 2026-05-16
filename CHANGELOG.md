@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
+- Added `"double"` and `"string"` as type aliases in the OpenMDAO type map,
+  mapping them to `float` and `str` respectively, to match common proto type
+  name conventions.
 - Added dynamic shapes for inputs and outputs.  Disciplines can now
   declare variables with `dynamic_shape=True` in `add_input` /
   `add_output`, indicating that the client is allowed to set the
