@@ -1,6 +1,6 @@
 [project]
 name = "philote-mdo"
-version = "0.7.0"
+version = "0.8.0"
 description = "Python bindings that implement the Philote-MDO standard."
 license = {text = "Apache-2.0"}
 authors = [{name = "Christopher Lupp"}]

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-05-16
+
 ### Features
 
 - Added `"double"` and `"string"` as type aliases in the OpenMDAO type map,
@@ -272,7 +274,6 @@ it is expected that bugs may surface and that several features are still
 missing. Because of this, the API may still change frequently before version
 1.0.0 is released.
 
-[Unreleased]: https://github.com/MDO-Standards/Philote-Python/compare/v0.7.0...HEAD
 [0.7.0]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.7.0
 [0.6.1]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.6.1
 [0.6.0]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.6.0
@@ -285,3 +286,5 @@ missing. Because of this, the API may still change frequently before version
 [0.2.1]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.2.1
 [0.2.0]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.2.0
 [0.1.0]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.1.0
+[Unreleased]: https://github.com/MDO-Standards/Philote-Python/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/MDO-Standards/Philote-Python/releases/tag/v0.8.0
