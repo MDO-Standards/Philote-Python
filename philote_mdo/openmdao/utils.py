@@ -35,7 +35,9 @@ _TYPE_MAP = {
     "bool": bool,
     "int": int,
     "float": float,
+    "double": float,
     "str": str,
+    "string": str,
     "dict": dict,
 }
 
