@@ -1,3 +1,4 @@
 [submodule "proto"]
 	path = proto
 	url = https://github.com/MDO-Standards/Philote-MDO
+	ignore = untracked
