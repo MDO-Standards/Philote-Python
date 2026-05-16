@@ -32,6 +32,7 @@ from unittest.mock import Mock, MagicMock
 import numpy as np
 
 from philote_mdo.generated.data_pb2 import kInput, kOutput
+from philote_mdo.utils.validation import PhiloteValidationError
 import philote_mdo.openmdao.utils as utils
 
 
@@ -47,14 +48,17 @@ class TestOpenMdaoUtils(unittest.TestCase):
         var1.units = "m"
         var1.type = kInput
         var1.shape = [2]
+        var1.dynamic_shape = False
 
         var2 = Mock()
         var2.name = "var2"
         var2.units = None
         var2.type = kOutput
         var2.shape = [1]
+        var2.dynamic_shape = False
 
         comp._client._var_meta = [var1, var2]
+        comp._client._discrete_var_meta = []
 
         utils.client_setup(comp)
 
@@ -187,27 +191,29 @@ class TestOpenMdaoUtils(unittest.TestCase):
             ("max_iter", "int"),
             ("tolerance", "float"),
             ("method", "str"),
-            ("verbose", "bool")
+            ("verbose", "bool"),
+            ("config", "dict"),
         ]
         declare_options(opt_list, options_mock)
-        
+
         expected_calls = [
             ("max_iter", int),
             ("tolerance", float),
             ("method", str),
-            ("verbose", bool)
+            ("verbose", bool),
+            ("config", dict),
         ]
-        
+
         for name, opt_type in expected_calls:
             options_mock.declare.assert_any_call(name, types=opt_type)
+
+        self.assertEqual(options_mock.declare.call_count, 5)
         
-        self.assertEqual(options_mock.declare.call_count, 4)
-        
-        # Test case 3: Unknown type (should result in None)
+        # Test case 3: Unknown type now raises PhiloteValidationError
         options_mock.reset_mock()
         opt_list = [("unknown_param", "unknown_type")]
-        declare_options(opt_list, options_mock)
-        options_mock.declare.assert_called_once_with("unknown_param", types=None)
+        with self.assertRaises(PhiloteValidationError):
+            declare_options(opt_list, options_mock)
 
 
 if __name__ == "__main__":

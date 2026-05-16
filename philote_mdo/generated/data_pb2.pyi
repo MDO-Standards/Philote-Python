@@ -12,6 +12,7 @@ class DataType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     kInt: _ClassVar[DataType]
     kDouble: _ClassVar[DataType]
     kString: _ClassVar[DataType]
+    kStruct: _ClassVar[DataType]
 
 class VariableType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -25,6 +26,7 @@ kBool: DataType
 kInt: DataType
 kDouble: DataType
 kString: DataType
+kStruct: DataType
 kInput: VariableType
 kDiscreteInput: VariableType
 kResidual: VariableType
@@ -75,17 +77,19 @@ class DisciplineOptions(_message.Message):
         ...
 
 class VariableMetaData(_message.Message):
-    __slots__ = ('type', 'name', 'shape', 'units')
+    __slots__ = ('type', 'name', 'shape', 'units', 'dynamic_shape')
     TYPE_FIELD_NUMBER: _ClassVar[int]
     NAME_FIELD_NUMBER: _ClassVar[int]
     SHAPE_FIELD_NUMBER: _ClassVar[int]
     UNITS_FIELD_NUMBER: _ClassVar[int]
+    DYNAMIC_SHAPE_FIELD_NUMBER: _ClassVar[int]
     type: VariableType
     name: str
     shape: _containers.RepeatedScalarFieldContainer[int]
     units: str
+    dynamic_shape: bool
 
-    def __init__(self, type: _Optional[_Union[VariableType, str]]=..., name: _Optional[str]=..., shape: _Optional[_Iterable[int]]=..., units: _Optional[str]=...) -> None:
+    def __init__(self, type: _Optional[_Union[VariableType, str]]=..., name: _Optional[str]=..., shape: _Optional[_Iterable[int]]=..., units: _Optional[str]=..., dynamic_shape: bool=...) -> None:
         ...
 
 class PartialsMetaData(_message.Message):
@@ -116,4 +120,26 @@ class Array(_message.Message):
     data: _containers.RepeatedScalarFieldContainer[float]
 
     def __init__(self, name: _Optional[str]=..., subname: _Optional[str]=..., start: _Optional[int]=..., end: _Optional[int]=..., type: _Optional[_Union[VariableType, str]]=..., data: _Optional[_Iterable[float]]=...) -> None:
+        ...
+
+class DiscreteVariable(_message.Message):
+    __slots__ = ('name', 'type', 'value')
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    TYPE_FIELD_NUMBER: _ClassVar[int]
+    VALUE_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    type: VariableType
+    value: _struct_pb2.Value
+
+    def __init__(self, name: _Optional[str]=..., type: _Optional[_Union[VariableType, str]]=..., value: _Optional[_Union[_struct_pb2.Value, _Mapping]]=...) -> None:
+        ...
+
+class VariableMessage(_message.Message):
+    __slots__ = ('continuous', 'discrete')
+    CONTINUOUS_FIELD_NUMBER: _ClassVar[int]
+    DISCRETE_FIELD_NUMBER: _ClassVar[int]
+    continuous: Array
+    discrete: DiscreteVariable
+
+    def __init__(self, continuous: _Optional[_Union[Array, _Mapping]]=..., discrete: _Optional[_Union[DiscreteVariable, _Mapping]]=...) -> None:
         ...

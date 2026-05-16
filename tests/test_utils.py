@@ -29,7 +29,8 @@
 # control over the information you may find at these locations.
 import unittest
 import numpy as np
-from philote_mdo.utils import get_chunk_indices, get_flattened_view
+from philote_mdo.utils import get_chunk_indices, get_flattened_view, PairDict
+from philote_mdo.utils.validation import PhiloteValidationError
 
 
 class TestUtils(unittest.TestCase):
@@ -74,6 +75,39 @@ class TestUtils(unittest.TestCase):
         result_empty = get_flattened_view(empty_array)
         self.assertIs(result_empty.base, empty_array)
         self.assertEqual(result_empty.shape, (0,))
+
+
+    def test_get_chunk_indices_negative_num_values_raises(self):
+        with self.assertRaises(PhiloteValidationError):
+            list(get_chunk_indices(-1, 3))
+
+    def test_get_chunk_indices_zero_chunk_size_raises(self):
+        with self.assertRaises(PhiloteValidationError):
+            list(get_chunk_indices(10, 0))
+
+    def test_get_chunk_indices_non_int_raises(self):
+        with self.assertRaises(PhiloteValidationError):
+            list(get_chunk_indices(10.5, 3))
+
+    def test_get_flattened_view_non_array_raises(self):
+        with self.assertRaises(PhiloteValidationError):
+            get_flattened_view([1, 2, 3])
+
+    def test_pair_dict_invalid_key_raises(self):
+        pd = PairDict()
+        with self.assertRaises(PhiloteValidationError):
+            pd["single_key"] = 1.0
+
+    def test_pair_dict_three_tuple_raises(self):
+        pd = PairDict()
+        with self.assertRaises(PhiloteValidationError):
+            pd[("a", "b", "c")] = 1.0
+
+    def test_pair_dict_get_invalid_key_raises(self):
+        pd = PairDict()
+        pd[("a", "b")] = 1.0
+        with self.assertRaises(PhiloteValidationError):
+            _ = pd["single_key"]
 
 
 if __name__ == "__main__":

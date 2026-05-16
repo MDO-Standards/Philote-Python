@@ -171,6 +171,7 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
         component = RemoteImplicitComponent(channel=mock_channel)
         component._client = Mock()
         component._client._partials_meta = [par1, par2]
+        component._client._var_meta = []
 
         # call the function
         component.setup_partials()
@@ -228,7 +229,9 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
         )
 
         # asserting that the method calls are made correctly
-        client_mock.run_compute_residuals.assert_called_once_with(inputs, outputs)
+        client_mock.run_compute_residuals.assert_called_once_with(
+            inputs, outputs, None, None
+        )
         for res_name, expected_data in expected_residuals.items():
             self.assertTrue(res_name in residuals)
             np.testing.assert_array_equal(residuals[res_name], expected_data)
@@ -277,7 +280,7 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
         comp.solve_nonlinear(inputs, outputs, discrete_inputs, discrete_outputs)
 
         # asserting that the method calls are made correctly
-        client_mock.run_solve_residuals.assert_called_once_with(inputs)
+        client_mock.run_solve_residuals.assert_called_once_with(inputs, None)
         for output_name, expected_data in expected_outputs.items():
             self.assertTrue(output_name in outputs)
             np.testing.assert_array_equal(outputs[output_name], expected_data)
@@ -343,7 +346,9 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
         comp.linearize(inputs, outputs, partials, discrete_inputs, discrete_outputs)
 
         # asserting that the method calls are made correctly
-        client_mock.run_residual_gradients.assert_called_once_with(inputs, outputs)
+        client_mock.run_residual_gradients.assert_called_once_with(
+            inputs, outputs, None, None
+        )
         for jac_key, expected_data in expected_jac.items():
             self.assertTrue(jac_key in partials)
             np.testing.assert_array_equal(partials[jac_key], expected_data)
@@ -362,6 +367,15 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
             RemoteImplicitComponent()
         
         self.assertIn("No channel provided", str(context.exception))
+
+    def test_invalid_num_par_fd_raises(self, mock_implicit_component):
+        """
+        Tests that an invalid num_par_fd raises a ValueError.
+        """
+        mock_channel = Mock()
+        with self.assertRaises(ValueError) as context:
+            RemoteImplicitComponent(channel=mock_channel, num_par_fd=-1)
+        self.assertIn("num_par_fd must be a positive integer", str(context.exception))
 
 
 if __name__ == "__main__":

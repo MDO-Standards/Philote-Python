@@ -28,6 +28,18 @@
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
 import philote_mdo.generated.data_pb2 as data
+from philote_mdo.utils.validation import PhiloteValidationError
+
+
+_TYPE_MAP = {
+    "bool": bool,
+    "int": int,
+    "float": float,
+    "double": float,
+    "str": str,
+    "string": str,
+    "dict": dict,
+}
 
 
 def declare_options(opt_list, options):
@@ -35,15 +47,12 @@ def declare_options(opt_list, options):
     Declares the options from the client options list.
     """
     for name, type_str in opt_list:
-        opt_type = None
-        if type_str == "bool":
-            opt_type = bool
-        elif type_str == "int":
-            opt_type = int
-        elif type_str == "float":
-            opt_type = float
-        elif type_str == "str":
-            opt_type = str
+        opt_type = _TYPE_MAP.get(type_str)
+        if opt_type is None:
+            raise PhiloteValidationError(
+                f"declare_options: unknown option type '{type_str}' "
+                f"for option '{name}'."
+            )
 
         options.declare(name, types=opt_type)
 
@@ -53,24 +62,65 @@ def client_setup(comp):
     Sets up the OpenMDAO component with all required inputs and outputs.
 
     This function will call the required RPCs to obtain the variables
-    from the remote discipline server.
+    from the remote discipline server.  Both continuous and discrete
+    variables are declared.
     """
     # set up the remote discipline and get the variable definitions
     comp._client.run_setup()
     comp._client.get_variable_definitions()
 
-    # define inputs and outputs based on the discipline metadata
+    # define continuous inputs and outputs based on the discipline metadata
     for var in comp._client._var_meta:
         if not var.units:
             units = None
         else:
             units = var.units
 
-        if var.type == data.kInput:
-            comp.add_input(var.name, shape=tuple(var.shape), units=units)
+        if var.dynamic_shape:
+            # let OpenMDAO resolve the shape from connections
+            if var.type == data.kInput:
+                comp.add_input(var.name, shape_by_conn=True, units=units)
 
-        if var.type == data.kOutput:
-            comp.add_output(var.name, shape=tuple(var.shape), units=units)
+            if var.type == data.kOutput:
+                comp.add_output(var.name, shape_by_conn=True, units=units)
+        else:
+            if var.type == data.kInput:
+                comp.add_input(var.name, shape=tuple(var.shape), units=units)
+
+            if var.type == data.kOutput:
+                comp.add_output(var.name, shape=tuple(var.shape), units=units)
+
+    # define discrete inputs and outputs
+    for var in comp._client._discrete_var_meta:
+        if var.type == data.VariableType.kDiscreteInput:
+            comp.add_discrete_input(var.name, val=None)
+
+        if var.type == data.VariableType.kDiscreteOutput:
+            comp.add_discrete_output(var.name, val=None)
+
+
+def send_resolved_shapes(comp):
+    """
+    Sends resolved shapes for dynamic-shape variables back to the server.
+
+    After OpenMDAO resolves shapes (e.g. via ``shape_by_conn``), this
+    function reads the resolved metadata from the component and transmits
+    the shapes to the remote discipline server.
+    """
+    dynamic_shapes = []
+    for var in comp._client._var_meta:
+        if not var.dynamic_shape:
+            continue
+
+        resolved_meta = comp._var_rel2meta[var.name]
+        dynamic_shapes.append(
+            comp._client.set_variable_shape(
+                var.name, resolved_meta["shape"], var.type
+            )
+        )
+
+    if dynamic_shapes:
+        comp._client.send_variable_shapes(dynamic_shapes)
 
 
 def client_setup_partials(comp):
@@ -86,6 +136,20 @@ def client_setup_partials(comp):
     # declare partials based on the discipline meta data
     for partial in comp._client._partials_meta:
         comp.declare_partials(partial.name, partial.subname)
+
+
+def create_local_discrete_inputs(discrete_inputs, discrete_var_meta, type=data.VariableType.kDiscreteInput):
+    """
+    Creates a Philote-Python local discrete inputs dictionary from OpenMDAO
+    discrete inputs.
+    """
+    if discrete_inputs is None:
+        return None
+    local = {}
+    for var in discrete_var_meta:
+        if var.type == type:
+            local[var.name] = discrete_inputs[var.name]
+    return local if local else None
 
 
 def create_local_inputs(inputs, var_meta, type=data.kInput):

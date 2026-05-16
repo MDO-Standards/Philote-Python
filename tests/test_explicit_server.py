@@ -30,12 +30,14 @@
 import unittest
 from unittest.mock import Mock
 
+import grpc
 import numpy as np
 from scipy.optimize import rosen, rosen_der
 
 from google.protobuf.empty_pb2 import Empty
 
 from philote_mdo.general import ExplicitDiscipline, ExplicitServer
+from philote_mdo.utils.validation import PhiloteValidationError
 import philote_mdo.generated.data_pb2 as data
 
 
@@ -56,15 +58,17 @@ class TestExplicitServer(unittest.TestCase):
 
         context = Mock()
         request_iterator = [
-            data.Array(
-                start=0,
-                end=2,
-                data=[0.5, 1.5, 3.5],
-                type=data.VariableType.kInput,
-                name="x",
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=2, data=[0.5, 1.5, 3.5],
+                    type=data.VariableType.kInput, name="x",
+                )
             ),
-            data.Array(
-                start=3, end=4, data=[4.5, 5.5], type=data.VariableType.kInput, name="x"
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=3, end=4, data=[4.5, 5.5],
+                    type=data.VariableType.kInput, name="x",
+                )
             ),
         ]
 
@@ -81,8 +85,8 @@ class TestExplicitServer(unittest.TestCase):
         # check that there is only one response
         self.assertEqual(len(responses), 1)
 
-        # check the function value
-        response = responses[0]
+        # check the function value (unwrap VariableMessage)
+        response = responses[0].continuous
         self.assertEqual(response.name, "f")
         self.assertEqual(response.start, 0)
         self.assertEqual(response.end, 1)
@@ -102,15 +106,17 @@ class TestExplicitServer(unittest.TestCase):
 
         context = Mock()
         request_iterator = [
-            data.Array(
-                start=0,
-                end=2,
-                data=[0.5, 1.5, 3.5],
-                type=data.VariableType.kInput,
-                name="x",
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=2, data=[0.5, 1.5, 3.5],
+                    type=data.VariableType.kInput, name="x",
+                )
             ),
-            data.Array(
-                start=3, end=4, data=[4.5, 5.5], type=data.VariableType.kInput, name="x"
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=3, end=4, data=[4.5, 5.5],
+                    type=data.VariableType.kInput, name="x",
+                )
             ),
         ]
 
@@ -124,22 +130,154 @@ class TestExplicitServer(unittest.TestCase):
         response_generator = server.ComputeGradient(request_iterator, context)
         responses = list(response_generator)
 
-        # check that there is only one response
+        # check that there are two responses
         self.assertEqual(len(responses), 2)
 
-        # check the function value
-        response = responses[0]
+        # check the function value (unwrap VariableMessage)
+        response = responses[0].continuous
         self.assertEqual(response.name, "f")
         self.assertEqual(response.subname, "x")
         self.assertEqual(response.start, 0)
         self.assertEqual(response.end, 2)
         grad = np.array(response.data)
 
-        response = responses[1]
+        response = responses[1].continuous
         grad = np.append(grad, np.array(response.data))
         self.assertTrue(
             np.array_equal(grad, np.array([-251.0, -499.0, 11105.0, 25007.0, -2950.0]))
         )
+
+
+    def test_compute_function_aborts_on_validation_error(self):
+        """
+        Tests that ComputeFunction calls context.abort with INVALID_ARGUMENT
+        when a PhiloteValidationError is raised.
+        """
+        server = ExplicitServer()
+        discipline = server._discipline = ExplicitDiscipline()
+        discipline.add_input("x", shape=(1,), units="")
+        discipline.add_output("f", shape=(1,), units="")
+
+        context = Mock()
+        request_iterator = [
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kInput, name="x",
+                )
+            ),
+        ]
+
+        def bad_compute(inputs, outputs):
+            raise PhiloteValidationError("bad input data")
+
+        server._discipline.compute = bad_compute
+
+        list(server.ComputeFunction(request_iterator, context))
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INVALID_ARGUMENT)
+        self.assertIn("bad input data", args[0][1])
+
+    def test_compute_gradient_aborts_on_validation_error(self):
+        """
+        Tests that ComputeGradient calls context.abort with INVALID_ARGUMENT
+        when a PhiloteValidationError is raised.
+        """
+        server = ExplicitServer()
+        discipline = server._discipline = ExplicitDiscipline()
+        discipline.add_input("x", shape=(1,), units="")
+        discipline.add_output("f", shape=(1,), units="")
+        discipline.declare_partials("f", "x")
+
+        context = Mock()
+        request_iterator = [
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kInput, name="x",
+                )
+            ),
+        ]
+
+        def bad_partials(inputs, jac):
+            raise PhiloteValidationError("invalid partials")
+
+        server._discipline.compute_partials = bad_partials
+
+        list(server.ComputeGradient(request_iterator, context))
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INVALID_ARGUMENT)
+        self.assertIn("invalid partials", args[0][1])
+
+    def test_compute_function_aborts_on_discipline_error(self):
+        """
+        Tests that ComputeFunction calls context.abort when the discipline's
+        compute raises an exception.
+        """
+        server = ExplicitServer()
+        discipline = server._discipline = ExplicitDiscipline()
+        discipline.add_input("x", shape=(1,), units="")
+        discipline.add_output("f", shape=(1,), units="")
+
+        context = Mock()
+        request_iterator = [
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kInput, name="x",
+                )
+            ),
+        ]
+
+        def bad_compute(inputs, outputs):
+            raise RuntimeError("division by zero in compute")
+
+        server._discipline.compute = bad_compute
+
+        # Exhaust the generator
+        list(server.ComputeFunction(request_iterator, context))
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INTERNAL)
+        self.assertIn("ComputeFunction failed", args[0][1])
+
+    def test_compute_gradient_aborts_on_discipline_error(self):
+        """
+        Tests that ComputeGradient calls context.abort when the discipline's
+        compute_partials raises an exception.
+        """
+        server = ExplicitServer()
+        discipline = server._discipline = ExplicitDiscipline()
+        discipline.add_input("x", shape=(1,), units="")
+        discipline.add_output("f", shape=(1,), units="")
+        discipline.declare_partials("f", "x")
+
+        context = Mock()
+        request_iterator = [
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kInput, name="x",
+                )
+            ),
+        ]
+
+        def bad_partials(inputs, jac):
+            raise RuntimeError("singular matrix")
+
+        server._discipline.compute_partials = bad_partials
+
+        list(server.ComputeGradient(request_iterator, context))
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INTERNAL)
+        self.assertIn("ComputeGradient failed", args[0][1])
 
 
 if __name__ == "__main__":

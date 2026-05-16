@@ -66,12 +66,15 @@ class SellarMDA(om.Group):
             "d2", SellarDis2(), promotes_inputs=["z", "y1"], promotes_outputs=["y2"]
         )
 
-        cycle.set_input_defaults("x", 1.0)
-        cycle.set_input_defaults("z", np.array([5.0, 2.0]))
-
         # Nonlinear Block Gauss Seidel is a gradient free solver
         cycle.nonlinear_solver = om.NonlinearBlockGS(iprint=0)
         cycle.linear_solver = om.LinearBlockGS(iprint=0)
+
+        # Set defaults at the top level so the promoted 'x' and 'z' values
+        # from `cycle` and `obj_cmp` agree; OpenMDAO otherwise flags the
+        # promoted inputs as ambiguous during final_setup.
+        self.set_input_defaults("x", 1.0)
+        self.set_input_defaults("z", np.array([5.0, 2.0]))
 
         self.add_subsystem(
             "obj_cmp",

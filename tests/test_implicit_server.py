@@ -29,10 +29,13 @@
 # control over the information you may find at these locations.
 import unittest
 from unittest.mock import Mock
+
+import grpc
 import numpy as np
 import numpy.testing as np_testing
 from google.protobuf.empty_pb2 import Empty
 from philote_mdo.general import ImplicitDiscipline, ImplicitServer
+from philote_mdo.utils.validation import PhiloteValidationError
 import philote_mdo.generated.data_pb2 as data
 
 
@@ -58,9 +61,9 @@ class TestImplicitServer(unittest.TestCase):
 
         # mock request iterator
         mock_request_iterator = [
-            data.Array(name="x", start=0, end=2, type=data.kInput, data=[1.0, 2.0]),
-            data.Array(name="y", start=0, end=2, type=data.kInput, data=[3.0, 4.0]),
-            data.Array(name="f", start=0, end=2, type=data.kOutput, data=[5.0, 6.0]),
+            data.VariableMessage(continuous=data.Array(name="x", start=0, end=2, type=data.kInput, data=[1.0, 2.0])),
+            data.VariableMessage(continuous=data.Array(name="y", start=0, end=2, type=data.kInput, data=[3.0, 4.0])),
+            data.VariableMessage(continuous=data.Array(name="f", start=0, end=2, type=data.kOutput, data=[5.0, 6.0])),
         ]
 
         # mock inputs, outputs, and residuals
@@ -81,19 +84,17 @@ class TestImplicitServer(unittest.TestCase):
 
         # assert that the expected residual messages were yielded
         expected_result = [
-            data.Array(
-                name="f",
-                start=0,
-                end=1,
-                type=data.VariableType.kResidual,
-                data=[7.0],
+            data.VariableMessage(
+                continuous=data.Array(
+                    name="f", start=0, end=1,
+                    type=data.VariableType.kResidual, data=[7.0],
+                )
             ),
-            data.Array(
-                name="f",
-                start=1,
-                end=2,
-                type=data.VariableType.kResidual,
-                data=[8.0],
+            data.VariableMessage(
+                continuous=data.Array(
+                    name="f", start=1, end=2,
+                    type=data.VariableType.kResidual, data=[8.0],
+                )
             ),
         ]
         self.assertEqual(result, expected_result)
@@ -115,9 +116,9 @@ class TestImplicitServer(unittest.TestCase):
 
         # mock request iterator
         mock_request_iterator = [
-            data.Array(name="x", start=0, end=2, type=data.kInput, data=[1.0, 2.0]),
-            data.Array(name="y", start=0, end=2, type=data.kInput, data=[3.0, 4.0]),
-            data.Array(name="f", start=0, end=2, type=data.kOutput, data=[5.0, 6.0]),
+            data.VariableMessage(continuous=data.Array(name="x", start=0, end=2, type=data.kInput, data=[1.0, 2.0])),
+            data.VariableMessage(continuous=data.Array(name="y", start=0, end=2, type=data.kInput, data=[3.0, 4.0])),
+            data.VariableMessage(continuous=data.Array(name="f", start=0, end=2, type=data.kOutput, data=[5.0, 6.0])),
         ]
 
         # mock inputs, outputs, and residuals
@@ -132,25 +133,23 @@ class TestImplicitServer(unittest.TestCase):
 
         server._discipline.solve_residuals = solve_residuals
 
-        # call the ComputeResiduals method
+        # call the SolveResiduals method
         response_generator = server.SolveResiduals(mock_request_iterator, None)
         result = list(response_generator)
 
-        # assert that the expected residual messages were yielded
+        # assert that the expected output messages were yielded
         expected_result = [
-            data.Array(
-                name="f",
-                start=0,
-                end=1,
-                type=data.VariableType.kOutput,
-                data=[7.0],
+            data.VariableMessage(
+                continuous=data.Array(
+                    name="f", start=0, end=1,
+                    type=data.VariableType.kOutput, data=[7.0],
+                )
             ),
-            data.Array(
-                name="f",
-                start=1,
-                end=2,
-                type=data.VariableType.kOutput,
-                data=[8.0],
+            data.VariableMessage(
+                continuous=data.Array(
+                    name="f", start=1, end=2,
+                    type=data.VariableType.kOutput, data=[8.0],
+                )
             ),
         ]
         self.assertEqual(result, expected_result)
@@ -168,19 +167,17 @@ class TestImplicitServer(unittest.TestCase):
 
         context = Mock()
         request_iterator = [
-            data.Array(
-                start=0,
-                end=2,
-                data=[0.5, 1.5, 3.5],
-                type=data.VariableType.kInput,
-                name="x",
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=2, data=[0.5, 1.5, 3.5],
+                    type=data.VariableType.kInput, name="x",
+                )
             ),
-            data.Array(
-                start=3,
-                end=4,
-                data=[4.5, 5.5],
-                type=data.VariableType.kInput,
-                name="x",
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=3, end=4, data=[4.5, 5.5],
+                    type=data.VariableType.kInput, name="x",
+                )
             ),
         ]
 
@@ -194,22 +191,241 @@ class TestImplicitServer(unittest.TestCase):
         response_generator = server.ComputeResidualGradients(request_iterator, context)
         responses = list(response_generator)
 
-        # check that there is only one response
+        # check that there are two responses
         self.assertEqual(len(responses), 2)
 
-        # check the function value
-        response = responses[0]
+        # check the function value (unwrap VariableMessage)
+        response = responses[0].continuous
         self.assertEqual(response.name, "f")
         self.assertEqual(response.subname, "x")
         self.assertEqual(response.start, 0)
         self.assertEqual(response.end, 3)
         grad = np.array(response.data)
 
-        response = responses[1]
+        response = responses[1].continuous
         grad = np.append(grad, np.array(response.data))
         self.assertTrue(
             np.array_equal(grad, np.array([-251.0, -499.0, 11105.0, 25007.0, -2950.0]))
         )
+
+
+    def test_compute_residuals_aborts_on_validation_error(self):
+        """
+        Tests that ComputeResiduals calls context.abort with INVALID_ARGUMENT
+        when a PhiloteValidationError is raised.
+        """
+        server = ImplicitServer()
+        discipline = server._discipline = ImplicitDiscipline()
+        discipline.add_input("x", shape=(1,), units="")
+        discipline.add_output("f", shape=(1,), units="")
+
+        context = Mock()
+        request_iterator = [
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kInput, name="x",
+                )
+            ),
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kOutput, name="f",
+                )
+            ),
+        ]
+
+        def bad_residuals(inputs, outputs, residuals):
+            raise PhiloteValidationError("bad residual input")
+
+        server._discipline.compute_residuals = bad_residuals
+
+        list(server.ComputeResiduals(request_iterator, context))
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INVALID_ARGUMENT)
+        self.assertIn("bad residual input", args[0][1])
+
+    def test_solve_residuals_aborts_on_validation_error(self):
+        """
+        Tests that SolveResiduals calls context.abort with INVALID_ARGUMENT
+        when a PhiloteValidationError is raised.
+        """
+        server = ImplicitServer()
+        discipline = server._discipline = ImplicitDiscipline()
+        discipline.add_input("x", shape=(1,), units="")
+        discipline.add_output("f", shape=(1,), units="")
+
+        context = Mock()
+        request_iterator = [
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kInput, name="x",
+                )
+            ),
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kOutput, name="f",
+                )
+            ),
+        ]
+
+        def bad_solve(inputs, outputs):
+            raise PhiloteValidationError("bad solve input")
+
+        server._discipline.solve_residuals = bad_solve
+
+        list(server.SolveResiduals(request_iterator, context))
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INVALID_ARGUMENT)
+        self.assertIn("bad solve input", args[0][1])
+
+    def test_compute_residual_gradients_aborts_on_validation_error(self):
+        """
+        Tests that ComputeResidualGradients calls context.abort with
+        INVALID_ARGUMENT when a PhiloteValidationError is raised.
+        """
+        server = ImplicitServer()
+        discipline = server._discipline = ImplicitDiscipline()
+        discipline.add_input("x", shape=(1,), units="")
+        discipline.add_output("f", shape=(1,), units="")
+        discipline.declare_partials("f", "x")
+
+        context = Mock()
+        request_iterator = [
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kInput, name="x",
+                )
+            ),
+        ]
+
+        def bad_partials(inputs, outputs, jac):
+            raise PhiloteValidationError("bad partials input")
+
+        server._discipline.residual_partials = bad_partials
+
+        list(server.ComputeResidualGradients(request_iterator, context))
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INVALID_ARGUMENT)
+        self.assertIn("bad partials input", args[0][1])
+
+    def test_compute_residual_gradients_aborts_on_discipline_error(self):
+        """
+        Tests that ComputeResidualGradients calls context.abort with INTERNAL
+        when an unexpected exception is raised.
+        """
+        server = ImplicitServer()
+        discipline = server._discipline = ImplicitDiscipline()
+        discipline.add_input("x", shape=(1,), units="")
+        discipline.add_output("f", shape=(1,), units="")
+        discipline.declare_partials("f", "x")
+
+        context = Mock()
+        request_iterator = [
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kInput, name="x",
+                )
+            ),
+        ]
+
+        def bad_partials(inputs, outputs, jac):
+            raise RuntimeError("unexpected crash")
+
+        server._discipline.residual_partials = bad_partials
+
+        list(server.ComputeResidualGradients(request_iterator, context))
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INTERNAL)
+        self.assertIn("ComputeResidualGradients failed", args[0][1])
+
+    def test_compute_residuals_aborts_on_discipline_error(self):
+        """
+        Tests that ComputeResiduals calls context.abort when the discipline's
+        compute_residuals raises an exception.
+        """
+        server = ImplicitServer()
+        discipline = server._discipline = ImplicitDiscipline()
+        discipline.add_input("x", shape=(1,), units="")
+        discipline.add_output("f", shape=(1,), units="")
+
+        context = Mock()
+        request_iterator = [
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kInput, name="x",
+                )
+            ),
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kOutput, name="f",
+                )
+            ),
+        ]
+
+        def bad_residuals(inputs, outputs, residuals):
+            raise RuntimeError("residual computation failed")
+
+        server._discipline.compute_residuals = bad_residuals
+
+        list(server.ComputeResiduals(request_iterator, context))
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INTERNAL)
+        self.assertIn("ComputeResiduals failed", args[0][1])
+
+    def test_solve_residuals_aborts_on_discipline_error(self):
+        """
+        Tests that SolveResiduals calls context.abort when the discipline's
+        solve_residuals raises an exception.
+        """
+        server = ImplicitServer()
+        discipline = server._discipline = ImplicitDiscipline()
+        discipline.add_input("x", shape=(1,), units="")
+        discipline.add_output("f", shape=(1,), units="")
+
+        context = Mock()
+        request_iterator = [
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kInput, name="x",
+                )
+            ),
+            data.VariableMessage(
+                continuous=data.Array(
+                    start=0, end=0, data=[1.0],
+                    type=data.VariableType.kOutput, name="f",
+                )
+            ),
+        ]
+
+        def bad_solve(inputs, outputs):
+            raise RuntimeError("solver did not converge")
+
+        server._discipline.solve_residuals = bad_solve
+
+        list(server.SolveResiduals(request_iterator, context))
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INTERNAL)
+        self.assertIn("SolveResiduals failed", args[0][1])
 
 
 if __name__ == "__main__":

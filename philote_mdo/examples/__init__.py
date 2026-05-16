@@ -27,6 +27,7 @@
 # the linked websites, of the information, products, or services contained
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
+from .flexible import FlexibleDiscipline
 from .paraboloid import Paraboloid
 from .quadratic import QuadradicImplicit
 from .rosenbrock import Rosenbrock
@@ -34,5 +35,5 @@ from .rosenbrock import Rosenbrock
 try:
     import openmdao.api
     from .sellar import SellarGroup
-except:
+except ImportError:  # pragma: no cover
     pass

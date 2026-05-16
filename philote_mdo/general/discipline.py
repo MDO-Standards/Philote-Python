@@ -28,6 +28,13 @@
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
 import philote_mdo.generated.data_pb2 as data
+from philote_mdo.utils.validation import (
+    validate_name,
+    validate_shape,
+    validate_units,
+    validate_option_type,
+    PhiloteValidationError,
+)
 
 
 class Discipline:
@@ -43,6 +50,9 @@ class Discipline:
 
         # variable metadata
         self._var_meta = []
+
+        # discrete variable metadata (name → default value)
+        self._discrete_var_meta = []
 
         # partials metadata
         self._partials_meta = []
@@ -66,11 +76,17 @@ class Discipline:
             the name of the option being added
         type : string
             the data type of the option. acceptable types are 'bool', 'int',
-            'float'
+            'float', 'str', 'dict'
         """
+        validate_name(name, "add_option")
+        validate_option_type(type, name)
+        if name in self.options_list:
+            raise PhiloteValidationError(
+                f"add_option: option '{name}' is already defined."
+            )
         self.options_list[name] = type
 
-    def add_input(self, name, shape=(1,), units=""):
+    def add_input(self, name, shape=(1,), units="", dynamic_shape=False):
         """
         Define a continuous input.
 
@@ -79,18 +95,85 @@ class Discipline:
         name : string
             the name of the input variable
         shape : tuple
-            the shape of the input variable
+            the shape of the input variable (ignored when dynamic_shape
+            is True)
         units : string
             the unit definition for the input variable
+        dynamic_shape : bool
+            when True, the client is allowed to set this variable's shape
         """
+        validate_name(name, "add_input")
+        if not dynamic_shape:
+            validate_shape(shape, "add_input")
+        validate_units(units, "add_input")
+        if any(v.name == name and v.type == data.VariableType.kInput for v in self._var_meta):
+            raise PhiloteValidationError(
+                f"add_input: input '{name}' is already defined."
+            )
         meta = data.VariableMetaData()
         meta.type = data.VariableType.kInput
         meta.name = name
-        meta.shape.extend(shape)
+        if not dynamic_shape:
+            meta.shape.extend(shape)
         meta.units = units
+        meta.dynamic_shape = dynamic_shape
         self._var_meta += [meta]
 
-    def add_output(self, name, shape=(1,), units=""):
+    def add_discrete_input(self, name, default=None):
+        """
+        Define a discrete input.
+
+        Discrete inputs can hold any value that is representable as a
+        ``google.protobuf.Value`` (scalars, lists, or nested dicts).
+
+        Parameters
+        ----------
+        name : string
+            the name of the discrete input variable
+        default : object, optional
+            the default value for the discrete input
+        """
+        validate_name(name, "add_discrete_input")
+        if any(
+            v.name == name and v.type == data.VariableType.kDiscreteInput
+            for v in self._discrete_var_meta
+        ):
+            raise PhiloteValidationError(
+                f"add_discrete_input: discrete input '{name}' is already defined."
+            )
+        meta = data.VariableMetaData()
+        meta.type = data.VariableType.kDiscreteInput
+        meta.name = name
+        self._discrete_var_meta += [meta]
+
+    def add_discrete_output(self, name, default=None):
+        """
+        Define a discrete output.
+
+        Discrete outputs can hold any value that is representable as a
+        ``google.protobuf.Value`` (scalars, lists, or nested dicts).
+
+        Parameters
+        ----------
+        name : string
+            the name of the discrete output variable
+        default : object, optional
+            the default value for the discrete output
+        """
+        validate_name(name, "add_discrete_output")
+        if any(
+            v.name == name and v.type == data.VariableType.kDiscreteOutput
+            for v in self._discrete_var_meta
+        ):
+            raise PhiloteValidationError(
+                f"add_discrete_output: discrete output '{name}' is already defined."
+            )
+        meta = data.VariableMetaData()
+        meta.type = data.VariableType.kDiscreteOutput
+        meta.name = name
+        self._discrete_var_meta += [meta]
+
+    def add_output(self, name, shape=(1,), units="", dynamic_shape=False):
         """
         Defines a continuous output.
 
@@ -99,30 +182,47 @@ class Discipline:
         name : string
             the name of the output variable
         shape : tuple
-            the shape of the output variable
+            the shape of the output variable (ignored when dynamic_shape
+            is True)
         units : string
             the unit definition for the output variable
+        dynamic_shape : bool
+            when True, the client is allowed to set this variable's shape
         """
+        validate_name(name, "add_output")
+        if not dynamic_shape:
+            validate_shape(shape, "add_output")
+        validate_units(units, "add_output")
+        if any(v.name == name and v.type == data.VariableType.kOutput for v in self._var_meta):
+            raise PhiloteValidationError(
+                f"add_output: output '{name}' is already defined."
+            )
         out_meta = data.VariableMetaData()
         out_meta.type = data.VariableType.kOutput
         out_meta.name = name
-        out_meta.shape.extend(shape)
+        if not dynamic_shape:
+            out_meta.shape.extend(shape)
         out_meta.units = units
+        out_meta.dynamic_shape = dynamic_shape
         self._var_meta += [out_meta]
 
         if self._is_implicit:
             res_meta = data.VariableMetaData()
             res_meta.type = data.VariableType.kOutput
             res_meta.name = name
-            res_meta.shape.extend(shape)
+            if not dynamic_shape:
+                res_meta.shape.extend(shape)
             res_meta.units = units
             res_meta.type = data.VariableType.kResidual
+            res_meta.dynamic_shape = dynamic_shape
             self._var_meta += [res_meta]
 
     def declare_partials(self, func, var):
         """
         Defines partials that will be determined using the analysis server.
         """
+        validate_name(func, "declare_partials (func)")
+        validate_name(var, "declare_partials (var)")
         self._partials_meta += [data.PartialsMetaData(name=func, subname=var)]
 
     def initialize(self):
@@ -179,4 +279,5 @@ class Discipline:
         This function is invoked from the Setup function of the server.
         """
         self._var_meta = []
+        self._discrete_var_meta = []
         self._partials_meta = []

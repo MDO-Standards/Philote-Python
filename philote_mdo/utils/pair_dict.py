@@ -29,15 +29,27 @@
 # control over the information you may find at these locations.
 
 
+from philote_mdo.utils.validation import PhiloteValidationError
+
+
 class PairDict(dict):
     """
     Jacobian dictionary for storing values with respect to two keys.
     """
 
+    @staticmethod
+    def _validate_key(keys):
+        if not isinstance(keys, tuple) or len(keys) != 2:
+            raise PhiloteValidationError(
+                f"PairDict keys must be a 2-tuple, got {keys!r}."
+            )
+
     def __setitem__(self, keys, value):
+        self._validate_key(keys)
         key1, key2 = keys
         super().__setitem__((key1, key2), value)
 
     def __getitem__(self, keys):
+        self._validate_key(keys)
         key1, key2 = keys
         return super().__getitem__((key1, key2))

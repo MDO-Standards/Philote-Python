@@ -29,7 +29,11 @@
 # control over the information you may find at these locations.
 import unittest
 from unittest.mock import Mock, MagicMock
+
+import grpc
+
 from philote_mdo.general import DisciplineServer, DisciplineClient, ExplicitDiscipline
+from philote_mdo.utils.validation import PhiloteValidationError
 import philote_mdo.generated.data_pb2 as data
 
 
@@ -73,61 +77,85 @@ class TestDisciplineServerEdgeCases(unittest.TestCase):
         # The method should complete without error and return options
         self.assertIsNotNone(result)
 
-    def test_get_available_options_with_invalid_type(self):
+    def test_get_available_options_with_dict_type(self):
         """
-        Test GetAvailableOptions with invalid option type (covers lines 100-103).
+        Test GetAvailableOptions with dict option type (covers kStruct mapping).
         """
         server = DisciplineServer()
         discipline = Mock()
-        
+
+        discipline.options_list = {"config": "dict"}
+
+        server.attach_discipline(discipline)
+
+        request = Mock()
+        context = Mock()
+
+        result = server.GetAvailableOptions(request, context)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(list(result.options), ["config"])
+        self.assertEqual(list(result.type), [data.kStruct])
+
+    def test_get_available_options_with_invalid_type(self):
+        """
+        Test GetAvailableOptions with invalid option type aborts with
+        INVALID_ARGUMENT.
+        """
+        server = DisciplineServer()
+        discipline = Mock()
+
         # Mock the options_list attribute to return a dict with invalid type
         discipline.options_list = {"invalid_option": "invalid_type"}
-        
+
         server.attach_discipline(discipline)
-        
+
         # Create a mock request and context
         request = Mock()
         context = Mock()
-        
-        # This should raise a ValueError
-        with self.assertRaises(ValueError) as context_err:
-            server.GetAvailableOptions(request, context)
-        
-        self.assertIn("Invalid value for discipline option", str(context_err.exception))
-        self.assertIn("invalid_option", str(context_err.exception))
+
+        server.GetAvailableOptions(request, context)
+
+        context.abort.assert_called_once()
+        args = context.abort.call_args
+        self.assertEqual(args[0][0], grpc.StatusCode.INVALID_ARGUMENT)
+        self.assertIn("Invalid value for discipline option", args[0][1])
 
     def test_process_inputs_with_empty_continuous_data(self):
         """
-        Test process_inputs with empty continuous data arrays (line 216).
+        Test process_inputs with empty continuous data arrays.
         """
         server = DisciplineServer()
         discipline = Mock()
-        
+
         # Set up discipline with continuous variables
         discipline._is_continuous = True
         discipline._var_meta = [Mock()]
         discipline._var_meta[0].name = "test_var"
         discipline._var_meta[0].shape = [2]
         discipline._var_meta[0].type = data.kInput
-        
+
         server.attach_discipline(discipline)
-        
-        # Create a message with empty data
-        message = Mock()
-        message.name = "test_var"
-        message.type = data.VariableType.kInput
-        message.start = 0
-        message.end = 1
-        message.data = []  # Empty data array
-        
+
+        # Create a VariableMessage wrapping an Array with empty data
+        message = data.VariableMessage(
+            continuous=data.Array(
+                name="test_var",
+                type=data.VariableType.kInput,
+                start=0,
+                end=1,
+                data=[],
+            )
+        )
+
         # Create mock for flat_inputs and flat_outputs
         flat_inputs = {"test_var": [0.0, 0.0]}
         flat_outputs = {}
-        
+
         # This should raise a ValueError
         with self.assertRaises(ValueError) as context:
             server.process_inputs([message], flat_inputs, flat_outputs)
-        
+
         self.assertIn("Expected continuous variables but arrays were empty", str(context.exception))
 
 
@@ -138,30 +166,33 @@ class TestDisciplineClientEdgeCases(unittest.TestCase):
 
     def test_recover_outputs_with_empty_data(self):
         """
-        Test _recover_outputs with empty data arrays (line 197).
+        Test _recover_outputs with empty data arrays.
         """
         # Create a mock channel
         channel = Mock()
         client = DisciplineClient(channel)
-        
+
         # Set up outputs structure
         client._var_meta = [Mock()]
         client._var_meta[0].name = "test_output"
         client._var_meta[0].shape = [2]
         client._var_meta[0].type = data.kOutput
-        
-        # Create a response message with empty data
-        message = Mock()
-        message.name = "test_output"
-        message.type = data.kOutput
-        message.start = 0
-        message.end = 1
-        message.data = []  # Empty data array
-        
+
+        # Create a VariableMessage wrapping an Array with empty data
+        message = data.VariableMessage(
+            continuous=data.Array(
+                name="test_output",
+                type=data.kOutput,
+                start=0,
+                end=1,
+                data=[],
+            )
+        )
+
         # This should raise a ValueError
         with self.assertRaises(ValueError) as context:
             client._recover_outputs([message])
-        
+
         self.assertIn("Expected continuous variables, but array is empty", str(context.exception))
 
     # NOTE: Other client edge case tests are more complex to set up properly

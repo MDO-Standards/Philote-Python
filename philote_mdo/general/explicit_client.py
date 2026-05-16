@@ -29,6 +29,7 @@
 # control over the information you may find at these locations.
 import grpc
 from philote_mdo.general.discipline_client import DisciplineClient
+from philote_mdo.utils.validation import PhiloteServerError, validate_is_dict
 import philote_mdo.generated.disciplines_pb2_grpc as disc
 
 
@@ -41,24 +42,58 @@ class ExplicitClient(DisciplineClient):
         super().__init__(channel)
         self._expl_stub = disc.ExplicitServiceStub(channel)
 
-    def run_compute(self, inputs):
+    def run_compute(self, inputs, discrete_inputs=None):
         """
         Requests and receives the function evaluation from the analysis server
         for a set of inputs (sent to the server).
+
+        Parameters
+        ----------
+        inputs : dict
+            Continuous input values.
+        discrete_inputs : dict, optional
+            Discrete input values.
+
+        Returns
+        -------
+        dict or tuple(dict, dict)
+            Continuous outputs, or (continuous outputs, discrete outputs) when
+            the server returns discrete output data.
         """
-        messages = self._assemble_input_messages(inputs)
-        responses = self._expl_stub.ComputeFunction(iter(messages))
-        outputs = self._recover_outputs(responses)
+        validate_is_dict(inputs, "run_compute (inputs)")
+        try:
+            messages = self._assemble_input_messages(
+                inputs, discrete_inputs=discrete_inputs
+            )
+            responses = self._expl_stub.ComputeFunction(iter(messages))
+            return self._recover_outputs(responses)
+        except grpc.RpcError as e:
+            raise PhiloteServerError(
+                f"Server error during run_compute: {e.details()}"
+            ) from e
 
-        return outputs
-
-    def run_compute_partials(self, inputs):
+    def run_compute_partials(self, inputs, discrete_inputs=None):
         """
         Requests and receives the gradient evaluation from the analysis server
         for a set of inputs (sent to the server).
-        """
-        messages = self._assemble_input_messages(inputs)
-        responses = self._expl_stub.ComputeGradient(iter(messages))
-        partials = self._recover_partials(responses)
 
-        return partials
+        Parameters
+        ----------
+        inputs : dict
+            Continuous input values.
+        discrete_inputs : dict, optional
+            Discrete input values.
+        """
+        validate_is_dict(inputs, "run_compute_partials (inputs)")
+        try:
+            messages = self._assemble_input_messages(
+                inputs, discrete_inputs=discrete_inputs
+            )
+            responses = self._expl_stub.ComputeGradient(iter(messages))
+            partials = self._recover_partials(responses)
+
+            return partials
+        except grpc.RpcError as e:
+            raise PhiloteServerError(
+                f"Server error during run_compute_partials: {e.details()}"
+            ) from e

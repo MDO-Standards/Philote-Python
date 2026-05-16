@@ -167,6 +167,7 @@ class TestOpenMdaoExplicitClient(unittest.TestCase):
         component = RemoteExplicitComponent(channel=mock_channel)
         component._client = Mock()
         component._client._partials_meta = [par1, par2]
+        component._client._var_meta = []
 
         # call the function
         component.setup_partials()
@@ -224,7 +225,9 @@ class TestOpenMdaoExplicitClient(unittest.TestCase):
         instance.compute(inputs, outputs, discrete_inputs, discrete_outputs)
 
         # Asserting that the method calls are made correctly
-        client_mock.run_compute.assert_called_once_with({"input1": 10, "input2": 20})
+        client_mock.run_compute.assert_called_once_with(
+            {"input1": 10, "input2": 20}, discrete_inputs=None
+        )
         self.assertEqual(outputs["output1"], 30)
         self.assertEqual(outputs["output2"], 40)
 
@@ -281,7 +284,7 @@ class TestOpenMdaoExplicitClient(unittest.TestCase):
 
         # Asserting that the method calls are made correctly
         client_mock.run_compute_partials.assert_called_once_with(
-            {"input1": 10, "input2": 20}
+            {"input1": 10, "input2": 20}, discrete_inputs=None
         )
         self.assertEqual(partials["output1"]["input1"], 1)
         self.assertEqual(partials["output1"]["input2"], 2)
@@ -302,6 +305,15 @@ class TestOpenMdaoExplicitClient(unittest.TestCase):
             RemoteExplicitComponent()
         
         self.assertIn("No channel provided", str(context.exception))
+
+    def test_invalid_num_par_fd_raises(self, mock_explicit_component):
+        """
+        Tests that an invalid num_par_fd raises a ValueError.
+        """
+        mock_channel = Mock()
+        with self.assertRaises(ValueError) as context:
+            RemoteExplicitComponent(channel=mock_channel, num_par_fd=0)
+        self.assertIn("num_par_fd must be a positive integer", str(context.exception))
 
 
 if __name__ == "__main__":

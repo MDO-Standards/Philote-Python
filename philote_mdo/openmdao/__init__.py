@@ -31,7 +31,7 @@ try:
     import openmdao.api as om
 
     omdao_installed = True
-except ImportError:
+except ImportError:  # pragma: no cover
     omdao_installed = False
     om = None
 

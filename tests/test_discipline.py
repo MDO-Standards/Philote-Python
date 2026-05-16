@@ -31,6 +31,7 @@ import unittest
 from unittest.mock import Mock
 
 from philote_mdo.general import Discipline
+from philote_mdo.utils.validation import PhiloteValidationError
 import philote_mdo.generated.data_pb2 as data
 
 
@@ -171,6 +172,100 @@ class TestDiscipline(unittest.TestCase):
         # check that the metadata has been deleted
         self.assertEqual(len(disc._var_meta), 0)
         self.assertEqual(len(disc._partials_meta), 0)
+
+    # ------------------------------------------------------------------
+    # Validation tests
+    # ------------------------------------------------------------------
+
+    def test_add_input_invalid_name_type(self):
+        disc = Discipline()
+        with self.assertRaises(PhiloteValidationError):
+            disc.add_input(123)
+
+    def test_add_input_empty_name(self):
+        disc = Discipline()
+        with self.assertRaises(PhiloteValidationError):
+            disc.add_input("")
+
+    def test_add_input_invalid_shape(self):
+        disc = Discipline()
+        with self.assertRaises(PhiloteValidationError):
+            disc.add_input("x", shape=[2, 3])
+
+    def test_add_input_invalid_units(self):
+        disc = Discipline()
+        with self.assertRaises(PhiloteValidationError):
+            disc.add_input("x", units=42)
+
+    def test_add_input_duplicate(self):
+        disc = Discipline()
+        disc.add_input("x", shape=(2,))
+        with self.assertRaises(PhiloteValidationError):
+            disc.add_input("x", shape=(3,))
+
+    def test_add_output_invalid_name(self):
+        disc = Discipline()
+        with self.assertRaises(PhiloteValidationError):
+            disc.add_output(None)
+
+    def test_add_output_invalid_shape(self):
+        disc = Discipline()
+        with self.assertRaises(PhiloteValidationError):
+            disc.add_output("y", shape=(-1,))
+
+    def test_add_output_duplicate(self):
+        disc = Discipline()
+        disc.add_output("y")
+        with self.assertRaises(PhiloteValidationError):
+            disc.add_output("y")
+
+    def test_add_option_invalid_name(self):
+        disc = Discipline()
+        with self.assertRaises(PhiloteValidationError):
+            disc.add_option(42, "int")
+
+    def test_add_option_invalid_type(self):
+        disc = Discipline()
+        with self.assertRaises(PhiloteValidationError):
+            disc.add_option("opt", "unknown")
+
+    def test_add_option_duplicate(self):
+        disc = Discipline()
+        disc.add_option("opt", "int")
+        with self.assertRaises(PhiloteValidationError):
+            disc.add_option("opt", "float")
+
+    def test_add_discrete_input_invalid_name(self):
+        disc = Discipline()
+        with self.assertRaises(PhiloteValidationError):
+            disc.add_discrete_input("")
+
+    def test_add_discrete_input_duplicate(self):
+        disc = Discipline()
+        disc.add_discrete_input("d")
+        with self.assertRaises(PhiloteValidationError):
+            disc.add_discrete_input("d")
+
+    def test_add_discrete_output_invalid_name(self):
+        disc = Discipline()
+        with self.assertRaises(PhiloteValidationError):
+            disc.add_discrete_output(123)
+
+    def test_add_discrete_output_duplicate(self):
+        disc = Discipline()
+        disc.add_discrete_output("d")
+        with self.assertRaises(PhiloteValidationError):
+            disc.add_discrete_output("d")
+
+    def test_declare_partials_invalid_func(self):
+        disc = Discipline()
+        with self.assertRaises(PhiloteValidationError):
+            disc.declare_partials("", "x")
+
+    def test_declare_partials_invalid_var(self):
+        disc = Discipline()
+        with self.assertRaises(PhiloteValidationError):
+            disc.declare_partials("f", 123)
 
 
 if __name__ == "__main__":

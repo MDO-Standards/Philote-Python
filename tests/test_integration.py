@@ -222,5 +222,81 @@ class IntegrationTests(unittest.TestCase):
         server.stop(0)
 
 
+class StructOptionDiscipline(pmdo.ExplicitDiscipline):
+    """
+    Minimal discipline that declares a dict option and uses it in compute.
+    """
+
+    def initialize(self):
+        self.add_option("config", "dict")
+
+    def set_options(self, options):
+        self.config = dict(options["config"])
+
+    def setup(self):
+        self.add_input("x", shape=(1,), units="")
+        self.add_output("f", shape=(1,), units="")
+
+    def setup_partials(self):
+        self.declare_partials("f", "x")
+
+    def compute(self, inputs, outputs):
+        scale = self.config.get("scale", 1.0)
+        offset = self.config.get("offset", 0.0)
+        outputs["f"] = scale * inputs["x"] + offset
+
+    def compute_partials(self, inputs, partials):
+        scale = self.config.get("scale", 1.0)
+        partials["f", "x"] = np.array([scale])
+
+
+class StructOptionIntegrationTests(unittest.TestCase):
+    """
+    Integration tests for struct (dict) options round-trip over gRPC.
+    """
+
+    def test_struct_option_round_trip(self):
+        """
+        Tests that a discipline with a dict option can be discovered,
+        set with a nested dict, and used for compute over gRPC.
+        """
+        # server
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        discipline = pmdo.ExplicitServer(discipline=StructOptionDiscipline())
+        discipline.attach_to_server(server)
+        server.add_insecure_port("[::]:50051")
+        server.start()
+
+        try:
+            # client
+            client = pmdo.ExplicitClient(
+                channel=grpc.insecure_channel("localhost:50051")
+            )
+
+            # discover options and verify dict type
+            client.get_available_options()
+            self.assertEqual(client.options_list["config"], "dict")
+
+            # send nested dict option
+            client.send_options({"config": {"scale": 3.0, "offset": 5.0}})
+
+            # standard setup
+            client.send_stream_options()
+            client.run_setup()
+            client.get_variable_definitions()
+            client.get_partials_definitions()
+
+            # compute: f = 3.0 * 2.0 + 5.0 = 11.0
+            inputs = {"x": np.array([2.0])}
+            outputs = client.run_compute(inputs)
+            self.assertAlmostEqual(outputs["f"][0], 11.0)
+
+            # partials: df/dx = 3.0
+            jac = client.run_compute_partials(inputs)
+            self.assertAlmostEqual(jac["f", "x"][0], 3.0)
+        finally:
+            server.stop(0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

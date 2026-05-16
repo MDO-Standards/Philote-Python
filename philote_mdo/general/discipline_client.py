@@ -32,6 +32,12 @@ import google.protobuf.empty_pb2 as empty
 import philote_mdo.generated.data_pb2 as data
 import philote_mdo.generated.disciplines_pb2_grpc as disc
 import philote_mdo.utils as utils
+from philote_mdo.general.discipline_server import _python_to_value, _value_to_python
+from philote_mdo.utils.validation import (
+    PhiloteValidationError,
+    validate_is_dict,
+    validate_numpy_array,
+)
 
 
 class DisciplineClient:
@@ -59,6 +65,7 @@ class DisciplineClient:
 
         # variable and partials metadata
         self._var_meta = []
+        self._discrete_var_meta = []
         self._partials_meta = []
 
         # list of available options
@@ -95,6 +102,8 @@ class DisciplineClient:
                 type_str = "float"
             if val == data.kString:
                 type_str = "str"
+            if val == data.kStruct:
+                type_str = "dict"
             self.options_list[name] = type_str
 
     def send_options(self, options):
@@ -110,6 +119,7 @@ class DisciplineClient:
         -------
             None
         """
+        validate_is_dict(options, "send_options")
         proto_options = data.DisciplineOptions()
         proto_options.options.update(options)
         self._disc_stub.SetOptions(proto_options)
@@ -123,9 +133,18 @@ class DisciplineClient:
     def get_variable_definitions(self):
         """
         Requests the input and output metadata from the server.
+
+        Both continuous and discrete variable metadata are stored in their
+        respective lists.
         """
         for message in self._disc_stub.GetVariableDefinitions(empty.Empty()):
-            self._var_meta += [message]
+            if message.type in (
+                data.VariableType.kDiscreteInput,
+                data.VariableType.kDiscreteOutput,
+            ):
+                self._discrete_var_meta += [message]
+            else:
+                self._var_meta += [message]
 
     def get_partials_definitions(self):
         """
@@ -135,52 +154,165 @@ class DisciplineClient:
             if message.name not in self._partials_meta:
                 self._partials_meta += [message]
 
-    def _assemble_input_messages(self, inputs, outputs=None):
+    def get_dynamic_variables(self):
+        """
+        Returns a list of variable metadata entries that have
+        ``dynamic_shape`` set to ``True``.
+        """
+        return [v for v in self._var_meta if v.dynamic_shape]
+
+    def set_variable_shape(self, name, shape, var_type=data.VariableType.kInput):
+        """
+        Creates a ``VariableMetaData`` message for setting a dynamic
+        variable's shape.
+
+        Parameters
+        ----------
+        name : str
+            the name of the variable
+        shape : tuple
+            the desired shape
+        var_type : VariableType
+            the variable type (kInput or kOutput)
+
+        Returns
+        -------
+        VariableMetaData
+            protobuf message ready for ``send_variable_shapes``
+        """
+        meta = data.VariableMetaData()
+        meta.type = var_type
+        meta.name = name
+        meta.shape.extend(shape)
+        return meta
+
+    def send_variable_shapes(self, variable_metadata):
+        """
+        Sends shapes for variables flagged as ``dynamic_shape``.
+
+        Call after ``get_variable_definitions()`` and before compute
+        calls.
+
+        Parameters
+        ----------
+        variable_metadata : list of VariableMetaData
+            shapes for dynamic variables
+        """
+        self._disc_stub.SetVariableShapes(iter(variable_metadata))
+
+        # update local metadata to reflect the new shapes
+        for meta in variable_metadata:
+            for var in self._var_meta:
+                if var.name == meta.name and var.type == meta.type:
+                    var.shape[:] = []
+                    var.shape.extend(meta.shape)
+                    break
+
+            # for implicit outputs, also update the matching residual
+            if meta.type == data.VariableType.kOutput:
+                for var in self._var_meta:
+                    if (
+                        var.name == meta.name
+                        and var.type == data.VariableType.kResidual
+                    ):
+                        var.shape[:] = []
+                        var.shape.extend(meta.shape)
+                        break
+
+    def _assemble_input_messages(
+        self, inputs, outputs=None, discrete_inputs=None, discrete_outputs=None
+    ):
         """
         Assembles the messages for transmitting the input variables to the
         server.
+
+        Both continuous and discrete inputs are wrapped in ``VariableMessage``
+        envelopes.
         """
+        validate_is_dict(inputs, "_assemble_input_messages (inputs)")
+        for input_name, value in inputs.items():
+            validate_numpy_array(value, input_name)
+        if outputs is not None:
+            validate_is_dict(outputs, "_assemble_input_messages (outputs)")
+            for output_name, value in outputs.items():
+                validate_numpy_array(value, output_name)
+
         messages = []
 
+        # Continuous inputs
         for input_name, value in inputs.items():
             for b, e in utils.get_chunk_indices(
                 value.size, self._stream_options.num_double
             ):
                 messages += [
-                    data.Array(
-                        name=input_name,
-                        start=b,
-                        end=e - 1,
-                        type=data.VariableType.kInput,
-                        data=value.ravel()[b:e],
+                    data.VariableMessage(
+                        continuous=data.Array(
+                            name=input_name,
+                            start=b,
+                            end=e - 1,
+                            type=data.VariableType.kInput,
+                            data=value.ravel()[b:e],
+                        )
                     )
                 ]
 
+        # Continuous outputs (for implicit disciplines)
         if outputs:
             for output_name, value in outputs.items():
                 for b, e in utils.get_chunk_indices(
                     value.size, self._stream_options.num_double
                 ):
                     messages += [
-                        data.Array(
-                            name=output_name,
-                            start=b,
-                            end=e - 1,
-                            type=data.VariableType.kOutput,
-                            data=value.ravel()[b:e],
+                        data.VariableMessage(
+                            continuous=data.Array(
+                                name=output_name,
+                                start=b,
+                                end=e - 1,
+                                type=data.VariableType.kOutput,
+                                data=value.ravel()[b:e],
+                            )
                         )
                     ]
+
+        # Discrete inputs
+        if discrete_inputs:
+            for name, value in discrete_inputs.items():
+                messages += [
+                    data.VariableMessage(
+                        discrete=data.DiscreteVariable(
+                            name=name,
+                            type=data.VariableType.kDiscreteInput,
+                            value=_python_to_value(value),
+                        )
+                    )
+                ]
+
+        # Discrete outputs (for implicit disciplines)
+        if discrete_outputs:
+            for name, value in discrete_outputs.items():
+                messages += [
+                    data.VariableMessage(
+                        discrete=data.DiscreteVariable(
+                            name=name,
+                            type=data.VariableType.kDiscreteOutput,
+                            value=_python_to_value(value),
+                        )
+                    )
+                ]
 
         return messages
 
     def _recover_outputs(self, responses):
         """
         Recovers the outputs from the stream of responses.
+
+        Returns both continuous outputs and discrete outputs.
         """
         outputs = {}
         flat_outputs = {}
+        discrete_outputs = {}
 
-        # preallocate
+        # preallocate continuous outputs
         for out in self._var_meta:
             if out.type == data.kOutput:
                 name = out.name
@@ -188,16 +320,27 @@ class DisciplineClient:
                 flat_outputs[name] = utils.get_flattened_view(outputs[name])
 
         for message in responses:
-            if message.type == data.kOutput:
-                b = message.start
-                e = message.end + 1
-                if len(message.data) > 0:
-                    flat_outputs[message.name][b:e] = message.data
-                else:
-                    raise ValueError(
-                        "Expected continuous variables, but array is empty."
-                    )
+            variant = message.WhichOneof("payload")
 
+            if variant == "continuous":
+                arr = message.continuous
+                if arr.type == data.kOutput:
+                    b = arr.start
+                    e = arr.end + 1
+                    if len(arr.data) > 0:
+                        flat_outputs[arr.name][b:e] = arr.data
+                    else:
+                        raise PhiloteValidationError(
+                            "Expected continuous variables, but array is empty."
+                        )
+
+            elif variant == "discrete":
+                dv = message.discrete
+                if dv.type == data.VariableType.kDiscreteOutput:
+                    discrete_outputs[dv.name] = _value_to_python(dv.value)
+
+        if discrete_outputs:
+            return outputs, discrete_outputs
         return outputs
 
     def _recover_residuals(self, responses):
@@ -215,15 +358,19 @@ class DisciplineClient:
                 flat_residuals[name] = utils.get_flattened_view(residuals[name])
 
         for message in responses:
-            if message.type == data.kResidual:
-                b = message.start
-                e = message.end + 1
-                if len(message.data) > 0:
-                    flat_residuals[message.name][b:e] = message.data
-                else:
-                    raise ValueError(
-                        "Expected continuous variables, but array is empty."
-                    )
+            variant = message.WhichOneof("payload")
+
+            if variant == "continuous":
+                arr = message.continuous
+                if arr.type == data.kResidual:
+                    b = arr.start
+                    e = arr.end + 1
+                    if len(arr.data) > 0:
+                        flat_residuals[arr.name][b:e] = arr.data
+                    else:
+                        raise PhiloteValidationError(
+                            "Expected continuous variables, but array is empty."
+                        )
 
         return residuals
 
@@ -257,16 +404,20 @@ class DisciplineClient:
             )
 
         for message in responses:
-            b = message.start
-            e = message.end + 1
+            variant = message.WhichOneof("payload")
 
-            if message.type == data.kPartial:
-                if len(message.data) > 0:
-                    flat_p[(message.name, message.subname)][b:e] = message.data
-                else:
-                    raise ValueError(
-                        "Expected continuous outputs for the "
-                        "partials, but array was empty."
-                    )
+            if variant == "continuous":
+                arr = message.continuous
+                b = arr.start
+                e = arr.end + 1
+
+                if arr.type == data.kPartial:
+                    if len(arr.data) > 0:
+                        flat_p[(arr.name, arr.subname)][b:e] = arr.data
+                    else:
+                        raise PhiloteValidationError(
+                            "Expected continuous outputs for the "
+                            "partials, but array was empty."
+                        )
 
         return partials
