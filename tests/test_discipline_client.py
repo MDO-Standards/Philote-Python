@@ -70,11 +70,13 @@ class TestDisciplineClient(unittest.TestCase):
         """
         mock_channel = Mock()
         mock_stub = mock_discipline_stub.return_value
-        mock_stub.GetInfo.return_value = [
-            data.DisciplineProperties(
-                continuous=True, differentiable=True, provides_gradients=True
-            )
-        ]
+        mock_stub.GetInfo.return_value = data.DisciplineProperties(
+            continuous=True,
+            differentiable=True,
+            provides_gradients=True,
+            name="TestDiscipline",
+            version="1.2.3",
+        )
 
         client = DisciplineClient(mock_channel)
         client.get_discipline_info()
@@ -83,6 +85,8 @@ class TestDisciplineClient(unittest.TestCase):
         self.assertTrue(client._is_continuous)
         self.assertTrue(client._is_differentiable)
         self.assertTrue(client._provides_gradients)
+        self.assertEqual(client._name, "TestDiscipline")
+        self.assertEqual(client._version, "1.2.3")
 
     @patch("philote_mdo.generated.disciplines_pb2_grpc.DisciplineServiceStub")
     def test_send_stream_options(self, mock_discipline_stub):

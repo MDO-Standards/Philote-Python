@@ -44,6 +44,8 @@ class Discipline:
 
     def __init__(self):
         # discipline properties
+        self._name = ""
+        self._version = ""
         self._is_continuous = False
         self._is_differentiable = False
         self._provides_gradients = False

@@ -297,6 +297,40 @@ class StructOptionIntegrationTests(unittest.TestCase):
         finally:
             server.stop(0)
 
+    def test_get_discipline_info(self):
+        """
+        Integration test for the GetInfo RPC (unary on both sides).
+        """
+        # server code
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+
+        discipline = Paraboloid()
+        discipline._name = "Paraboloid"
+        discipline._version = "1.0.0"
+        pmdo.ExplicitServer(discipline=discipline).attach_to_server(server)
+
+        server.add_insecure_port("[::]:50051")
+        server.start()
+
+        try:
+            client = pmdo.ExplicitClient(
+                channel=grpc.insecure_channel("localhost:50051")
+            )
+
+            client.get_discipline_info()
+
+            self.assertEqual(client._is_continuous, discipline._is_continuous)
+            self.assertEqual(
+                client._is_differentiable, discipline._is_differentiable
+            )
+            self.assertEqual(
+                client._provides_gradients, discipline._provides_gradients
+            )
+            self.assertEqual(client._name, "Paraboloid")
+            self.assertEqual(client._version, "1.0.0")
+        finally:
+            server.stop(0)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
