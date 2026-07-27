@@ -59,16 +59,9 @@ class TestDisciplineServer(unittest.TestCase):
         context = Mock()
         request = Empty()
 
-        response_generator = server.GetInfo(request, context)
-
-        # Generate responses and collect them into a list
-        responses = list(response_generator)
-
-        # check that there is only one response
-        self.assertEqual(len(responses), 1)
+        response = server.GetInfo(request, context)
 
         # check the values of the response
-        response = responses[0]
         self.assertTrue(response.continuous)
         self.assertTrue(response.differentiable)
         self.assertTrue(response.provides_gradients)

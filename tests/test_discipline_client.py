@@ -70,11 +70,9 @@ class TestDisciplineClient(unittest.TestCase):
         """
         mock_channel = Mock()
         mock_stub = mock_discipline_stub.return_value
-        mock_stub.GetInfo.return_value = [
-            data.DisciplineProperties(
-                continuous=True, differentiable=True, provides_gradients=True
-            )
-        ]
+        mock_stub.GetInfo.return_value = data.DisciplineProperties(
+            continuous=True, differentiable=True, provides_gradients=True
+        )
 
         client = DisciplineClient(mock_channel)
         client.get_discipline_info()

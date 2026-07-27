@@ -40,6 +40,35 @@ class IntegrationTests(unittest.TestCase):
     Integration tests for the paraboloid discipline.
     """
 
+    def test_paraboloid_get_discipline_info(self):
+        """
+        Integration test for the GetInfo RPC against a real server.
+        """
+        # server code
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+
+        paraboloid = Paraboloid()
+        paraboloid._is_continuous = True
+        paraboloid._provides_gradients = True
+
+        discipline = pmdo.ExplicitServer(discipline=paraboloid)
+        discipline.attach_to_server(server)
+
+        server.add_insecure_port("[::]:50055")
+        server.start()
+
+        # client code
+        client = pmdo.ExplicitClient(channel=grpc.insecure_channel("localhost:50055"))
+
+        client.get_discipline_info()
+
+        self.assertTrue(client._is_continuous)
+        self.assertFalse(client._is_differentiable)
+        self.assertTrue(client._provides_gradients)
+
+        # stop the server
+        server.stop(0)
+
     def test_paraboloid_compute(self):
         """
         Integration test for the Paraboloid compute function.

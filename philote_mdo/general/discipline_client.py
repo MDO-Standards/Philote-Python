@@ -76,9 +76,9 @@ class DisciplineClient:
         Gets the discipline properties from the analysis server.
         """
         response = self._disc_stub.GetInfo(empty.Empty())
-        self._is_continuous = response[0].continuous
-        self._is_differentiable = response[0].differentiable
-        self._provides_gradients = response[0].provides_gradients
+        self._is_continuous = response.continuous
+        self._is_differentiable = response.differentiable
+        self._provides_gradients = response.provides_gradients
 
     def send_stream_options(self):
         """
