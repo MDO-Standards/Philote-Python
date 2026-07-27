@@ -61,9 +61,9 @@ class TestImplicitServer(unittest.TestCase):
 
         # mock request iterator
         mock_request_iterator = [
-            data.VariableMessage(continuous=data.Array(name="x", start=0, end=2, type=data.kInput, data=[1.0, 2.0])),
-            data.VariableMessage(continuous=data.Array(name="y", start=0, end=2, type=data.kInput, data=[3.0, 4.0])),
-            data.VariableMessage(continuous=data.Array(name="f", start=0, end=2, type=data.kOutput, data=[5.0, 6.0])),
+            data.VariableMessage(continuous=data.Array(name="x", start=0, end=1, type=data.kInput, data=[1.0, 2.0])),
+            data.VariableMessage(continuous=data.Array(name="y", start=0, end=1, type=data.kInput, data=[3.0, 4.0])),
+            data.VariableMessage(continuous=data.Array(name="f", start=0, end=1, type=data.kOutput, data=[5.0, 6.0])),
         ]
 
         # mock inputs, outputs, and residuals
@@ -86,13 +86,13 @@ class TestImplicitServer(unittest.TestCase):
         expected_result = [
             data.VariableMessage(
                 continuous=data.Array(
-                    name="f", start=0, end=1,
+                    name="f", start=0, end=0,
                     type=data.VariableType.kResidual, data=[7.0],
                 )
             ),
             data.VariableMessage(
                 continuous=data.Array(
-                    name="f", start=1, end=2,
+                    name="f", start=1, end=1,
                     type=data.VariableType.kResidual, data=[8.0],
                 )
             ),
@@ -116,9 +116,9 @@ class TestImplicitServer(unittest.TestCase):
 
         # mock request iterator
         mock_request_iterator = [
-            data.VariableMessage(continuous=data.Array(name="x", start=0, end=2, type=data.kInput, data=[1.0, 2.0])),
-            data.VariableMessage(continuous=data.Array(name="y", start=0, end=2, type=data.kInput, data=[3.0, 4.0])),
-            data.VariableMessage(continuous=data.Array(name="f", start=0, end=2, type=data.kOutput, data=[5.0, 6.0])),
+            data.VariableMessage(continuous=data.Array(name="x", start=0, end=1, type=data.kInput, data=[1.0, 2.0])),
+            data.VariableMessage(continuous=data.Array(name="y", start=0, end=1, type=data.kInput, data=[3.0, 4.0])),
+            data.VariableMessage(continuous=data.Array(name="f", start=0, end=1, type=data.kOutput, data=[5.0, 6.0])),
         ]
 
         # mock inputs, outputs, and residuals
@@ -141,13 +141,13 @@ class TestImplicitServer(unittest.TestCase):
         expected_result = [
             data.VariableMessage(
                 continuous=data.Array(
-                    name="f", start=0, end=1,
+                    name="f", start=0, end=0,
                     type=data.VariableType.kOutput, data=[7.0],
                 )
             ),
             data.VariableMessage(
                 continuous=data.Array(
-                    name="f", start=1, end=2,
+                    name="f", start=1, end=1,
                     type=data.VariableType.kOutput, data=[8.0],
                 )
             ),
@@ -199,7 +199,8 @@ class TestImplicitServer(unittest.TestCase):
         self.assertEqual(response.name, "f")
         self.assertEqual(response.subname, "x")
         self.assertEqual(response.start, 0)
-        self.assertEqual(response.end, 3)
+        self.assertEqual(response.end, 2)
+        self.assertEqual(len(response.data), response.end - response.start + 1)
         grad = np.array(response.data)
 
         response = responses[1].continuous

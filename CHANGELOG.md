@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- Fixed `ImplicitServer` emitting `Array.end` as an exclusive index, while the
+  explicit server and both clients treat it as inclusive per the standard.  Any
+  implicit variable spanning more than one chunk failed to decode; single-chunk
+  arrays were masked by NumPy slice clipping (#66).
 - Fixed the `GetInfo` RPC, which was implemented as a generator on the server
   and indexed as a stream on the client, even though the proto declares it as
   unary.  Every call failed with `Failed to serialize response!`.  The server
