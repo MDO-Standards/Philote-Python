@@ -54,24 +54,24 @@ class TestDisciplineServer(unittest.TestCase):
         server._discipline._is_continuous = True
         server._discipline._is_differentiable = True
         server._discipline._provides_gradients = True
+        server._discipline._name = "TestDiscipline"
+        server._discipline._version = "1.2.3"
 
         # mock arguments
         context = Mock()
         request = Empty()
 
-        response_generator = server.GetInfo(request, context)
+        # GetInfo is a unary RPC, so it must return a message (not a generator)
+        response = server.GetInfo(request, context)
 
-        # Generate responses and collect them into a list
-        responses = list(response_generator)
-
-        # check that there is only one response
-        self.assertEqual(len(responses), 1)
+        self.assertIsInstance(response, data.DisciplineProperties)
 
         # check the values of the response
-        response = responses[0]
         self.assertTrue(response.continuous)
         self.assertTrue(response.differentiable)
         self.assertTrue(response.provides_gradients)
+        self.assertEqual(response.name, "TestDiscipline")
+        self.assertEqual(response.version, "1.2.3")
 
     def test_set_stream_options(self):
         """

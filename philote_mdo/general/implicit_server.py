@@ -189,7 +189,7 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
                         continuous=data.Array(
                             name=res_name,
                             start=b,
-                            end=e,
+                            end=e - 1,
                             type=data.kResidual,
                             data=value.ravel()[b:e],
                         )
@@ -256,7 +256,7 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
                         continuous=data.Array(
                             name=output_name,
                             start=b,
-                            end=e,
+                            end=e - 1,
                             type=data.kOutput,
                             data=value.ravel()[b:e],
                         )
@@ -330,7 +330,7 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
                             subname=jac[1],
                             type=data.kPartial,
                             start=b,
-                            end=e,
+                            end=e - 1,
                             data=value.ravel()[b:e],
                         )
                     )

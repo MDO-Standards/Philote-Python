@@ -32,6 +32,7 @@ import unittest
 import grpc
 import numpy as np
 import philote_mdo.general as pmdo
+import philote_mdo.generated.data_pb2 as data
 from philote_mdo.examples import Paraboloid, QuadradicImplicit
 
 
@@ -221,6 +222,99 @@ class IntegrationTests(unittest.TestCase):
         # stop the server
         server.stop(0)
 
+    def test_implicit_multi_chunk_transfer(self):
+        """
+        Integration test for an implicit variable spanning several chunks.
+
+        Regression test for the implicit server emitting an exclusive
+        Array.end, which broke any variable larger than num_double.
+        """
+
+        class VectorImplicit(pmdo.ImplicitDiscipline):
+            def setup(self):
+                self.add_input("a", shape=(5,))
+                self.add_output("x", shape=(5,))
+                self.declare_partials("x", "a")
+
+            def compute_residuals(self, inputs, outputs, residuals):
+                residuals["x"] = outputs["x"] - inputs["a"]
+
+            def solve_residuals(self, inputs, outputs):
+                outputs["x"] = inputs["a"]
+
+            def residual_partials(self, inputs, outputs, jacobian):
+                jacobian["x", "a"] = -np.eye(5)
+
+        # server code
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+
+        pmdo.ImplicitServer(discipline=VectorImplicit()).attach_to_server(server)
+
+        server.add_insecure_port("[::]:50051")
+        server.start()
+
+        try:
+            client = pmdo.ImplicitClient(
+                channel=grpc.insecure_channel("localhost:50051")
+            )
+
+            # 5 values at 2 per chunk -> 3 chunks per variable
+            client._stream_options = data.StreamOptions(num_double=2)
+            client.send_stream_options()
+
+            client.run_setup()
+            client.get_variable_definitions()
+            client.get_partials_definitions()
+
+            a = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+
+            outputs = client.run_solve_residuals({"a": a})
+            np.testing.assert_allclose(outputs["x"], a)
+
+            residuals = client.run_compute_residuals({"a": a}, {"x": a + 1.0})
+            np.testing.assert_allclose(residuals["x"], np.ones(5))
+
+            jac = client.run_residual_gradients({"a": a}, {"x": a})
+            np.testing.assert_allclose(jac["x", "a"], -np.eye(5))
+        finally:
+            server.stop(0)
+
+    def test_get_discipline_info(self):
+        """
+        Integration test for the GetInfo RPC (unary on both sides).
+        """
+        # server code
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+
+        discipline = Paraboloid()
+        discipline._name = "Paraboloid"
+        discipline._version = "1.0.0"
+        pmdo.ExplicitServer(discipline=discipline).attach_to_server(server)
+
+        server.add_insecure_port("[::]:50051")
+        server.start()
+
+        try:
+            client = pmdo.ExplicitClient(
+                channel=grpc.insecure_channel("localhost:50051")
+            )
+
+            client.get_discipline_info()
+
+            self.assertEqual(client._is_continuous, discipline._is_continuous)
+            self.assertEqual(
+                client._is_differentiable, discipline._is_differentiable
+            )
+            self.assertEqual(
+                client._provides_gradients, discipline._provides_gradients
+            )
+            self.assertEqual(client._name, "Paraboloid")
+            self.assertEqual(client._version, "1.0.0")
+        finally:
+            server.stop(0)
+
+
+
 
 class StructOptionDiscipline(pmdo.ExplicitDiscipline):
     """
@@ -296,7 +390,6 @@ class StructOptionIntegrationTests(unittest.TestCase):
             self.assertAlmostEqual(jac["f", "x"][0], 3.0)
         finally:
             server.stop(0)
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
