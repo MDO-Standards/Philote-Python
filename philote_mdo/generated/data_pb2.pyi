@@ -35,19 +35,23 @@ kDiscreteOutput: VariableType
 kPartial: VariableType
 
 class DisciplineProperties(_message.Message):
-    __slots__ = ('continuous', 'differentiable', 'provides_gradients', 'name', 'version')
+    __slots__ = ('continuous', 'differentiable', 'provides_gradients', 'name', 'version', 'supports_unary', 'max_unary_bytes')
     CONTINUOUS_FIELD_NUMBER: _ClassVar[int]
     DIFFERENTIABLE_FIELD_NUMBER: _ClassVar[int]
     PROVIDES_GRADIENTS_FIELD_NUMBER: _ClassVar[int]
     NAME_FIELD_NUMBER: _ClassVar[int]
     VERSION_FIELD_NUMBER: _ClassVar[int]
+    SUPPORTS_UNARY_FIELD_NUMBER: _ClassVar[int]
+    MAX_UNARY_BYTES_FIELD_NUMBER: _ClassVar[int]
     continuous: bool
     differentiable: bool
     provides_gradients: bool
     name: str
     version: str
+    supports_unary: bool
+    max_unary_bytes: int
 
-    def __init__(self, continuous: bool=..., differentiable: bool=..., provides_gradients: bool=..., name: _Optional[str]=..., version: _Optional[str]=...) -> None:
+    def __init__(self, continuous: bool=..., differentiable: bool=..., provides_gradients: bool=..., name: _Optional[str]=..., version: _Optional[str]=..., supports_unary: bool=..., max_unary_bytes: _Optional[int]=...) -> None:
         ...
 
 class StreamOptions(_message.Message):
@@ -142,4 +146,12 @@ class VariableMessage(_message.Message):
     discrete: DiscreteVariable
 
     def __init__(self, continuous: _Optional[_Union[Array, _Mapping]]=..., discrete: _Optional[_Union[DiscreteVariable, _Mapping]]=...) -> None:
+        ...
+
+class VariableSet(_message.Message):
+    __slots__ = ('variables',)
+    VARIABLES_FIELD_NUMBER: _ClassVar[int]
+    variables: _containers.RepeatedCompositeFieldContainer[VariableMessage]
+
+    def __init__(self, variables: _Optional[_Iterable[_Union[VariableMessage, _Mapping]]]=...) -> None:
         ...

@@ -531,6 +531,9 @@ class TestExplicitClientDiscrete(unittest.TestCase):
         mock_channel = Mock()
         mock_stub = mock_stub_cls.return_value
         client = ExplicitClient(mock_channel)
+        # pin the streaming transport; the unary path is covered in
+        # tests/test_unary_transport.py
+        client.transport = "stream"
         client._var_meta = [
             data.VariableMetaData(name="f", type=data.kOutput, shape=(1,)),
         ]
@@ -561,6 +564,9 @@ class TestExplicitClientDiscrete(unittest.TestCase):
         mock_channel = Mock()
         mock_stub = mock_stub_cls.return_value
         client = ExplicitClient(mock_channel)
+        # pin the streaming transport; the unary path is covered in
+        # tests/test_unary_transport.py
+        client.transport = "stream"
         client._var_meta = [
             data.VariableMetaData(name="f", type=data.kOutput, shape=(1,)),
             data.VariableMetaData(name="x", type=data.kInput, shape=(1,)),

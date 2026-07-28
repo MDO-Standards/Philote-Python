@@ -27,6 +27,7 @@
 # the linked websites, of the information, products, or services contained
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
+import grpc
 import numpy as np
 import google.protobuf.empty_pb2 as empty
 import philote_mdo.generated.data_pb2 as data
@@ -45,12 +46,34 @@ class DisciplineClient:
     Base class for analysis discipline clients.
     """
 
+    # per-variable serialization overhead allowance, in bytes: field tags and
+    # length prefixes for the VariableMessage and Array envelopes, plus the
+    # start, end, and type fields
+    _MESSAGE_OVERHEAD_BYTES = 32
+
     def __init__(self, channel):
         # verbose outputs
         self.verbose = True
 
-        # grpc options
-        self.grpc_options = []
+        # transport selection: "auto", "unary", or "stream"
+        self.transport = "auto"
+
+        # largest unary request or response this client will attempt, in bytes.
+        # This is a performance threshold rather than a capacity limit: the
+        # unary transport wins by a wide margin on small payloads but loses to
+        # streaming on large ones, because a single large message cannot be
+        # pipelined. Measured with utils/bench_transport.py, the crossover sits
+        # a little above 128 KiB, so that is the default.
+        self.unary_max_bytes = 1 << 17
+
+        # unary negotiation state. None means the server has not been asked and
+        # no unary call has been attempted yet.
+        self._unary_supported = None
+        self._server_unary_max_bytes = 0
+
+        # RPCs whose payload is known to be too large for the unary transport.
+        # Continuous shapes are fixed after setup, so these verdicts are final.
+        self._stream_only_rpcs = set()
 
         # discipline properties
         self._name = ""
@@ -83,6 +106,11 @@ class DisciplineClient:
         self._provides_gradients = response.provides_gradients
         self._name = response.name
         self._version = response.version
+
+        # transport capabilities. A server that predates the unary RPCs leaves
+        # these at the proto3 defaults, which correctly reads as "no unary".
+        self._unary_supported = response.supports_unary
+        self._server_unary_max_bytes = response.max_unary_bytes
 
     def send_stream_options(self):
         """
@@ -223,15 +251,217 @@ class DisciplineClient:
                         var.shape.extend(meta.shape)
                         break
 
+    def _estimated_bytes(self, var_types):
+        """
+        Estimates the serialized size of a payload carrying every continuous
+        variable of the given types.
+
+        The estimate is built from metadata gathered during setup, so it is
+        available before any data is assembled. It is deliberately generous --
+        this is a gate, not an accountant.
+
+        :param var_types: tuple of VariableType values. A tuple containing
+            data.kPartial selects the partials metadata instead.
+        :return: estimated payload size in bytes
+        """
+        total = 0
+
+        if data.kPartial in var_types:
+            for part in self._partials_meta:
+                shapef = tuple(
+                    [d.shape for d in self._var_meta if d.name == part.name][0]
+                )
+                shapex = tuple(
+                    [d.shape for d in self._var_meta if d.name == part.subname][0]
+                )
+
+                total += (
+                    8 * int(np.prod(utils.get_partials_shape(shapef, shapex)))
+                    + len(part.name)
+                    + len(part.subname)
+                    + self._MESSAGE_OVERHEAD_BYTES
+                )
+
+            return total
+
+        for var in self._var_meta:
+            if var.type in var_types:
+                total += (
+                    8 * int(np.prod(var.shape))
+                    + len(var.name)
+                    + self._MESSAGE_OVERHEAD_BYTES
+                )
+
+        return total
+
+    def _unary_limit(self):
+        """
+        Returns the effective unary size limit, in bytes.
+
+        The server advertises a capacity ceiling and the client holds a
+        performance threshold, so the effective limit is the smaller of the
+        two. A server that does not advertise leaves the field at zero.
+        """
+        if self._server_unary_max_bytes:
+            return min(self.unary_max_bytes, self._server_unary_max_bytes)
+
+        return self.unary_max_bytes
+
+    def _unary_allowed(self, rpc_name, request_types, response_types):
+        """
+        Decides whether the unary transport can carry this call.
+
+        Continuous variable shapes are fixed once setup completes, so this
+        verdict is deterministic and is cached per RPC rather than being
+        recomputed on every call. Running before the messages are assembled
+        also means an oversized payload is never built only to be discarded.
+        """
+        if self.transport == "stream" or rpc_name in self._stream_only_rpcs:
+            return False
+
+        if self.transport == "unary":
+            return True
+
+        if self._unary_supported is False:
+            return False
+
+        limit = self._unary_limit()
+
+        if (
+            max(
+                self._estimated_bytes(request_types),
+                self._estimated_bytes(response_types),
+            )
+            > limit
+        ):
+            # the shapes cannot change, so neither can this verdict
+            self._stream_only_rpcs.add(rpc_name)
+            return False
+
+        return True
+
+    def _within_unary_limit(self, messages):
+        """
+        Guards against a payload whose size is not fixed at setup time, which
+        in practice means an oversized discrete variable.
+
+        Deliberately does not demote the RPC: a large discrete value on one
+        call says nothing about the size of the next one.
+        """
+        limit = self._unary_limit()
+        total = 0
+
+        for message in messages:
+            total += message.ByteSize()
+
+            if total > limit:
+                return False
+
+        return True
+
+    def _demote(self, rpc_name, code):
+        """
+        Records a failed unary attempt and reports whether the call should be
+        retried over the streaming transport.
+
+        Any status other than the two handled here is a real server error and
+        must propagate rather than being silently retried.
+
+        Note that a RESOURCE_EXHAUSTED raised while receiving the response
+        means the server already ran the discipline, so the streaming retry
+        runs it a second time. That is harmless for the pure-function contract
+        Philote assumes, but a discipline that carries state between calls
+        should pin transport="stream".
+        """
+        if code == grpc.StatusCode.UNIMPLEMENTED:
+            # the server predates the unary RPCs
+            self._unary_supported = False
+            return True
+
+        if code == grpc.StatusCode.RESOURCE_EXHAUSTED:
+            if not self._discrete_var_meta:
+                # nothing in this payload can vary in size, so it will recur
+                self._stream_only_rpcs.add(rpc_name)
+            return True
+
+        return False
+
+    def _dispatch_compute(
+        self,
+        rpc_name,
+        unary_method,
+        stream_method,
+        inputs,
+        outputs=None,
+        discrete_inputs=None,
+        discrete_outputs=None,
+        request_types=(data.kInput,),
+        response_types=(data.kOutput,),
+    ):
+        """
+        Sends a compute request over the best available transport.
+
+        Returns an iterable of response ``VariableMessage`` objects, suitable
+        for any of the ``_recover_*`` methods regardless of which transport was
+        used -- a ``VariableSet``'s ``variables`` field is iterable, just as a
+        response stream is.
+        """
+        if self._unary_allowed(rpc_name, request_types, response_types):
+            messages = self._assemble_input_messages(
+                inputs,
+                outputs,
+                discrete_inputs,
+                discrete_outputs,
+                chunked=False,
+            )
+
+            if self._within_unary_limit(messages):
+                try:
+                    response = unary_method(
+                        data.VariableSet(variables=messages)
+                    )
+                    return response.variables
+                except grpc.RpcError as e:
+                    if not self._demote(rpc_name, e.code()):
+                        raise
+
+        messages = self._assemble_input_messages(
+            inputs, outputs, discrete_inputs, discrete_outputs
+        )
+
+        return stream_method(iter(messages))
+
+    def _input_chunk_size(self, value, chunked):
+        """
+        Resolves the chunk size used to serialize one input array.
+
+        The unary transport passes ``chunked=False`` so that each variable
+        becomes exactly one message -- fragmenting at ``num_double`` would
+        split a large array across several sub-messages of one request for no
+        benefit.
+        """
+        if chunked:
+            return self._stream_options.num_double
+
+        # get_chunk_indices rejects a chunk size below one, which a zero-size
+        # array would otherwise produce
+        return max(int(value.size), 1)
+
     def _assemble_input_messages(
-        self, inputs, outputs=None, discrete_inputs=None, discrete_outputs=None
+        self,
+        inputs,
+        outputs=None,
+        discrete_inputs=None,
+        discrete_outputs=None,
+        chunked=True,
     ):
         """
         Assembles the messages for transmitting the input variables to the
         server.
 
         Both continuous and discrete inputs are wrapped in ``VariableMessage``
-        envelopes.
+        envelopes. The same list serves both transports: the streaming path
+        sends it as a stream, the unary path wraps it in a ``VariableSet``.
         """
         validate_is_dict(inputs, "_assemble_input_messages (inputs)")
         for input_name, value in inputs.items():
@@ -246,7 +476,7 @@ class DisciplineClient:
         # Continuous inputs
         for input_name, value in inputs.items():
             for b, e in utils.get_chunk_indices(
-                value.size, self._stream_options.num_double
+                value.size, self._input_chunk_size(value, chunked)
             ):
                 messages += [
                     data.VariableMessage(
@@ -264,7 +494,7 @@ class DisciplineClient:
         if outputs:
             for output_name, value in outputs.items():
                 for b, e in utils.get_chunk_indices(
-                    value.size, self._stream_options.num_double
+                    value.size, self._input_chunk_size(value, chunked)
                 ):
                     messages += [
                         data.VariableMessage(
@@ -392,17 +622,9 @@ class DisciplineClient:
                 [d.shape for d in self._var_meta if d.name == part.subname][0]
             )
 
-            if shapef == (1,):
-                if shapex == (1,):
-                    shape = (1,)
-                else:
-                    shape = shapex
-            elif shapex == (1,):
-                shape = shapef
-            else:
-                shape = shapef + shapex
-
-            partials[(part.name, part.subname)] = np.zeros(shape)
+            partials[(part.name, part.subname)] = np.zeros(
+                utils.get_partials_shape(shapef, shapex)
+            )
             flat_p[(part.name, part.subname)] = utils.get_flattened_view(
                 partials[(part.name, part.subname)]
             )

@@ -30,6 +30,7 @@
 import grpc
 from philote_mdo.general.discipline_client import DisciplineClient
 from philote_mdo.utils.validation import PhiloteServerError, validate_is_dict
+import philote_mdo.generated.data_pb2 as data
 import philote_mdo.generated.disciplines_pb2_grpc as disc
 
 
@@ -62,10 +63,15 @@ class ExplicitClient(DisciplineClient):
         """
         validate_is_dict(inputs, "run_compute (inputs)")
         try:
-            messages = self._assemble_input_messages(
-                inputs, discrete_inputs=discrete_inputs
+            responses = self._dispatch_compute(
+                "ComputeFunction",
+                self._expl_stub.ComputeFunctionUnary,
+                self._expl_stub.ComputeFunction,
+                inputs,
+                discrete_inputs=discrete_inputs,
+                request_types=(data.kInput,),
+                response_types=(data.kOutput,),
             )
-            responses = self._expl_stub.ComputeFunction(iter(messages))
             return self._recover_outputs(responses)
         except grpc.RpcError as e:
             raise PhiloteServerError(
@@ -86,10 +92,15 @@ class ExplicitClient(DisciplineClient):
         """
         validate_is_dict(inputs, "run_compute_partials (inputs)")
         try:
-            messages = self._assemble_input_messages(
-                inputs, discrete_inputs=discrete_inputs
+            responses = self._dispatch_compute(
+                "ComputeGradient",
+                self._expl_stub.ComputeGradientUnary,
+                self._expl_stub.ComputeGradient,
+                inputs,
+                discrete_inputs=discrete_inputs,
+                request_types=(data.kInput,),
+                response_types=(data.kPartial,),
             )
-            responses = self._expl_stub.ComputeGradient(iter(messages))
             partials = self._recover_partials(responses)
 
             return partials

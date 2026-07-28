@@ -27,6 +27,8 @@
 # the linked websites, of the information, products, or services contained
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
+import contextlib
+
 import grpc
 import numpy as np
 
@@ -34,7 +36,12 @@ import philote_mdo.generated.data_pb2 as data
 import philote_mdo.generated.disciplines_pb2_grpc as disc
 from google.protobuf.empty_pb2 import Empty
 from google.protobuf import struct_pb2
-from philote_mdo.utils import PairDict, get_flattened_view
+from philote_mdo.utils import (
+    PairDict,
+    get_chunk_indices,
+    get_flattened_view,
+    get_partials_shape,
+)
 from philote_mdo.utils.validation import PhiloteValidationError, validate_shape
 
 
@@ -42,6 +49,14 @@ class DisciplineServer(disc.DisciplineService):
     """
     Base class for all server classes.
     """
+
+    # whether this server implements the unary compute RPCs. The base class
+    # defines no compute RPCs at all, so subclasses opt in.
+    _supports_unary = False
+
+    # largest unary request or response this server accepts, in bytes. 0 leaves
+    # it unspecified, which tells the client to assume gRPC's 4 MiB default.
+    max_unary_bytes = 0
 
     def __init__(self, discipline=None):
         self.verbose = False
@@ -74,6 +89,10 @@ class DisciplineServer(disc.DisciplineService):
             provides_gradients=self._discipline._provides_gradients,
             name=self._discipline._name,
             version=self._discipline._version,
+            # transport properties, so these come from the server rather than
+            # the discipline
+            supports_unary=self._supports_unary,
+            max_unary_bytes=self.max_unary_bytes,
         )
 
     def SetStreamOptions(self, request, context):
@@ -271,19 +290,101 @@ class DisciplineServer(disc.DisciplineService):
                 ]
             )
 
-            if shapef == (1,):
-                if shapex == (1,):
-                    shape = (1,)
-                else:
-                    shape = shapex
-            elif shapex == (1,):
-                shape = shapef
-            else:
-                shape = shapef + shapex
-
-            jac[(pair.name, pair.subname)] = np.zeros(shape)
+            jac[(pair.name, pair.subname)] = np.zeros(
+                get_partials_shape(shapef, shapex)
+            )
 
         return jac
+
+    @contextlib.contextmanager
+    def _rpc_errors(self, context, rpc_name):
+        """
+        Translates discipline exceptions into gRPC status codes.
+
+        The exception is suppressed after aborting. That reproduces the
+        behaviour of the inline handlers this replaces: a real gRPC context
+        raises from ``abort``, so the abort propagates and the suppression
+        never comes into play, while the Mock contexts used in the unit tests
+        do not raise and the RPC simply ends early.
+
+        In a generator RPC the body runs at drain time, so the abort still
+        fires when the servicer is iterated rather than when it is called.
+        """
+        try:
+            yield
+        except PhiloteValidationError as e:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
+        except Exception as e:
+            context.abort(grpc.StatusCode.INTERNAL, f"{rpc_name} failed: {e}")
+
+    def _output_chunk_size(self, value, chunked):
+        """
+        Resolves the chunk size used to serialize one output array.
+
+        The unary transport passes ``chunked=False`` so that each variable
+        becomes exactly one message -- fragmenting at ``num_double`` would
+        split a large array across several sub-messages of one response for no
+        benefit, and ``num_double`` is frequently never negotiated at all.
+        """
+        if chunked:
+            return self._stream_opts.num_double
+
+        # get_chunk_indices rejects a chunk size below one, which a zero-size
+        # array would otherwise produce
+        return max(int(value.size), 1)
+
+    def _continuous_messages(self, values, var_type, chunked=True):
+        """
+        Yields VariableMessage envelopes for a name to ndarray mapping.
+        """
+        for name, value in values.items():
+            size = self._output_chunk_size(value, chunked)
+
+            for b, e in get_chunk_indices(value.size, size):
+                yield data.VariableMessage(
+                    continuous=data.Array(
+                        name=name,
+                        type=var_type,
+                        start=b,
+                        end=e - 1,
+                        data=value.ravel()[b:e],
+                    )
+                )
+
+    def _partial_messages(self, jac, chunked=True):
+        """
+        Yields VariableMessage envelopes for a Jacobian PairDict.
+        """
+        for key, value in jac.items():
+            size = self._output_chunk_size(value, chunked)
+
+            for b, e in get_chunk_indices(value.size, size):
+                yield data.VariableMessage(
+                    continuous=data.Array(
+                        name=key[0],
+                        subname=key[1],
+                        type=data.kPartial,
+                        start=b,
+                        end=e - 1,
+                        data=value.ravel()[b:e],
+                    )
+                )
+
+    def _discrete_messages(self, discrete_outputs):
+        """
+        Yields VariableMessage envelopes for discrete output values.
+
+        Discrete data is never chunked -- a single google.protobuf.Value
+        carries the whole object.
+        """
+        for name, value in discrete_outputs.items():
+            yield data.VariableMessage(
+                discrete=data.DiscreteVariable(
+                    name=name,
+                    type=data.VariableType.kDiscreteOutput,
+                    value=_python_to_value(value),
+                )
+            )
 
     def process_inputs(
         self,

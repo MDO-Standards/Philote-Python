@@ -16,6 +16,7 @@ const sidebars: SidebarsConfig = {
             items: [
                 "tutorials/explicit-disciplines",
                 "tutorials/implicit-disciplines",
+                "tutorials/transports",
                 "tutorials/units",
             ],
         },

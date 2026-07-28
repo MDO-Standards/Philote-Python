@@ -29,7 +29,15 @@
 # control over the information you may find at these locations.
 import unittest
 import numpy as np
-from philote_mdo.utils import get_chunk_indices, get_flattened_view, PairDict
+from philote_mdo.utils import (
+    DEFAULT_MAX_MESSAGE_BYTES,
+    PairDict,
+    channel_options,
+    get_chunk_indices,
+    get_flattened_view,
+    get_partials_shape,
+    server_options,
+)
 from philote_mdo.utils.validation import PhiloteValidationError
 
 
@@ -108,6 +116,48 @@ class TestUtils(unittest.TestCase):
         pd[("a", "b")] = 1.0
         with self.assertRaises(PhiloteValidationError):
             _ = pd["single_key"]
+
+    def test_get_partials_shape_scalar_over_scalar(self):
+        self.assertEqual(get_partials_shape((1,), (1,)), (1,))
+
+    def test_get_partials_shape_scalar_over_vector(self):
+        """
+        A scalar function drops its own dimension rather than carrying it.
+        """
+        self.assertEqual(get_partials_shape((1,), (4,)), (4,))
+
+    def test_get_partials_shape_vector_over_scalar(self):
+        self.assertEqual(get_partials_shape((3,), (1,)), (3,))
+
+    def test_get_partials_shape_vector_over_vector(self):
+        self.assertEqual(get_partials_shape((3,), (4,)), (3, 4))
+        self.assertEqual(get_partials_shape((2, 2), (4,)), (2, 2, 4))
+
+    def test_channel_and_server_options_default(self):
+        for options in (channel_options(), server_options()):
+            self.assertEqual(
+                dict(options),
+                {
+                    "grpc.max_send_message_length": DEFAULT_MAX_MESSAGE_BYTES,
+                    "grpc.max_receive_message_length": DEFAULT_MAX_MESSAGE_BYTES,
+                },
+            )
+
+    def test_channel_options_custom_size(self):
+        self.assertEqual(
+            dict(channel_options(1234)),
+            {
+                "grpc.max_send_message_length": 1234,
+                "grpc.max_receive_message_length": 1234,
+            },
+        )
+
+    def test_message_options_reject_invalid_sizes(self):
+        for bad in (0, -1, 1.5, True, "4096"):
+            with self.assertRaises(PhiloteValidationError):
+                channel_options(bad)
+        with self.assertRaises(PhiloteValidationError):
+            server_options(0)
 
 
 if __name__ == "__main__":

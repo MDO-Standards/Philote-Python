@@ -173,13 +173,17 @@ class ImplicitClient(DisciplineClient):
         validate_is_dict(outputs, "run_compute_residuals (outputs)")
         try:
             # Assemble input messages and call server
-            messages = self._assemble_input_messages(
+            responses = self._dispatch_compute(
+                "ComputeResiduals",
+                self._impl_stub.ComputeResidualsUnary,
+                self._impl_stub.ComputeResiduals,
                 inputs,
                 outputs,
                 discrete_inputs=discrete_inputs,
                 discrete_outputs=discrete_outputs,
+                request_types=(data.kInput, data.kOutput),
+                response_types=(data.kResidual,),
             )
-            responses = self._impl_stub.ComputeResiduals(iter(messages))
             residuals = self._recover_residuals(responses)
 
             return residuals
@@ -242,10 +246,15 @@ class ImplicitClient(DisciplineClient):
         validate_is_dict(inputs, "run_solve_residuals (inputs)")
         try:
             # Assemble input messages and call server
-            messages = self._assemble_input_messages(
-                inputs, discrete_inputs=discrete_inputs
+            responses = self._dispatch_compute(
+                "SolveResiduals",
+                self._impl_stub.SolveResidualsUnary,
+                self._impl_stub.SolveResiduals,
+                inputs,
+                discrete_inputs=discrete_inputs,
+                request_types=(data.kInput,),
+                response_types=(data.kOutput,),
             )
-            responses = self._impl_stub.SolveResiduals(iter(messages))
             outputs = self._recover_outputs(responses)
             return outputs
         except grpc.RpcError as e:
@@ -317,13 +326,17 @@ class ImplicitClient(DisciplineClient):
         validate_is_dict(outputs, "run_residual_gradients (outputs)")
         try:
             # Assemble input messages and call server
-            messages = self._assemble_input_messages(
+            responses = self._dispatch_compute(
+                "ComputeResidualGradients",
+                self._impl_stub.ComputeResidualGradientsUnary,
+                self._impl_stub.ComputeResidualGradients,
                 inputs,
                 outputs,
                 discrete_inputs=discrete_inputs,
                 discrete_outputs=discrete_outputs,
+                request_types=(data.kInput, data.kOutput),
+                response_types=(data.kPartial,),
             )
-            responses = self._impl_stub.ComputeResidualGradients(iter(messages))
             partials = self._recover_partials(responses)
             return partials
         except grpc.RpcError as e:

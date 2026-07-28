@@ -65,6 +65,10 @@ def client_setup(comp):
     from the remote discipline server.  Both continuous and discrete
     variables are declared.
     """
+    # query the discipline properties first, so that the client learns whether
+    # the server supports the unary transport before any compute call is made
+    comp._client.get_discipline_info()
+
     # set up the remote discipline and get the variable definitions
     comp._client.run_setup()
     comp._client.get_variable_definitions()

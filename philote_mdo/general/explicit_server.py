@@ -27,21 +27,17 @@
 # the linked websites, of the information, products, or services contained
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
-import grpc
 import philote_mdo.generated.disciplines_pb2_grpc as disc
 import philote_mdo.generated.data_pb2 as data
-from philote_mdo.general.discipline_server import (
-    DisciplineServer,
-    _python_to_value,
-)
-from philote_mdo.utils import get_chunk_indices
-from philote_mdo.utils.validation import PhiloteValidationError
+from philote_mdo.general.discipline_server import DisciplineServer
 
 
 class ExplicitServer(DisciplineServer, disc.ExplicitServiceServicer):
     """
     Base class for remote explicit components.
     """
+
+    _supports_unary = True
 
     def __init__(self, discipline=None):
         super().__init__(discipline=discipline)
@@ -53,94 +49,108 @@ class ExplicitServer(DisciplineServer, disc.ExplicitServiceServicer):
         super().attach_to_server(server)
         disc.add_ExplicitServiceServicer_to_server(self, server)
 
+    def _compute_function(self, requests):
+        """
+        Runs the discipline compute function over a set of input messages.
+
+        Shared by the streaming and unary transports, which differ only in how
+        the results are serialized.
+
+        :param requests: iterable of VariableMessage inputs
+        :return: tuple of the continuous and discrete output dictionaries
+        """
+        inputs = {}
+        flat_inputs = {}
+        outputs = {}
+        discrete_inputs = {}
+        discrete_outputs = {}
+
+        self.preallocate_inputs(inputs, flat_inputs)
+        discrete_inputs, _ = self.process_inputs(
+            requests, flat_inputs, discrete_inputs=discrete_inputs
+        )
+
+        # Call compute with discrete data when discrete variables are present
+        if discrete_inputs or self._discipline._discrete_var_meta:
+            self._discipline.compute(
+                inputs, outputs, discrete_inputs, discrete_outputs
+            )
+        else:
+            self._discipline.compute(inputs, outputs)
+
+        return outputs, discrete_outputs
+
+    def _compute_gradient(self, requests):
+        """
+        Runs the discipline compute_partials function over a set of input
+        messages.
+
+        :param requests: iterable of VariableMessage inputs
+        :return: PairDict of Jacobian blocks
+        """
+        inputs = {}
+        flat_inputs = {}
+        discrete_inputs = {}
+
+        self.preallocate_inputs(inputs, flat_inputs)
+        jac = self.preallocate_partials()
+        discrete_inputs, _ = self.process_inputs(
+            requests, flat_inputs, discrete_inputs=discrete_inputs
+        )
+
+        if discrete_inputs or self._discipline._discrete_var_meta:
+            self._discipline.compute_partials(inputs, jac, discrete_inputs)
+        else:
+            self._discipline.compute_partials(inputs, jac)
+
+        return jac
+
     def ComputeFunction(self, request_iterator, context):
         """
-        Computes the function evaluation and sends the result to the client.
+        Computes the function evaluation and streams the result to the client.
         """
-        try:
-            inputs = {}
-            flat_inputs = {}
-            outputs = {}
-            discrete_inputs = {}
-            discrete_outputs = {}
+        with self._rpc_errors(context, "ComputeFunction"):
+            outputs, discrete_outputs = self._compute_function(request_iterator)
 
-            self.preallocate_inputs(inputs, flat_inputs)
-            discrete_inputs, _ = self.process_inputs(
-                request_iterator, flat_inputs, discrete_inputs=discrete_inputs
-            )
-
-            # Call compute with discrete data when discrete variables are present
-            if discrete_inputs or self._discipline._discrete_var_meta:
-                self._discipline.compute(
-                    inputs, outputs, discrete_inputs, discrete_outputs
-                )
-            else:
-                self._discipline.compute(inputs, outputs)
-
-            # Stream continuous outputs
-            for output_name, value in outputs.items():
-                for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
-                    yield data.VariableMessage(
-                        continuous=data.Array(
-                            name=output_name,
-                            type=data.kOutput,
-                            start=b,
-                            end=e - 1,
-                            data=value.ravel()[b:e],
-                        )
-                    )
-
-            # Stream discrete outputs
-            for name, value in discrete_outputs.items():
-                yield data.VariableMessage(
-                    discrete=data.DiscreteVariable(
-                        name=name,
-                        type=data.VariableType.kDiscreteOutput,
-                        value=_python_to_value(value),
-                    )
-                )
-        except PhiloteValidationError as e:
-            context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
-        except Exception as e:
-            context.abort(
-                grpc.StatusCode.INTERNAL, f"ComputeFunction failed: {e}"
-            )
+            yield from self._continuous_messages(outputs, data.kOutput)
+            yield from self._discrete_messages(discrete_outputs)
 
     def ComputeGradient(self, request_iterator, context):
         """
-        Computes the gradient evaluation and sends the result to the client.
+        Computes the gradient evaluation and streams the result to the client.
         """
-        try:
-            inputs = {}
-            flat_inputs = {}
-            discrete_inputs = {}
+        with self._rpc_errors(context, "ComputeGradient"):
+            jac = self._compute_gradient(request_iterator)
 
-            self.preallocate_inputs(inputs, flat_inputs)
-            jac = self.preallocate_partials()
-            discrete_inputs, _ = self.process_inputs(
-                request_iterator, flat_inputs, discrete_inputs=discrete_inputs
+            yield from self._partial_messages(jac)
+
+    def ComputeFunctionUnary(self, request, context):
+        """
+        Computes the function evaluation and returns the result in a single
+        message.
+        """
+        with self._rpc_errors(context, "ComputeFunctionUnary"):
+            outputs, discrete_outputs = self._compute_function(request.variables)
+
+            return data.VariableSet(
+                variables=[
+                    *self._continuous_messages(
+                        outputs, data.kOutput, chunked=False
+                    ),
+                    *self._discrete_messages(discrete_outputs),
+                ]
             )
 
-            if discrete_inputs or self._discipline._discrete_var_meta:
-                self._discipline.compute_partials(inputs, jac, discrete_inputs)
-            else:
-                self._discipline.compute_partials(inputs, jac)
+    def ComputeGradientUnary(self, request, context):
+        """
+        Computes the gradient evaluation and returns the result in a single
+        message.
+        """
+        with self._rpc_errors(context, "ComputeGradientUnary"):
+            jac = self._compute_gradient(request.variables)
 
-            for jac, value in jac.items():
-                for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
-                    yield data.VariableMessage(
-                        continuous=data.Array(
-                            name=jac[0],
-                            subname=jac[1],
-                            type=data.kPartial,
-                            start=b,
-                            end=e - 1,
-                            data=value.ravel()[b:e],
-                        )
-                    )
-        except PhiloteValidationError as e:
-            context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
-        except Exception as e:
-            context.abort(
-                grpc.StatusCode.INTERNAL, f"ComputeGradient failed: {e}"
+            return data.VariableSet(
+                variables=list(
+                    self._partial_messages(jac, chunked=False)
+                )
             )

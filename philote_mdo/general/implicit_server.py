@@ -27,13 +27,9 @@
 # the linked websites, of the information, products, or services contained
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
-import grpc
 import philote_mdo.generated.disciplines_pb2_grpc as disc
 import philote_mdo.generated.data_pb2 as data
 import philote_mdo.general as pmdo
-from philote_mdo.general.discipline_server import _python_to_value
-from philote_mdo.utils import get_chunk_indices
-from philote_mdo.utils.validation import PhiloteValidationError
 
 
 class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
@@ -88,6 +84,8 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         - The underlying discipline must implement all required implicit methods
     """
 
+    _supports_unary = True
+
     def __init__(self, discipline=None):
         """
         Initialize the implicit discipline server.
@@ -128,6 +126,113 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         super().attach_to_server(server)
         disc.add_ImplicitServiceServicer_to_server(self, server)
 
+    def _compute_residuals(self, requests):
+        """
+        Runs the discipline compute_residuals function over a set of input
+        messages.
+
+        Shared by the streaming and unary transports, which differ only in how
+        the results are serialized.
+
+        :param requests: iterable of VariableMessage inputs and outputs
+        :return: dictionary of residuals
+        """
+        inputs = {}
+        flat_inputs = {}
+        outputs = {}
+        flat_outputs = {}
+        residuals = {}
+        discrete_inputs = {}
+        discrete_outputs = {}
+
+        self.preallocate_inputs(inputs, flat_inputs, outputs, flat_outputs)
+        discrete_inputs, discrete_outputs = self.process_inputs(
+            requests,
+            flat_inputs,
+            flat_outputs,
+            discrete_inputs=discrete_inputs,
+            discrete_outputs=discrete_outputs,
+        )
+
+        # Call the user-defined compute_residuals function
+        if discrete_inputs or self._discipline._discrete_var_meta:
+            self._discipline.compute_residuals(
+                inputs, outputs, residuals, discrete_inputs, discrete_outputs
+            )
+        else:
+            self._discipline.compute_residuals(inputs, outputs, residuals)
+
+        return residuals
+
+    def _solve_residuals(self, requests):
+        """
+        Runs the discipline solve_residuals function over a set of input
+        messages.
+
+        Note, this path does not carry discrete outputs in either direction --
+        the discipline is not handed a discrete output dictionary, so it has no
+        way to produce one.
+
+        :param requests: iterable of VariableMessage inputs
+        :return: dictionary of solved outputs
+        """
+        inputs = {}
+        flat_inputs = {}
+        outputs = {}
+        flat_outputs = {}
+        discrete_inputs = {}
+
+        self.preallocate_inputs(inputs, flat_inputs, outputs, flat_outputs)
+        discrete_inputs, _ = self.process_inputs(
+            requests,
+            flat_inputs,
+            flat_outputs,
+            discrete_inputs=discrete_inputs,
+        )
+
+        # Call the user-defined solve function
+        if discrete_inputs or self._discipline._discrete_var_meta:
+            self._discipline.solve_residuals(inputs, outputs, discrete_inputs)
+        else:
+            self._discipline.solve_residuals(inputs, outputs)
+
+        return outputs
+
+    def _residual_gradients(self, requests):
+        """
+        Runs the discipline residual_partials function over a set of input
+        messages.
+
+        :param requests: iterable of VariableMessage inputs and outputs
+        :return: PairDict of Jacobian blocks
+        """
+        inputs = {}
+        flat_inputs = {}
+        outputs = {}
+        flat_outputs = {}
+        discrete_inputs = {}
+        discrete_outputs = {}
+
+        self.preallocate_inputs(inputs, flat_inputs, outputs, flat_outputs)
+        jac = self.preallocate_partials()
+        discrete_inputs, discrete_outputs = self.process_inputs(
+            requests,
+            flat_inputs,
+            flat_outputs,
+            discrete_inputs=discrete_inputs,
+            discrete_outputs=discrete_outputs,
+        )
+
+        # Call the user-defined residual partials function
+        if discrete_inputs or self._discipline._discrete_var_meta:
+            self._discipline.residual_partials(
+                inputs, outputs, jac, discrete_inputs, discrete_outputs
+            )
+        else:
+            self._discipline.residual_partials(inputs, outputs, jac)
+
+        return jac
+
     def ComputeResiduals(self, request_iterator, context):
         """
         Handle client requests for residual computation.
@@ -156,50 +261,10 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         - Streams results back in chunks for efficiency
         - This method is called automatically by the gRPC framework
         """
-        try:
-            # inputs and outputs
-            inputs = {}
-            flat_inputs = {}
-            outputs = {}
-            flat_outputs = {}
-            residuals = {}
-            discrete_inputs = {}
-            discrete_outputs = {}
+        with self._rpc_errors(context, "ComputeResiduals"):
+            residuals = self._compute_residuals(request_iterator)
 
-            self.preallocate_inputs(inputs, flat_inputs, outputs, flat_outputs)
-            discrete_inputs, discrete_outputs = self.process_inputs(
-                request_iterator,
-                flat_inputs,
-                flat_outputs,
-                discrete_inputs=discrete_inputs,
-                discrete_outputs=discrete_outputs,
-            )
-
-            # Call the user-defined compute_residuals function
-            if discrete_inputs or self._discipline._discrete_var_meta:
-                self._discipline.compute_residuals(
-                    inputs, outputs, residuals, discrete_inputs, discrete_outputs
-                )
-            else:
-                self._discipline.compute_residuals(inputs, outputs, residuals)
-
-            for res_name, value in residuals.items():
-                for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
-                    yield data.VariableMessage(
-                        continuous=data.Array(
-                            name=res_name,
-                            start=b,
-                            end=e - 1,
-                            type=data.kResidual,
-                            data=value.ravel()[b:e],
-                        )
-                    )
-        except PhiloteValidationError as e:
-            context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
-        except Exception as e:
-            context.abort(
-                grpc.StatusCode.INTERNAL, f"ComputeResiduals failed: {e}"
-            )
+            yield from self._continuous_messages(residuals, data.kResidual)
 
     def SolveResiduals(self, request_iterator, context):
         """
@@ -228,45 +293,10 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         - Outputs are streamed back in chunks for large arrays
         - This method is called automatically by the gRPC framework
         """
-        try:
-            # inputs and outputs
-            inputs = {}
-            flat_inputs = {}
-            outputs = {}
-            flat_outputs = {}
-            discrete_inputs = {}
+        with self._rpc_errors(context, "SolveResiduals"):
+            outputs = self._solve_residuals(request_iterator)
 
-            self.preallocate_inputs(inputs, flat_inputs, outputs, flat_outputs)
-            discrete_inputs, _ = self.process_inputs(
-                request_iterator,
-                flat_inputs,
-                flat_outputs,
-                discrete_inputs=discrete_inputs,
-            )
-
-            # Call the user-defined solve function
-            if discrete_inputs or self._discipline._discrete_var_meta:
-                self._discipline.solve_residuals(inputs, outputs, discrete_inputs)
-            else:
-                self._discipline.solve_residuals(inputs, outputs)
-
-            for output_name, value in outputs.items():
-                for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
-                    yield data.VariableMessage(
-                        continuous=data.Array(
-                            name=output_name,
-                            start=b,
-                            end=e - 1,
-                            type=data.kOutput,
-                            data=value.ravel()[b:e],
-                        )
-                    )
-        except PhiloteValidationError as e:
-            context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
-        except Exception as e:
-            context.abort(
-                grpc.StatusCode.INTERNAL, f"SolveResiduals failed: {e}"
-            )
+            yield from self._continuous_messages(outputs, data.kOutput)
 
     def ComputeResidualGradients(self, request_iterator, context):
         """
@@ -295,51 +325,53 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         - Used for gradient-based optimization and sensitivity analysis
         - This method is called automatically by the gRPC framework
         """
-        try:
-            # inputs and outputs
-            inputs = {}
-            flat_inputs = {}
-            outputs = {}
-            flat_outputs = {}
-            discrete_inputs = {}
-            discrete_outputs = {}
+        with self._rpc_errors(context, "ComputeResidualGradients"):
+            jac = self._residual_gradients(request_iterator)
 
-            self.preallocate_inputs(inputs, flat_inputs, outputs, flat_outputs)
-            jac = self.preallocate_partials()
-            discrete_inputs, discrete_outputs = self.process_inputs(
-                request_iterator,
-                flat_inputs,
-                flat_outputs,
-                discrete_inputs=discrete_inputs,
-                discrete_outputs=discrete_outputs,
+            yield from self._partial_messages(jac)
+
+    def ComputeResidualsUnary(self, request, context):
+        """
+        Computes the residuals and returns them in a single message.
+        """
+        with self._rpc_errors(context, "ComputeResidualsUnary"):
+            residuals = self._compute_residuals(request.variables)
+
+            return data.VariableSet(
+                variables=list(
+                    self._continuous_messages(
+                        residuals, data.kResidual, chunked=False
+                    )
+                )
             )
 
-            # Call the user-defined residual partials function
-            if discrete_inputs or self._discipline._discrete_var_meta:
-                self._discipline.residual_partials(
-                    inputs, outputs, jac, discrete_inputs, discrete_outputs
-                )
-            else:
-                self._discipline.residual_partials(inputs, outputs, jac)
+    def SolveResidualsUnary(self, request, context):
+        """
+        Solves the implicit equations and returns the outputs in a single
+        message.
+        """
+        with self._rpc_errors(context, "SolveResidualsUnary"):
+            outputs = self._solve_residuals(request.variables)
 
-            for jac, value in jac.items():
-                for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
-                    yield data.VariableMessage(
-                        continuous=data.Array(
-                            name=jac[0],
-                            subname=jac[1],
-                            type=data.kPartial,
-                            start=b,
-                            end=e - 1,
-                            data=value.ravel()[b:e],
-                        )
+            return data.VariableSet(
+                variables=list(
+                    self._continuous_messages(
+                        outputs, data.kOutput, chunked=False
                     )
-        except PhiloteValidationError as e:
-            context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
-        except Exception as e:
-            context.abort(
-                grpc.StatusCode.INTERNAL,
-                f"ComputeResidualGradients failed: {e}",
+                )
+            )
+
+    def ComputeResidualGradientsUnary(self, request, context):
+        """
+        Computes the residual Jacobian and returns it in a single message.
+        """
+        with self._rpc_errors(context, "ComputeResidualGradientsUnary"):
+            jac = self._residual_gradients(request.variables)
+
+            return data.VariableSet(
+                variables=list(
+                    self._partial_messages(jac, chunked=False)
+                )
             )
 
     # def MatrixFreeGradients(self, request_iterator, context):

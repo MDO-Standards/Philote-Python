@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Features
+
+- Added a unary compute transport alongside the existing bidirectional
+  streaming one.  The standard gains a `VariableSet` message and five unary
+  RPCs (`ComputeFunctionUnary`, `ComputeGradientUnary`, `ComputeResidualsUnary`,
+  `SolveResidualsUnary`, `ComputeResidualGradientsUnary`), plus
+  `supports_unary` and `max_unary_bytes` fields on `DisciplineProperties`.
+  Adding methods to the existing services is wire-compatible, so old servers
+  simply answer `UNIMPLEMENTED`.
+- Clients select the transport automatically (`DisciplineClient.transport`
+  defaults to `"auto"`).  The unary transport is used when the payload, sized
+  from the variable metadata gathered during setup, fits within
+  `unary_max_bytes`; otherwise the streaming transport is used.  A per-call
+  size guard catches oversized discrete variables, and a failed unary attempt
+  falls back to streaming on `UNIMPLEMENTED` or `RESOURCE_EXHAUSTED`.  Any
+  other status propagates rather than being silently retried.  Set
+  `transport = "stream"` to pin the previous behaviour, or `"unary"` to force
+  the new one.
+- Measured with the new `utils/bench_transport.py`, the unary transport cuts
+  round-trip latency for small disciplines by 2-6x: a two-scalar discipline
+  goes from 493 to 220 microseconds, and a 100-variable one from 9.7 to 1.6
+  milliseconds.  Under 16 concurrent clients throughput rises 3.5x and
+  per-call client CPU drops 6x.  The gain reverses for large payloads, which
+  is why `unary_max_bytes` defaults to 128 KiB.
+- Added `philote_mdo.utils.channel_options()` and
+  `philote_mdo.utils.server_options()` for sizing gRPC message limits, needed
+  when raising `unary_max_bytes` past the 4 MiB default.  These replace the
+  `DisciplineClient.grpc_options` attribute, which was never read.
+- Added `philote_mdo.utils.get_partials_shape()`, which centralises the
+  Jacobian block shape rule that was previously duplicated in
+  `DisciplineClient._recover_partials` and
+  `DisciplineServer.preallocate_partials`.
+
 ### Bug Fixes
 
 - Fixed `ImplicitServer` emitting `Array.end` as an exclusive index, while the

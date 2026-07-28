@@ -53,7 +53,11 @@ class TestDisciplineClient(unittest.TestCase):
 
         # Assert that the attributes are initialized correctly
         self.assertTrue(instance.verbose)
-        self.assertEqual(instance.grpc_options, [])
+        self.assertEqual(instance.transport, "auto")
+        self.assertEqual(instance.unary_max_bytes, 1 << 17)
+        self.assertIsNone(instance._unary_supported)
+        self.assertEqual(instance._server_unary_max_bytes, 0)
+        self.assertEqual(instance._stream_only_rpcs, set())
         self.assertFalse(instance._is_continuous)
         self.assertFalse(instance._is_differentiable)
         self.assertFalse(instance._provides_gradients)
