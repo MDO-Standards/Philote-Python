@@ -46,6 +46,12 @@ self-inflicted fragmentation rather than anything intrinsic to streaming. If
 the control captures most of the difference, the unary transport is not
 earning its keep and the cheaper fix is to stop chunking.
 
+Note that for payloads of a megabyte or more, most of the measured time is
+protobuf-to-numpy conversion, which both transports pay equally -- the
+transport itself accounts for only a couple of milliseconds. The transports
+therefore converge as the payload grows, and the unary advantage is a fixed
+per-call saving that matters in proportion to how often you call.
+
 Run from the repository root:
 
     python utils/bench_transport.py
@@ -115,6 +121,9 @@ def make_client(port, mode):
 
     if mode == "unary":
         client.transport = "unary"
+        # the pin forces the transport, but raise the threshold too so that
+        # the numbers reported here are not confused by a fallback
+        client.unary_max_bytes = 64 * 1024 * 1024
     else:
         client.transport = "stream"
 

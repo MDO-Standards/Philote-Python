@@ -27,10 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the new one.
 - Measured with the new `utils/bench_transport.py`, the unary transport cuts
   round-trip latency for small disciplines by 2-6x: a two-scalar discipline
-  goes from 493 to 220 microseconds, and a 100-variable one from 9.7 to 1.6
-  milliseconds.  Under 16 concurrent clients throughput rises 3.5x and
-  per-call client CPU drops 6x.  The gain reverses for large payloads, which
-  is why `unary_max_bytes` defaults to 128 KiB.
+  goes from 486 to 203 microseconds, and a 100-variable one from 10.1 to 1.6
+  milliseconds.  Under 16 concurrent clients throughput rises 3.8x and
+  per-call client CPU drops 6.7x.  The advantage shrinks to roughly nothing
+  for megabyte-scale payloads, where the cost is dominated by
+  protobuf-to-NumPy conversion that both transports pay equally, so
+  `unary_max_bytes` defaults to 128 KiB.
 - Added `philote_mdo.utils.channel_options()` and
   `philote_mdo.utils.server_options()` for sizing gRPC message limits, needed
   when raising `unary_max_bytes` past the 4 MiB default.  These replace the

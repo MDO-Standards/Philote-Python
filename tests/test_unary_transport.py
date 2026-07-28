@@ -143,6 +143,38 @@ class TestTransportSelection(unittest.TestCase):
         self.assertTrue(self.stub.ComputeFunctionUnary.called)
         self.assertNotIn("ComputeFunction", self.client._stream_only_rpcs)
 
+    def test_transport_unary_bypasses_per_call_guard(self):
+        """
+        The pin forces the transport even for a payload the per-call guard
+        would reject, so that "unary" means unary rather than silently
+        rerouting before anything is sent.
+        """
+        self.client.transport = "unary"
+        self.client._discrete_var_meta = [
+            data.VariableMetaData(name="payload", type=data.kDiscreteInput)
+        ]
+        big = {"payload": ["x" * 1000] * 1000}
+
+        self.client.run_compute(self.inputs, discrete_inputs=big)
+
+        self.assertTrue(self.stub.ComputeFunctionUnary.called)
+        self.assertFalse(self.stub.ComputeFunction.called)
+
+    def test_auto_still_applies_per_call_guard(self):
+        """
+        The guard is skipped only for an explicit pin, never in auto mode.
+        """
+        self.client.transport = "auto"
+        self.client._discrete_var_meta = [
+            data.VariableMetaData(name="payload", type=data.kDiscreteInput)
+        ]
+        big = {"payload": ["x" * 1000] * 1000}
+
+        self.client.run_compute(self.inputs, discrete_inputs=big)
+
+        self.assertFalse(self.stub.ComputeFunctionUnary.called)
+        self.assertTrue(self.stub.ComputeFunction.called)
+
     def test_setup_estimate_demotes_large_variables(self):
         """
         A payload known at setup time to be too large never reaches the unary

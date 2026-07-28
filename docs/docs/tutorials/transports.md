@@ -44,23 +44,44 @@ From `utils/bench_transport.py`, with the server in a separate process:
 
 | Case | Streaming | Unary | Speedup |
 |---|---|---|---|
-| 2 variables, 1 element | 493 µs | 220 µs | 2.2x |
-| 10 variables, 1 element | 1319 µs | 416 µs | 3.2x |
-| 100 variables, 1 element | 9714 µs | 1618 µs | 6.0x |
-| 2 variables, 1 element, 16 clients | 8398 µs | 2354 µs | 3.6x |
-| 2 variables, 100000 elements | 81 ms | 111 ms | **0.7x** |
+| 2 variables, 1 element | 486 µs | 203 µs | 2.4x |
+| 10 variables, 1 element | 1245 µs | 305 µs | 4.1x |
+| 100 variables, 1 element | 10.1 ms | 1.6 ms | 6.3x |
+| 2 variables, 1 element, 16 clients | 8.0 ms | 2.1 ms | 3.7x |
+| 2 variables, 10000 elements | 8.3 ms | 7.7 ms | 1.1x |
+| 2 variables, 100000 elements | 79.7 ms | 75.3 ms | 1.1x |
 
-The last row is the important one: **unary loses on large payloads.** A single
-large message cannot be pipelined, so the receiver sits idle until the whole
-thing arrives. The crossover sits a little above 128 KiB, which is why the
-client stops using unary past that size.
+Notice how the advantage shrinks as the payload grows. That is the key to
+understanding when this feature helps.
+
+For a megabyte-scale payload, the transport is almost irrelevant: a raw gRPC
+round trip carrying 1.6 MB takes about 2 ms, while the same Philote call takes
+about 75 ms. The other 73 ms is protobuf-to-numpy conversion — building a
+`repeated double` field from a NumPy array and scattering it back — and **both
+transports pay that identically.** The unary saving is a fixed number of
+microseconds of framing, so it disappears into the noise once the payload is
+large enough to dominate.
+
+At the very largest sizes a *chunked* stream pulls slightly ahead, because
+splitting the payload lets the server serialize one chunk while the client
+deserializes the previous one. That overlap is worth roughly 5% at 1.6 MB.
+
+:::note
+Unary is not slower than the default streaming configuration at any size we
+measured. The reason for the 128 KiB limit is not a performance cliff — it is
+that a unary payload must fit inside a single gRPC message, whose default
+ceiling is 4 MiB, and that past this point the advantage has shrunk to
+nothing anyway.
+:::
 
 ## How the client chooses
 
 `DisciplineClient.transport` accepts three values:
 
 - `"auto"` (default) — decide per RPC, as described below
-- `"unary"` — always use the unary transport, skipping the size check
+- `"unary"` — force the unary transport, skipping both size checks. An
+  oversized payload then fails with `RESOURCE_EXHAUSTED` and is retried on the
+  stream, rather than being quietly rerouted before it is sent.
 - `"stream"` — always use the streaming transport
 
 In `"auto"` mode the client applies three checks, in order.
@@ -118,13 +139,11 @@ class MyServer(pmdo.ExplicitServer):
 
 ## Raising the size limit
 
-`unary_max_bytes` is a *performance* threshold, not a capacity limit. Raising
-it past 128 KiB will make the client use unary for payloads where streaming is
-faster.
+Raising `unary_max_bytes` is rarely worth it: past 128 KiB the two transports
+perform about the same, so there is little left to gain.
 
-If you do want to raise it past gRPC's 4 MiB message ceiling, you must also
-size the channel and the server, or the call will fail with
-`RESOURCE_EXHAUSTED`:
+If you do raise it past gRPC's 4 MiB message ceiling, you must also size the
+channel and the server, or the call will fail with `RESOURCE_EXHAUSTED`:
 
 ```python
 import grpc

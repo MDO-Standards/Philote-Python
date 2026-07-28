@@ -59,11 +59,14 @@ class DisciplineClient:
         self.transport = "auto"
 
         # largest unary request or response this client will attempt, in bytes.
-        # This is a performance threshold rather than a capacity limit: the
-        # unary transport wins by a wide margin on small payloads but loses to
-        # streaming on large ones, because a single large message cannot be
-        # pipelined. Measured with utils/bench_transport.py, the crossover sits
-        # a little above 128 KiB, so that is the default.
+        # The unary transport wins by a wide margin on small payloads, where
+        # per-call framing dominates. On large ones the two converge, because
+        # the cost is then almost entirely protobuf-to-numpy conversion, which
+        # both transports pay equally -- and a chunked stream pulls slightly
+        # ahead by overlapping the server's serialization with the client's
+        # deserialization. A unary payload must also fit in a single gRPC
+        # message, whose default ceiling is 4 MiB. 128 KiB keeps the transport
+        # in the region where it clearly wins, with wide headroom.
         self.unary_max_bytes = 1 << 17
 
         # unary negotiation state. None means the server has not been asked and
@@ -415,7 +418,11 @@ class DisciplineClient:
                 chunked=False,
             )
 
-            if self._within_unary_limit(messages):
+            # an explicit pin means "force unary", so the per-call guard is
+            # skipped too. An oversized payload then fails with
+            # RESOURCE_EXHAUSTED and is retried on the stream by _demote,
+            # rather than being quietly rerouted before it is ever sent.
+            if self.transport == "unary" or self._within_unary_limit(messages):
                 try:
                     response = unary_method(
                         data.VariableSet(variables=messages)
