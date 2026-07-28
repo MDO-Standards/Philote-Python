@@ -41,6 +41,8 @@ from philote_mdo.utils import (
     get_chunk_indices,
     get_flattened_view,
     get_partials_shape,
+    read_array_into,
+    set_array_data,
 )
 from philote_mdo.utils.validation import PhiloteValidationError, validate_shape
 
@@ -341,15 +343,17 @@ class DisciplineServer(disc.DisciplineService):
             size = self._output_chunk_size(value, chunked)
 
             for b, e in get_chunk_indices(value.size, size):
-                yield data.VariableMessage(
+                message = data.VariableMessage(
                     continuous=data.Array(
                         name=name,
                         type=var_type,
                         start=b,
                         end=e - 1,
-                        data=value.ravel()[b:e],
                     )
                 )
+                set_array_data(message.continuous, value.ravel()[b:e])
+
+                yield message
 
     def _partial_messages(self, jac, chunked=True):
         """
@@ -359,16 +363,18 @@ class DisciplineServer(disc.DisciplineService):
             size = self._output_chunk_size(value, chunked)
 
             for b, e in get_chunk_indices(value.size, size):
-                yield data.VariableMessage(
+                message = data.VariableMessage(
                     continuous=data.Array(
                         name=key[0],
                         subname=key[1],
                         type=data.kPartial,
                         start=b,
                         end=e - 1,
-                        data=value.ravel()[b:e],
                     )
                 )
+                set_array_data(message.continuous, value.ravel()[b:e])
+
+                yield message
 
     def _discrete_messages(self, discrete_outputs):
         """
@@ -413,14 +419,12 @@ class DisciplineServer(disc.DisciplineService):
 
             if variant == "continuous":
                 arr = message.continuous
-                b = arr.start
-                e = arr.end
 
                 if len(arr.data) > 0:
                     if arr.type == data.VariableType.kInput:
-                        flat_inputs[arr.name][b : e + 1] = arr.data
+                        read_array_into(arr, flat_inputs[arr.name])
                     elif arr.type == data.VariableType.kOutput:
-                        flat_outputs[arr.name][b : e + 1] = arr.data
+                        read_array_into(arr, flat_outputs[arr.name])
                 else:
                     raise PhiloteValidationError(
                         "Expected continuous variables but arrays were"

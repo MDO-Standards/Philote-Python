@@ -54,7 +54,7 @@ class TestDisciplineClient(unittest.TestCase):
         # Assert that the attributes are initialized correctly
         self.assertTrue(instance.verbose)
         self.assertEqual(instance.transport, "auto")
-        self.assertEqual(instance.unary_max_bytes, 1 << 17)
+        self.assertEqual(instance.unary_max_bytes, 1 << 18)
         self.assertIsNone(instance._unary_supported)
         self.assertEqual(instance._server_unary_max_bytes, 0)
         self.assertEqual(instance._stream_only_rpcs, set())

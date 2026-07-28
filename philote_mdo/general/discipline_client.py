@@ -59,15 +59,14 @@ class DisciplineClient:
         self.transport = "auto"
 
         # largest unary request or response this client will attempt, in bytes.
-        # The unary transport wins by a wide margin on small payloads, where
-        # per-call framing dominates. On large ones the two converge, because
-        # the cost is then almost entirely protobuf-to-numpy conversion, which
-        # both transports pay equally -- and a chunked stream pulls slightly
-        # ahead by overlapping the server's serialization with the client's
-        # deserialization. A unary payload must also fit in a single gRPC
-        # message, whose default ceiling is 4 MiB. 128 KiB keeps the transport
-        # in the region where it clearly wins, with wide headroom.
-        self.unary_max_bytes = 1 << 17
+        # The unary transport wins on small and medium payloads, where per-call
+        # framing dominates. Past a few hundred kilobytes a stream pulls ahead,
+        # because splitting the payload lets the server serialize one chunk
+        # while the client reads the previous one. Measured with
+        # utils/bench_transport.py, the crossover sits between 256 KiB and
+        # 512 KiB. A unary payload must also fit in a single gRPC message,
+        # whose default ceiling is 4 MiB, so 256 KiB leaves wide headroom.
+        self.unary_max_bytes = 1 << 18
 
         # unary negotiation state. None means the server has not been asked and
         # no unary call has been attempted yet.
@@ -485,17 +484,17 @@ class DisciplineClient:
             for b, e in utils.get_chunk_indices(
                 value.size, self._input_chunk_size(value, chunked)
             ):
-                messages += [
-                    data.VariableMessage(
-                        continuous=data.Array(
-                            name=input_name,
-                            start=b,
-                            end=e - 1,
-                            type=data.VariableType.kInput,
-                            data=value.ravel()[b:e],
-                        )
+                message = data.VariableMessage(
+                    continuous=data.Array(
+                        name=input_name,
+                        start=b,
+                        end=e - 1,
+                        type=data.VariableType.kInput,
                     )
-                ]
+                )
+                utils.set_array_data(message.continuous, value.ravel()[b:e])
+
+                messages += [message]
 
         # Continuous outputs (for implicit disciplines)
         if outputs:
@@ -503,17 +502,17 @@ class DisciplineClient:
                 for b, e in utils.get_chunk_indices(
                     value.size, self._input_chunk_size(value, chunked)
                 ):
-                    messages += [
-                        data.VariableMessage(
-                            continuous=data.Array(
-                                name=output_name,
-                                start=b,
-                                end=e - 1,
-                                type=data.VariableType.kOutput,
-                                data=value.ravel()[b:e],
-                            )
+                    message = data.VariableMessage(
+                        continuous=data.Array(
+                            name=output_name,
+                            start=b,
+                            end=e - 1,
+                            type=data.VariableType.kOutput,
                         )
-                    ]
+                    )
+                    utils.set_array_data(message.continuous, value.ravel()[b:e])
+
+                    messages += [message]
 
         # Discrete inputs
         if discrete_inputs:
@@ -566,10 +565,8 @@ class DisciplineClient:
             if variant == "continuous":
                 arr = message.continuous
                 if arr.type == data.kOutput:
-                    b = arr.start
-                    e = arr.end + 1
                     if len(arr.data) > 0:
-                        flat_outputs[arr.name][b:e] = arr.data
+                        utils.read_array_into(arr, flat_outputs[arr.name])
                     else:
                         raise PhiloteValidationError(
                             "Expected continuous variables, but array is empty."
@@ -604,10 +601,8 @@ class DisciplineClient:
             if variant == "continuous":
                 arr = message.continuous
                 if arr.type == data.kResidual:
-                    b = arr.start
-                    e = arr.end + 1
                     if len(arr.data) > 0:
-                        flat_residuals[arr.name][b:e] = arr.data
+                        utils.read_array_into(arr, flat_residuals[arr.name])
                     else:
                         raise PhiloteValidationError(
                             "Expected continuous variables, but array is empty."
@@ -641,12 +636,12 @@ class DisciplineClient:
 
             if variant == "continuous":
                 arr = message.continuous
-                b = arr.start
-                e = arr.end + 1
 
                 if arr.type == data.kPartial:
                     if len(arr.data) > 0:
-                        flat_p[(arr.name, arr.subname)][b:e] = arr.data
+                        utils.read_array_into(
+                            arr, flat_p[(arr.name, arr.subname)]
+                        )
                     else:
                         raise PhiloteValidationError(
                             "Expected continuous outputs for the "

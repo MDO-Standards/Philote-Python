@@ -44,34 +44,29 @@ From `utils/bench_transport.py`, with the server in a separate process:
 
 | Case | Streaming | Unary | Speedup |
 |---|---|---|---|
-| 2 variables, 1 element | 486 µs | 203 µs | 2.4x |
-| 10 variables, 1 element | 1245 µs | 305 µs | 4.1x |
-| 100 variables, 1 element | 10.1 ms | 1.6 ms | 6.3x |
-| 2 variables, 1 element, 16 clients | 8.0 ms | 2.1 ms | 3.7x |
-| 2 variables, 10000 elements | 8.3 ms | 7.7 ms | 1.1x |
-| 2 variables, 100000 elements | 79.7 ms | 75.3 ms | 1.1x |
+| 2 variables, 1 element | 512 µs | 216 µs | 2.4x |
+| 10 variables, 1 element | 1244 µs | 299 µs | 4.2x |
+| 100 variables, 1 element | 9.9 ms | 1.6 ms | 6.2x |
+| 2 variables, 1 element, 16 clients | 8.5 ms | 2.4 ms | 3.6x |
+| 2 variables, 10000 elements | 2.4 ms | 0.49 ms | 4.9x |
+| 2 variables, 100000 elements | 19.7 ms | 3.3 ms | 6.0x |
 
-Notice how the advantage shrinks as the payload grows. That is the key to
-understanding when this feature helps.
+The advantage is a fixed per-call saving of a few hundred microseconds. It
+matters in proportion to how *often* you call, not how much you send — which
+is why it shows up as 6x on a 100-variable discipline and as a rounding error
+on a single enormous array.
 
-For a megabyte-scale payload, the transport is almost irrelevant: a raw gRPC
-round trip carrying 1.6 MB takes about 2 ms, while the same Philote call takes
-about 75 ms. The other 73 ms is protobuf-to-numpy conversion — building a
-`repeated double` field from a NumPy array and scattering it back — and **both
-transports pay that identically.** The unary saving is a fixed number of
-microseconds of framing, so it disappears into the noise once the payload is
-large enough to dominate.
-
-At the very largest sizes a *chunked* stream pulls slightly ahead, because
-splitting the payload lets the server serialize one chunk while the client
-deserializes the previous one. That overlap is worth roughly 5% at 1.6 MB.
+Past a few hundred kilobytes a stream does pull ahead, because splitting the
+payload lets the server serialize one chunk while the client reads the
+previous one. Measured, the crossover sits between 256 KiB and 512 KiB, which
+is where `unary_max_bytes` is set.
 
 :::note
-Unary is not slower than the default streaming configuration at any size we
-measured. The reason for the 128 KiB limit is not a performance cliff — it is
-that a unary payload must fit inside a single gRPC message, whose default
-ceiling is 4 MiB, and that past this point the advantage has shrunk to
-nothing anyway.
+These numbers assume the default chunk size. Streaming a large array with
+`num_double` left at its default of 1000 fragments it into hundreds of
+messages and is much slower than either alternative — 19.7 ms for a 1.6 MB
+payload, against 2.6 ms for the same stream unchunked. If you stream large
+arrays, raise `num_double`.
 :::
 
 ## How the client chooses
@@ -89,7 +84,7 @@ In `"auto"` mode the client applies three checks, in order.
 **1. A size gate, evaluated once per RPC.** After `get_variable_definitions()`
 the client knows the shape of every continuous variable, so the payload size is
 fixed and can be decided once. If either the request or the response would
-exceed `unary_max_bytes` (128 KiB by default), that RPC is marked
+exceed `unary_max_bytes` (256 KiB by default), that RPC is marked
 stream-only for the life of the client and the check is not repeated.
 
 **2. A per-call guard.** Discrete variables carry arbitrary
@@ -139,8 +134,8 @@ class MyServer(pmdo.ExplicitServer):
 
 ## Raising the size limit
 
-Raising `unary_max_bytes` is rarely worth it: past 128 KiB the two transports
-perform about the same, so there is little left to gain.
+Raising `unary_max_bytes` is rarely worth it: past 256 KiB a chunked stream is
+faster anyway, so there is little left to gain.
 
 If you do raise it past gRPC's 4 MiB message ceiling, you must also size the
 channel and the server, or the call will fail with `RESOURCE_EXHAUSTED`:

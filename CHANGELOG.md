@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
+- Continuous array data is now read and written through the packed wire buffer
+  directly, instead of through the protobuf `repeated double` API, which
+  converts every element to and from a boxed Python float.  A packed
+  `repeated double` is encoded as a length-delimited buffer of little-endian
+  doubles, which is byte for byte what NumPy already holds, so the output is
+  identical and **the protocol is unchanged** -- peers in any language are
+  unaffected.  Moving 200k doubles drops from 36 ms to 0.23 ms per direction.
+  End to end, a 1.6 MB call over the unary transport goes from 75 ms to
+  3.3 ms, and the same call over an unchunked stream from 71 ms to 2.6 ms.
+  The helpers live in `philote_mdo.utils.encoding`.
+- `DisciplineClient.unary_max_bytes` now defaults to 256 KiB rather than
+  128 KiB.  With the conversion cost removed, the unary transport keeps its
+  advantage over a stream up to roughly that size.
+
 - Added a unary compute transport alongside the existing bidirectional
   streaming one.  The standard gains a `VariableSet` message and five unary
   RPCs (`ComputeFunctionUnary`, `ComputeGradientUnary`, `ComputeResidualsUnary`,
@@ -29,10 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   round-trip latency for small disciplines by 2-6x: a two-scalar discipline
   goes from 486 to 203 microseconds, and a 100-variable one from 10.1 to 1.6
   milliseconds.  Under 16 concurrent clients throughput rises 3.8x and
-  per-call client CPU drops 6.7x.  The advantage shrinks to roughly nothing
-  for megabyte-scale payloads, where the cost is dominated by
-  protobuf-to-NumPy conversion that both transports pay equally, so
-  `unary_max_bytes` defaults to 128 KiB.
+  per-call client CPU drops 6.7x.  The saving is a fixed per-call cost, so it
+  matters in proportion to how often a discipline is called rather than how
+  much data it moves.
 - Added `philote_mdo.utils.channel_options()` and
   `philote_mdo.utils.server_options()` for sizing gRPC message limits, needed
   when raising `unary_max_bytes` past the 4 MiB default.  These replace the
