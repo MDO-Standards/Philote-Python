@@ -9,43 +9,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
-- Continuous array data is now read and written through the packed wire buffer
-  directly, instead of through the protobuf `repeated double` API, which
-  converts every element to and from a boxed Python float.  A packed
-  `repeated double` is encoded as a length-delimited buffer of little-endian
-  doubles, which is byte for byte what NumPy already holds, so the output is
-  identical and **the protocol is unchanged** -- peers in any language are
-  unaffected.  Moving 200k doubles drops from 36 ms to 0.23 ms per direction.
-  End to end, a 1.6 MB call over the unary transport goes from 75 ms to
-  3.3 ms, and the same call over an unchunked stream from 71 ms to 2.6 ms.
-  The helpers live in `philote_mdo.utils.encoding`.
-- `DisciplineClient.unary_max_bytes` now defaults to 256 KiB rather than
-  128 KiB.  With the conversion cost removed, the unary transport keeps its
-  advantage over a stream up to roughly that size.
-
 - Added a unary compute transport alongside the existing bidirectional
-  streaming one.  The standard gains a `VariableSet` message and five unary
-  RPCs (`ComputeFunctionUnary`, `ComputeGradientUnary`, `ComputeResidualsUnary`,
-  `SolveResidualsUnary`, `ComputeResidualGradientsUnary`), plus
-  `supports_unary` and `max_unary_bytes` fields on `DisciplineProperties`.
-  Adding methods to the existing services is wire-compatible, so old servers
-  simply answer `UNIMPLEMENTED`.
+  streaming one.  This requires the matching protocol additions -- a
+  `VariableSet` message, five unary RPCs (`ComputeFunctionUnary`,
+  `ComputeGradientUnary`, `ComputeResidualsUnary`, `SolveResidualsUnary`,
+  `ComputeResidualGradientsUnary`), and `supports_unary` /
+  `max_unary_bytes` fields on `DisciplineProperties` -- which currently live
+  on the `feature/unary_api` branch of `MDO-Standards/Philote-MDO`.  Adding
+  methods to existing services is wire-compatible, so a server that predates
+  them simply answers `UNIMPLEMENTED`.
 - Clients select the transport automatically (`DisciplineClient.transport`
   defaults to `"auto"`).  The unary transport is used when the payload, sized
-  from the variable metadata gathered during setup, fits within
-  `unary_max_bytes`; otherwise the streaming transport is used.  A per-call
-  size guard catches oversized discrete variables, and a failed unary attempt
-  falls back to streaming on `UNIMPLEMENTED` or `RESOURCE_EXHAUSTED`.  Any
-  other status propagates rather than being silently retried.  Set
+  once from the variable metadata gathered during setup, fits within
+  `unary_max_bytes` (256 KiB by default); otherwise the streaming transport
+  is used.  A per-call size guard catches oversized discrete variables, whose
+  size is not known until the call is made, and a failed unary attempt falls
+  back to streaming on `UNIMPLEMENTED` or `RESOURCE_EXHAUSTED`.  Any other
+  status propagates rather than being silently retried.  Set
   `transport = "stream"` to pin the previous behaviour, or `"unary"` to force
-  the new one.
-- Measured with the new `utils/bench_transport.py`, the unary transport cuts
-  round-trip latency for small disciplines by 2-6x: a two-scalar discipline
-  goes from 486 to 203 microseconds, and a 100-variable one from 10.1 to 1.6
-  milliseconds.  Under 16 concurrent clients throughput rises 3.8x and
-  per-call client CPU drops 6.7x.  The saving is a fixed per-call cost, so it
-  matters in proportion to how often a discipline is called rather than how
-  much data it moves.
+  the new one, which skips both size checks.
+- Continuous array data is now read and written through the packed wire buffer
+  directly, rather than through the protobuf `repeated double` API, which
+  converts every element to and from a boxed Python float.  A packed
+  `repeated double` is encoded as a length-delimited buffer of little-endian
+  doubles, which is byte for byte what NumPy already holds, so the emitted
+  bytes are identical and **the protocol is unchanged** -- peers in any
+  language are unaffected.  Moving 200k doubles costs 0.23 ms per direction
+  rather than 36 ms.  Both transports share these code paths, so streaming
+  benefits too: an unchunked stream carrying a 1.9 MB array drops from 97 ms
+  to 2.9 ms.  The helpers live in `philote_mdo.utils.encoding`.
+- Together the two changes cut round-trip time across the range.  Against the
+  previous release, with the server in a separate process: a 2-variable
+  discipline goes from 469 to 194 microseconds, a 100-variable one from 9.5 to
+  1.5 milliseconds, and a single 250k-element array from 100 to 3.4
+  milliseconds.  Under 16 concurrent clients, throughput rises 3.5x.  The
+  transport saving is a fixed per-call cost, so it matters in proportion to
+  how often a discipline is called; the encoding saving scales with how much
+  data it moves.
 - Added `philote_mdo.utils.channel_options()` and
   `philote_mdo.utils.server_options()` for sizing gRPC message limits, needed
   when raising `unary_max_bytes` past the 4 MiB default.  These replace the
@@ -54,6 +54,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Jacobian block shape rule that was previously duplicated in
   `DisciplineClient._recover_partials` and
   `DisciplineServer.preallocate_partials`.
+- The OpenMDAO bindings now call `get_discipline_info()` during setup, so a
+  remote component learns the server's transport capabilities before its first
+  compute call instead of discovering them by attempting one.  This also
+  populates the client's `_name` and `_version`.
 
 ### Bug Fixes
 
@@ -69,6 +73,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The server now populates the `name` and `version` fields of
   `DisciplineProperties` from the discipline's `_name` / `_version`
   attributes, and the client stores them (#67).
+- Both gradient RPCs rebound their loop variable over the `PairDict` they were
+  iterating (`for jac, value in jac.items()`).  It worked only because the
+  items view is bound before the first rebind, and it is gone with the server
+  refactor (#71).
+
+### Documentation & Infrastructure
+
+- The five compute RPCs on each server are now a plain implementation plus a
+  thin streaming wrapper and a thin unary wrapper, so a transport is a few
+  lines rather than a second copy of the logic.  Five copies of the
+  chunk-and-emit loop and eight copies of the error-to-status block collapse
+  into shared helpers on `DisciplineServer`.  Note that regenerating the stubs
+  makes `add_ExplicitServiceServicer_to_server` reference the new unary
+  methods, so a servicer written from scratch, rather than by subclassing
+  `ExplicitServer`, will need them before it can be registered.
+- Added `docs/docs/tutorials/transports.md`, covering the two transports, when
+  each wins, the selection and fallback behaviour, and the retry-safety caveat
+  when a discipline carries state between calls.
+- Added `utils/bench_transport.py`, which compares the transports across
+  payload sizes, variable counts, and client concurrency.  It includes an
+  unchunked-streaming control, so the streaming transport's own chunking is
+  not mistaken for a transport difference.
 
 ## [0.8.0] - 2026-05-16
 
