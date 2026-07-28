@@ -322,12 +322,12 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
             else:
                 self._discipline.residual_partials(inputs, outputs, jac)
 
-            for jac, value in jac.items():
+            for key, value in jac.items():
                 for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
                     yield data.VariableMessage(
                         continuous=data.Array(
-                            name=jac[0],
-                            subname=jac[1],
+                            name=key[0],
+                            subname=key[1],
                             type=data.kPartial,
                             start=b,
                             end=e,
