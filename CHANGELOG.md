@@ -53,6 +53,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Declaring 2,000 variables drops from 684 ms to 6.7 ms, and the cost is now
   linear.
 
+- `SetVariableShapes` on the server and `send_variable_shapes` on the client
+  resolved each incoming shape by scanning the whole variable metadata list,
+  twice for an implicit output, which is quadratic in the number of dynamic
+  variables.  Both now index the metadata by type and name once.  Applying
+  shapes to 1,000 dynamic variables drops from 922 ms to 120 ms.
+
 ### Bug Fixes
 
 - Fixed `ImplicitServer` emitting `Array.end` as an exclusive index, while the

@@ -209,24 +209,27 @@ class DisciplineClient:
         """
         self._disc_stub.SetVariableShapes(iter(variable_metadata))
 
+        # index by type and name once; searching the list per shape is
+        # quadratic in the number of variables
+        index = {}
+        for var in self._var_meta:
+            index.setdefault((var.type, var.name), var)
+
         # update local metadata to reflect the new shapes
         for meta in variable_metadata:
-            for var in self._var_meta:
-                if var.name == meta.name and var.type == meta.type:
-                    var.shape[:] = []
-                    var.shape.extend(meta.shape)
-                    break
+            var = index.get((meta.type, meta.name))
+
+            if var is not None:
+                var.shape[:] = []
+                var.shape.extend(meta.shape)
 
             # for implicit outputs, also update the matching residual
             if meta.type == data.VariableType.kOutput:
-                for var in self._var_meta:
-                    if (
-                        var.name == meta.name
-                        and var.type == data.VariableType.kResidual
-                    ):
-                        var.shape[:] = []
-                        var.shape.extend(meta.shape)
-                        break
+                res = index.get((data.VariableType.kResidual, meta.name))
+
+                if res is not None:
+                    res.shape[:] = []
+                    res.shape.extend(meta.shape)
 
     def _assemble_input_messages(
         self, inputs, outputs=None, discrete_inputs=None, discrete_outputs=None

@@ -192,38 +192,40 @@ class DisciplineServer(disc.DisciplineService):
         with dynamic shapes.
         """
         try:
+            # index by type and name once; searching the list per incoming
+            # message is quadratic in the number of variables
+            index = {}
+            for var in self._discipline._var_meta:
+                index.setdefault((var.type, var.name), var)
+
             for meta in request_iterator:
                 validate_shape(tuple(meta.shape), "SetVariableShapes")
 
-                # find the matching variable and update its shape
-                for var in self._discipline._var_meta:
-                    if var.name == meta.name and var.type == meta.type:
-                        if not var.dynamic_shape:
-                            raise PhiloteValidationError(
-                                f"Variable '{meta.name}' does not allow "
-                                f"dynamic shapes."
-                            )
-                        var.shape[:] = []
-                        var.shape.extend(meta.shape)
-                        break
-                else:
+                var = index.get((meta.type, meta.name))
+
+                if var is None:
                     raise PhiloteValidationError(
                         f"SetVariableShapes: variable '{meta.name}' "
                         f"not found."
                     )
 
+                if not var.dynamic_shape:
+                    raise PhiloteValidationError(
+                        f"Variable '{meta.name}' does not allow "
+                        f"dynamic shapes."
+                    )
+
+                var.shape[:] = []
+                var.shape.extend(meta.shape)
+
                 # if the variable is an output on an implicit discipline,
                 # also update the matching residual entry
                 if meta.type == data.VariableType.kOutput:
-                    for var in self._discipline._var_meta:
-                        if (
-                            var.name == meta.name
-                            and var.type == data.VariableType.kResidual
-                            and var.dynamic_shape
-                        ):
-                            var.shape[:] = []
-                            var.shape.extend(meta.shape)
-                            break
+                    res = index.get((data.VariableType.kResidual, meta.name))
+
+                    if res is not None and res.dynamic_shape:
+                        res.shape[:] = []
+                        res.shape.extend(meta.shape)
 
             return Empty()
         except PhiloteValidationError as e:
