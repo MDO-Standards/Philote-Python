@@ -57,6 +57,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- Fixed `RemoteExplicitComponent` and `RemoteImplicitComponent` sending the raw
+  constructor keyword arguments to the server rather than the component's
+  resolved options.  An option that reached the component by any other route --
+  an OpenMDAO default, or an assignment such as `comp.options['dimension'] = 10`
+  after construction -- never reached the server, which kept computing with
+  whatever it had.  The failure was silent: the component reported the option as
+  set while the server used a different value.  The options are now read from
+  `comp.options`, restricted to the names the server declared, and transmitted
+  during `setup()` immediately before the remote `Setup` call, so post-
+  construction assignment takes effect.  Options declared without a value are
+  skipped, leaving the server on its own default (#77).
 - Fixed `ImplicitServer` emitting `Array.end` as an exclusive index, while the
   explicit server and both clients treat it as inclusive per the standard.  Any
   implicit variable spanning more than one chunk failed to decode; single-chunk

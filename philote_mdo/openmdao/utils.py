@@ -57,6 +57,45 @@ def declare_options(opt_list, options):
         options.declare(name, types=opt_type)
 
 
+def option_is_set(options, name):
+    """
+    Checks whether an OpenMDAO option currently holds a value.
+
+    Options declared by :func:`declare_options` have no default, so an
+    option the user never assigned is declared but unset.  Reading it
+    raises, which is why it has to be filtered out before the options are
+    transmitted.
+    """
+    meta = getattr(options, "_dict", {}).get(name)
+
+    if meta is None:
+        return False
+
+    return bool(meta.get("has_been_set", True))
+
+
+def send_options(comp):
+    """
+    Sends the component's resolved options to the remote discipline server.
+
+    The resolved options are transmitted, not the keyword arguments the
+    component was constructed with, so values that reach the component by
+    another route (an OpenMDAO default, or an assignment after
+    construction) reach the server as well.
+
+    Only the options the server declared through ``GetAvailableOptions``
+    are forwarded, so unrelated OpenMDAO options are not sent.  Declared
+    but unset options are skipped, leaving the server on its own default.
+    """
+    options = {
+        name: comp.options[name]
+        for name in comp._client.options_list
+        if name in comp.options and option_is_set(comp.options, name)
+    }
+
+    comp._client.send_options(options)
+
+
 def client_setup(comp):
     """
     Sets up the OpenMDAO component with all required inputs and outputs.
@@ -65,6 +104,11 @@ def client_setup(comp):
     from the remote discipline server.  Both continuous and discrete
     variables are declared.
     """
+    # Send the options before the remote setup runs. The server derives its
+    # variable metadata from the options, and SetOptions is only meaningful
+    # ahead of Setup.
+    send_options(comp)
+
     # set up the remote discipline and get the variable definitions
     comp._client.run_setup()
     comp._client.get_variable_definitions()
