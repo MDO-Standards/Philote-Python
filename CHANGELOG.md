@@ -69,6 +69,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The server now populates the `name` and `version` fields of
   `DisciplineProperties` from the discipline's `_name` / `_version`
   attributes, and the client stores them (#67).
+- `Discipline.add_output` appended the residual metadata an implicit
+  discipline needs, but never registered it in the duplicate-name index, so
+  the guard covered the output and not its residual.  The residual key is now
+  registered alongside the output (#79).
+- The shape lookup behind `DisciplineServer.preallocate_partials` and
+  `DisciplineClient._recover_partials` was keyed on the variable name alone,
+  so for an implicit discipline the residual entry shadowed the output that
+  shares its name and every partial was sized against whichever came last in
+  the metadata list.  Both sites now index by `(type, name)` and resolve the
+  function against the residual and the variable against the input or output,
+  matching how `SetVariableShapes` already indexes.  An unknown name now
+  raises `PhiloteValidationError` instead of `KeyError` (#79).
 
 ### Documentation & Infrastructure
 

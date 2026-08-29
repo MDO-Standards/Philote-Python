@@ -324,6 +324,48 @@ class TestDisciplineServer(unittest.TestCase):
             self.assertIsInstance(jac[pair], np.ndarray)
             self.assertEqual(jac[pair].shape, shape)
 
+    def test_preallocate_partials_implicit_uses_the_residual_shape(self):
+        """
+        For an implicit discipline the partial is taken of the residual, so
+        the function shape must be resolved against the residual entry and
+        not against the output that shares its name.
+        """
+        server = DisciplineServer()
+        discipline = server._discipline = Discipline()
+        discipline._is_implicit = True
+        discipline.add_input("x", shape=(3,), units="m")
+        discipline.add_output("y", shape=(2,), units="m")
+
+        # force the two entries apart so that the lookup is observable
+        residual = discipline._var_meta[-1]
+        self.assertEqual(residual.type, data.VariableType.kResidual)
+        residual.shape[:] = []
+        residual.shape.extend((4,))
+
+        discipline.declare_partials("y", "x")
+        discipline.declare_partials("y", "y")
+
+        jac = server.preallocate_partials()
+
+        # d(residual y)/dx uses the residual (4,) and the input (3,)
+        self.assertEqual(jac[("y", "x")].shape, (4, 3))
+        # d(residual y)/dy uses the residual (4,) and the output (2,)
+        self.assertEqual(jac[("y", "y")].shape, (4, 2))
+
+    def test_preallocate_partials_unknown_variable(self):
+        """
+        A partial declared against a variable that was never added reports a
+        validation error rather than a bare KeyError.
+        """
+        server = DisciplineServer()
+        discipline = server._discipline = Discipline()
+        discipline.add_input("x", shape=(1,))
+        discipline.add_output("f", shape=(1,))
+        discipline.declare_partials("f", "missing")
+
+        with self.assertRaises(PhiloteValidationError):
+            server.preallocate_partials()
+
     def test_process_inputs(self):
         # create a mock request_iterator
         request_iterator = [

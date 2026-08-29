@@ -484,6 +484,46 @@ class TestDisciplineClient(unittest.TestCase):
             self.assertTrue((name, subname) in partials)
             np.testing.assert_array_equal(partials[(name, subname)], expected_data)
 
+    def test_recover_partials_implicit_uses_the_residual_shape(self):
+        """
+        For an implicit discipline the metadata contains an output and a
+        residual of the same name. The partial is taken of the residual, so
+        the preallocation must resolve against that entry.
+        """
+        mock_channel = Mock()
+        client = DisciplineClient(mock_channel)
+
+        client._var_meta = [
+            data.VariableMetaData(name="x", type=data.kInput, shape=(3,)),
+            data.VariableMetaData(name="y", type=data.kOutput, shape=(2,)),
+            data.VariableMetaData(name="y", type=data.kResidual, shape=(4,)),
+        ]
+        client._partials_meta = [
+            data.PartialsMetaData(name="y", subname="x"),
+            data.PartialsMetaData(name="y", subname="y"),
+        ]
+
+        partials = client._recover_partials([])
+
+        self.assertEqual(partials[("y", "x")].shape, (4, 3))
+        self.assertEqual(partials[("y", "y")].shape, (4, 2))
+
+    def test_recover_partials_unknown_variable(self):
+        """
+        A partial declared against metadata the client never received reports
+        a validation error rather than a bare KeyError.
+        """
+        mock_channel = Mock()
+        client = DisciplineClient(mock_channel)
+
+        client._var_meta = [
+            data.VariableMetaData(name="f", type=data.kOutput, shape=(1,)),
+        ]
+        client._partials_meta = [data.PartialsMetaData(name="f", subname="missing")]
+
+        with self.assertRaises(PhiloteValidationError):
+            client._recover_partials([])
+
     def test_recover_outputs_empty_array_raises_error(self):
         """
         Tests that _recover_outputs raises ValueError when array data is empty.

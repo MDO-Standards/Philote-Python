@@ -34,7 +34,14 @@ from .encoding import (
     read_array_into,
     set_array_data,
 )
-from .helper import get_chunk_indices, get_flattened_view, get_partials_shape
+from .helper import (
+    build_shape_index,
+    get_chunk_indices,
+    get_flattened_view,
+    get_function_shape,
+    get_partials_shape,
+    get_variable_shape,
+)
 from .validation import (
     PhiloteError,
     PhiloteValidationError,
