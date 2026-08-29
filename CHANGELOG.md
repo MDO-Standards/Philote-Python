@@ -74,6 +74,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `DisciplineProperties` from the discipline's `_name` / `_version`
   attributes, and the client stores them (#67).
 
+### Documentation & Infrastructure
+
+- Updated the documentation site's dependencies to clear known npm
+  advisories, taking the audit from 42 findings (2 critical, 26 high) to 17
+  (all high).  `npm audit fix` resolved the `webpack-dev-server`, `sockjs`,
+  `ws` and `websocket-driver` chains, and `overrides` pin
+  `serialize-javascript` to `^7.1.0` and `uuid` to `^11.1.1`, neither of
+  which had a fix path through their parents.  The 17 that remain are all
+  `image-size`, reached through `@docusaurus/mdx-loader`, whose advisory
+  covers every published version, so no upgrade resolves it.  All of these
+  are build-time only: the deployed site is static, so they affect a
+  developer running `npm run start` and the CI build, not readers of the
+  docs.
+
 ## [0.8.0] - 2026-05-16
 
 ### Features
