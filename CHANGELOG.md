@@ -32,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   round trip from 23.0 ms to 14.6 ms.  The Jacobian block shape rule the two
   sites duplicated is now `philote_mdo.utils.get_partials_shape()`.
 
+- `get_chunk_indices` now returns the single-chunk case directly instead of
+  deriving it through two NumPy array constructions.  Every variable that fits
+  in one chunk takes this path, which is most of them for a discipline of
+  scalars: 0.095 ms to 0.005 ms across 100 variables.
+
 ### Bug Fixes
 
 - Fixed `ImplicitServer` emitting `Array.end` as an exclusive index, while the

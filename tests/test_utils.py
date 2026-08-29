@@ -59,6 +59,16 @@ class TestUtils(unittest.TestCase):
         result = list(get_chunk_indices(num_values, chunk_size))
         self.assertEqual(result, [(0, 5)])
 
+        # test case 3: exactly one full chunk, the boundary of the shortcut
+        result = list(get_chunk_indices(10, 10))
+        self.assertEqual(result, [(0, 10)])
+
+        result = list(get_chunk_indices(11, 10))
+        self.assertEqual(result, [(0, 10), (10, 11)])
+
+        # test case 4: no values yields no chunks, rather than an empty one
+        self.assertEqual(list(get_chunk_indices(0, 10)), [])
+
     def test_get_flattened_view(self):
         """
         Tests the function that returns the flattened view of an array.

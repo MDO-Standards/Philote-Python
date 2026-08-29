@@ -44,6 +44,11 @@ def get_chunk_indices(num_values, chunk_size):
             f"got {chunk_size!r}."
         )
 
+    # the common case is a variable that fits in one chunk, where the answer
+    # is known without building two arrays to derive it
+    if 0 < num_values <= chunk_size:
+        return iter([(0, num_values)])
+
     beg_i = np.arange(0, num_values, chunk_size)
 
     if beg_i.size == 1:
