@@ -46,6 +46,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `StreamOptions` is negotiated as before, and anyone who sets `num_double`
   explicitly is unaffected.
 
+- `add_input`, `add_output`, `add_discrete_input` and `add_discrete_output`
+  checked for a duplicate declaration by scanning the whole metadata list,
+  making the cost of declaring a discipline quadratic in the number of
+  variables.  They now consult a set of the declared `(type, name)` pairs.
+  Declaring 2,000 variables drops from 684 ms to 6.7 ms, and the cost is now
+  linear.
+
 ### Bug Fixes
 
 - Fixed `ImplicitServer` emitting `Array.end` as an exclusive index, while the

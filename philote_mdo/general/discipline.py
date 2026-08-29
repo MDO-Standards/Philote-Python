@@ -59,6 +59,11 @@ class Discipline:
         # partials metadata
         self._partials_meta = []
 
+        # (type, name) of every declared variable, so that the duplicate check
+        # on each add does not have to scan the lists above, which is
+        # quadratic in the size of the discipline
+        self._declared = set()
+
         # flag that indicates the discipline is implicit
         self._is_implicit = False
 
@@ -108,7 +113,8 @@ class Discipline:
         if not dynamic_shape:
             validate_shape(shape, "add_input")
         validate_units(units, "add_input")
-        if any(v.name == name and v.type == data.VariableType.kInput for v in self._var_meta):
+        key = (data.VariableType.kInput, name)
+        if key in self._declared:
             raise PhiloteValidationError(
                 f"add_input: input '{name}' is already defined."
             )
@@ -120,6 +126,7 @@ class Discipline:
         meta.units = units
         meta.dynamic_shape = dynamic_shape
         self._var_meta += [meta]
+        self._declared.add(key)
 
     def add_discrete_input(self, name, default=None):
         """
@@ -136,10 +143,8 @@ class Discipline:
             the default value for the discrete input
         """
         validate_name(name, "add_discrete_input")
-        if any(
-            v.name == name and v.type == data.VariableType.kDiscreteInput
-            for v in self._discrete_var_meta
-        ):
+        key = (data.VariableType.kDiscreteInput, name)
+        if key in self._declared:
             raise PhiloteValidationError(
                 f"add_discrete_input: discrete input '{name}' is already defined."
             )
@@ -147,6 +152,7 @@ class Discipline:
         meta.type = data.VariableType.kDiscreteInput
         meta.name = name
         self._discrete_var_meta += [meta]
+        self._declared.add(key)
 
     def add_discrete_output(self, name, default=None):
         """
@@ -163,10 +169,8 @@ class Discipline:
             the default value for the discrete output
         """
         validate_name(name, "add_discrete_output")
-        if any(
-            v.name == name and v.type == data.VariableType.kDiscreteOutput
-            for v in self._discrete_var_meta
-        ):
+        key = (data.VariableType.kDiscreteOutput, name)
+        if key in self._declared:
             raise PhiloteValidationError(
                 f"add_discrete_output: discrete output '{name}' is already defined."
             )
@@ -174,6 +178,7 @@ class Discipline:
         meta.type = data.VariableType.kDiscreteOutput
         meta.name = name
         self._discrete_var_meta += [meta]
+        self._declared.add(key)
 
     def add_output(self, name, shape=(1,), units="", dynamic_shape=False):
         """
@@ -195,7 +200,8 @@ class Discipline:
         if not dynamic_shape:
             validate_shape(shape, "add_output")
         validate_units(units, "add_output")
-        if any(v.name == name and v.type == data.VariableType.kOutput for v in self._var_meta):
+        key = (data.VariableType.kOutput, name)
+        if key in self._declared:
             raise PhiloteValidationError(
                 f"add_output: output '{name}' is already defined."
             )
@@ -207,6 +213,7 @@ class Discipline:
         out_meta.units = units
         out_meta.dynamic_shape = dynamic_shape
         self._var_meta += [out_meta]
+        self._declared.add(key)
 
         if self._is_implicit:
             res_meta = data.VariableMetaData()
@@ -283,3 +290,4 @@ class Discipline:
         self._var_meta = []
         self._discrete_var_meta = []
         self._partials_meta = []
+        self._declared = set()
