@@ -28,6 +28,9 @@
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
 import unittest
+
+from philote_mdo.general import Discipline
+from conftest import job_context, make_server
 from unittest.mock import Mock
 
 import grpc
@@ -52,9 +55,9 @@ class TestImplicitServer(unittest.TestCase):
         compute_residuals function, so that the entire solution process is
         tested (the actual residual function is mocked).
         """
-        server = ImplicitServer()
-        server._stream_opts.num_double = 1
-        discipline = server._discipline = ImplicitDiscipline()
+        server, job, context = make_server(ImplicitServer, Discipline)
+        job.stream_opts.num_double = 1
+        discipline = job.discipline = ImplicitDiscipline()
         discipline.add_input("x", shape=(2,), units="m")
         discipline.add_input("y", shape=(2,), units="m")
         discipline.add_output("f", shape=(2,), units="m")
@@ -76,10 +79,10 @@ class TestImplicitServer(unittest.TestCase):
         def compute_residuals(inputs, outputs, residuals):
             residuals["f"] = np.array([7.0, 8.0])
 
-        server._discipline.compute_residuals = compute_residuals
+        job.discipline.compute_residuals = compute_residuals
 
         # call the ComputeResiduals method
-        response_generator = server.ComputeResiduals(mock_request_iterator, None)
+        response_generator = server.ComputeResiduals(mock_request_iterator, context)
         result = list(response_generator)
 
         # assert that the expected residual messages were yielded
@@ -107,9 +110,9 @@ class TestImplicitServer(unittest.TestCase):
         solve_residuals function, so that the entire solution process is tested
         (the actual residual function is mocked).
         """
-        server = ImplicitServer()
-        server._stream_opts.num_double = 1
-        discipline = server._discipline = ImplicitDiscipline()
+        server, job, context = make_server(ImplicitServer, Discipline)
+        job.stream_opts.num_double = 1
+        discipline = job.discipline = ImplicitDiscipline()
         discipline.add_input("x", shape=(2,), units="m")
         discipline.add_input("y", shape=(2,), units="m")
         discipline.add_output("f", shape=(2,), units="m")
@@ -131,10 +134,10 @@ class TestImplicitServer(unittest.TestCase):
         def solve_residuals(inputs, outputs):
             outputs["f"] = np.array([7.0, 8.0])
 
-        server._discipline.solve_residuals = solve_residuals
+        job.discipline.solve_residuals = solve_residuals
 
         # call the SolveResiduals method
-        response_generator = server.SolveResiduals(mock_request_iterator, None)
+        response_generator = server.SolveResiduals(mock_request_iterator, context)
         result = list(response_generator)
 
         # assert that the expected output messages were yielded
@@ -158,14 +161,14 @@ class TestImplicitServer(unittest.TestCase):
         """
         Tests the ComputeResiduals RPC of the Implicit Server.
         """
-        server = ImplicitServer()
-        discipline = server._discipline = ImplicitDiscipline()
-        server._stream_opts.num_double = 3
+        server, job, context = make_server(ImplicitServer, ImplicitDiscipline)
+        discipline = job.discipline
+        job.stream_opts.num_double = 3
         discipline.add_input("x", shape=(5,), units="")
         discipline.add_output("f", shape=(1,), units="")
         discipline.declare_partials("f", "x")
 
-        context = Mock()
+        context = job_context(job=job)
         request_iterator = [
             data.VariableMessage(
                 continuous=data.Array(
@@ -185,7 +188,7 @@ class TestImplicitServer(unittest.TestCase):
         def residual_partials(inputs, residuals, jac):
             jac["f", "x"] = np.array([-251.0, -499.0, 11105.0, 25007.0, -2950.0])
 
-        server._discipline.residual_partials = residual_partials
+        job.discipline.residual_partials = residual_partials
 
         # call the function
         response_generator = server.ComputeResidualGradients(request_iterator, context)
@@ -215,12 +218,12 @@ class TestImplicitServer(unittest.TestCase):
         Tests that ComputeResiduals calls context.abort with INVALID_ARGUMENT
         when a PhiloteValidationError is raised.
         """
-        server = ImplicitServer()
-        discipline = server._discipline = ImplicitDiscipline()
+        server, job, context = make_server(ImplicitServer, ImplicitDiscipline)
+        discipline = job.discipline
         discipline.add_input("x", shape=(1,), units="")
         discipline.add_output("f", shape=(1,), units="")
 
-        context = Mock()
+        context = job_context(job=job)
         request_iterator = [
             data.VariableMessage(
                 continuous=data.Array(
@@ -239,7 +242,7 @@ class TestImplicitServer(unittest.TestCase):
         def bad_residuals(inputs, outputs, residuals):
             raise PhiloteValidationError("bad residual input")
 
-        server._discipline.compute_residuals = bad_residuals
+        job.discipline.compute_residuals = bad_residuals
 
         list(server.ComputeResiduals(request_iterator, context))
 
@@ -253,12 +256,12 @@ class TestImplicitServer(unittest.TestCase):
         Tests that SolveResiduals calls context.abort with INVALID_ARGUMENT
         when a PhiloteValidationError is raised.
         """
-        server = ImplicitServer()
-        discipline = server._discipline = ImplicitDiscipline()
+        server, job, context = make_server(ImplicitServer, ImplicitDiscipline)
+        discipline = job.discipline
         discipline.add_input("x", shape=(1,), units="")
         discipline.add_output("f", shape=(1,), units="")
 
-        context = Mock()
+        context = job_context(job=job)
         request_iterator = [
             data.VariableMessage(
                 continuous=data.Array(
@@ -277,7 +280,7 @@ class TestImplicitServer(unittest.TestCase):
         def bad_solve(inputs, outputs):
             raise PhiloteValidationError("bad solve input")
 
-        server._discipline.solve_residuals = bad_solve
+        job.discipline.solve_residuals = bad_solve
 
         list(server.SolveResiduals(request_iterator, context))
 
@@ -291,13 +294,13 @@ class TestImplicitServer(unittest.TestCase):
         Tests that ComputeResidualGradients calls context.abort with
         INVALID_ARGUMENT when a PhiloteValidationError is raised.
         """
-        server = ImplicitServer()
-        discipline = server._discipline = ImplicitDiscipline()
+        server, job, context = make_server(ImplicitServer, ImplicitDiscipline)
+        discipline = job.discipline
         discipline.add_input("x", shape=(1,), units="")
         discipline.add_output("f", shape=(1,), units="")
         discipline.declare_partials("f", "x")
 
-        context = Mock()
+        context = job_context(job=job)
         request_iterator = [
             data.VariableMessage(
                 continuous=data.Array(
@@ -310,7 +313,7 @@ class TestImplicitServer(unittest.TestCase):
         def bad_partials(inputs, outputs, jac):
             raise PhiloteValidationError("bad partials input")
 
-        server._discipline.residual_partials = bad_partials
+        job.discipline.residual_partials = bad_partials
 
         list(server.ComputeResidualGradients(request_iterator, context))
 
@@ -324,13 +327,13 @@ class TestImplicitServer(unittest.TestCase):
         Tests that ComputeResidualGradients calls context.abort with INTERNAL
         when an unexpected exception is raised.
         """
-        server = ImplicitServer()
-        discipline = server._discipline = ImplicitDiscipline()
+        server, job, context = make_server(ImplicitServer, ImplicitDiscipline)
+        discipline = job.discipline
         discipline.add_input("x", shape=(1,), units="")
         discipline.add_output("f", shape=(1,), units="")
         discipline.declare_partials("f", "x")
 
-        context = Mock()
+        context = job_context(job=job)
         request_iterator = [
             data.VariableMessage(
                 continuous=data.Array(
@@ -343,7 +346,7 @@ class TestImplicitServer(unittest.TestCase):
         def bad_partials(inputs, outputs, jac):
             raise RuntimeError("unexpected crash")
 
-        server._discipline.residual_partials = bad_partials
+        job.discipline.residual_partials = bad_partials
 
         list(server.ComputeResidualGradients(request_iterator, context))
 
@@ -357,12 +360,12 @@ class TestImplicitServer(unittest.TestCase):
         Tests that ComputeResiduals calls context.abort when the discipline's
         compute_residuals raises an exception.
         """
-        server = ImplicitServer()
-        discipline = server._discipline = ImplicitDiscipline()
+        server, job, context = make_server(ImplicitServer, ImplicitDiscipline)
+        discipline = job.discipline
         discipline.add_input("x", shape=(1,), units="")
         discipline.add_output("f", shape=(1,), units="")
 
-        context = Mock()
+        context = job_context(job=job)
         request_iterator = [
             data.VariableMessage(
                 continuous=data.Array(
@@ -381,7 +384,7 @@ class TestImplicitServer(unittest.TestCase):
         def bad_residuals(inputs, outputs, residuals):
             raise RuntimeError("residual computation failed")
 
-        server._discipline.compute_residuals = bad_residuals
+        job.discipline.compute_residuals = bad_residuals
 
         list(server.ComputeResiduals(request_iterator, context))
 
@@ -395,12 +398,12 @@ class TestImplicitServer(unittest.TestCase):
         Tests that SolveResiduals calls context.abort when the discipline's
         solve_residuals raises an exception.
         """
-        server = ImplicitServer()
-        discipline = server._discipline = ImplicitDiscipline()
+        server, job, context = make_server(ImplicitServer, ImplicitDiscipline)
+        discipline = job.discipline
         discipline.add_input("x", shape=(1,), units="")
         discipline.add_output("f", shape=(1,), units="")
 
-        context = Mock()
+        context = job_context(job=job)
         request_iterator = [
             data.VariableMessage(
                 continuous=data.Array(
@@ -419,7 +422,7 @@ class TestImplicitServer(unittest.TestCase):
         def bad_solve(inputs, outputs):
             raise RuntimeError("solver did not converge")
 
-        server._discipline.solve_residuals = bad_solve
+        job.discipline.solve_residuals = bad_solve
 
         list(server.SolveResiduals(request_iterator, context))
 

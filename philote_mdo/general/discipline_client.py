@@ -27,17 +27,104 @@
 # the linked websites, of the information, products, or services contained
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
+import contextlib
+
+import grpc
 import numpy as np
 import google.protobuf.empty_pb2 as empty
 import philote_mdo.generated.data_pb2 as data
 import philote_mdo.generated.disciplines_pb2_grpc as disc
 import philote_mdo.utils as utils
 from philote_mdo.general.discipline_server import _python_to_value, _value_to_python
+from philote_mdo.general.job import JOB_METADATA_KEY
 from philote_mdo.utils.validation import (
+    JobCapacityError,
+    JobNotFoundError,
+    PhiloteServerError,
     PhiloteValidationError,
     validate_is_dict,
     validate_numpy_array,
 )
+
+
+class _JobMetadataInterceptor(
+    grpc.UnaryUnaryClientInterceptor,
+    grpc.UnaryStreamClientInterceptor,
+    grpc.StreamUnaryClientInterceptor,
+    grpc.StreamStreamClientInterceptor,
+):
+    """
+    Attaches the client's current job id to every outgoing call.
+
+    Sitting under the stubs means no call site has to pass the header itself,
+    and a job started part way through a session is picked up from the next
+    call onwards. HPACK indexes the repeated value, so after the first call the
+    id costs a byte or two on the wire.
+    """
+
+    def __init__(self, client):
+        self._client = client
+
+    def _augment(self, client_call_details):
+        job_id = self._client._job_id
+
+        if job_id is None:
+            return client_call_details
+
+        metadata = list(client_call_details.metadata or [])
+        metadata.append((JOB_METADATA_KEY, job_id))
+
+        return client_call_details._replace(metadata=metadata)
+
+    def intercept_unary_unary(self, continuation, details, request):
+        return continuation(self._augment(details), request)
+
+    def intercept_unary_stream(self, continuation, details, request):
+        return continuation(self._augment(details), request)
+
+    def intercept_stream_unary(self, continuation, details, request_iterator):
+        return continuation(self._augment(details), request_iterator)
+
+    def intercept_stream_stream(self, continuation, details, request_iterator):
+        return continuation(self._augment(details), request_iterator)
+
+
+def raise_for_rpc_error(error, context):
+    """
+    Re-raises a gRPC error as the matching Philote exception.
+
+    Parameters
+    ----------
+    error : grpc.RpcError
+        The error raised by the stub call.
+    context : str
+        Name of the client method, used in the message.
+
+    Raises
+    ------
+    JobNotFoundError
+        If the server did not recognise the job. This is terminal: the state
+        the job held is gone, so a caller must start a new job and set it up
+        again rather than carry on.
+    JobCapacityError
+        If the server is already holding as many jobs as it allows. Unlike the
+        above this is worth retrying, once another client has finished.
+    PhiloteServerError
+        For every other server-side failure.
+    """
+    if error.code() == grpc.StatusCode.NOT_FOUND:
+        raise JobNotFoundError(
+            f"Server rejected the job during {context}: {error.details()}"
+        ) from error
+
+    if error.code() == grpc.StatusCode.RESOURCE_EXHAUSTED:
+        raise JobCapacityError(
+            f"Server is at capacity during {context}: {error.details()}"
+        ) from error
+
+    raise PhiloteServerError(
+        f"Server error during {context}: {error.details()}"
+    ) from error
 
 
 class DisciplineClient:
@@ -52,6 +139,16 @@ class DisciplineClient:
         # grpc options
         self.grpc_options = []
 
+        # server-side job this client is bound to. Started lazily on the first
+        # call that needs one, so existing scripts need no changes.
+        self._job_id = None
+
+        # every stub is built on the intercepted channel, so the job header
+        # rides along without any call site passing it
+        self._channel = grpc.intercept_channel(
+            channel, _JobMetadataInterceptor(self)
+        )
+
         # discipline properties
         self._name = ""
         self._version = ""
@@ -60,7 +157,7 @@ class DisciplineClient:
         self._provides_gradients = False
 
         # discipline client stub
-        self._disc_stub = disc.DisciplineServiceStub(channel)
+        self._disc_stub = disc.DisciplineServiceStub(self._channel)
 
         # streaming options
         # doubles per message. The cost of a stream is dominated by the number
@@ -78,11 +175,101 @@ class DisciplineClient:
         # list of available options
         self.options_list = {}
 
+    @property
+    def job_id(self):
+        """
+        The server-side job this client is bound to, or None.
+        """
+        return self._job_id
+
+    def start_job(self):
+        """
+        Starts a job on the server and binds this client to it.
+
+        Called automatically by the first RPC that needs a job, so most code
+        never has to call it. Call it directly when the job id is wanted up
+        front, or to control exactly when server-side resources are claimed.
+
+        Returns
+        -------
+        str
+            The new job id.
+        """
+        if self._job_id is not None:
+            return self._job_id
+
+        try:
+            handle = self._disc_stub.StartJob(empty.Empty())
+        except grpc.RpcError as e:
+            raise_for_rpc_error(e, "start_job")
+
+        self._job_id = handle.job_id
+
+        return self._job_id
+
+    def end_job(self):
+        """
+        Ends this client's job, releasing what the server holds for it.
+
+        Does nothing when no job has been started.
+        """
+        if self._job_id is None:
+            return
+
+        try:
+            self._disc_stub.EndJob(empty.Empty())
+        except grpc.RpcError as e:
+            raise_for_rpc_error(e, "end_job")
+        finally:
+            self._job_id = None
+
+    def keep_alive(self):
+        """
+        Tells the server this job is still wanted.
+
+        Useful when an optimizer sits idle between design iterations for
+        longer than the server's job time-to-live.
+        """
+        self._ensure_job()
+
+        try:
+            self._disc_stub.KeepAlive(empty.Empty())
+        except grpc.RpcError as e:
+            raise_for_rpc_error(e, "keep_alive")
+
+    @contextlib.contextmanager
+    def job(self):
+        """
+        Runs a block against a job, ending it afterwards.
+
+        Examples
+        --------
+        >>> with client.job():
+        ...     client.run_setup()
+        ...     outputs = client.run_compute(inputs)
+        """
+        self.start_job()
+
+        try:
+            yield self
+        finally:
+            self.end_job()
+
+    def _ensure_job(self):
+        """
+        Starts a job if this client has not got one yet.
+        """
+        if self._job_id is None:
+            self.start_job()
+
     def get_discipline_info(self):
         """
         Gets the discipline properties from the analysis server.
         """
-        response = self._disc_stub.GetInfo(empty.Empty())
+        try:
+            response = self._disc_stub.GetInfo(empty.Empty())
+        except grpc.RpcError as e:
+            raise_for_rpc_error(e, "get_discipline_info")
         self._is_continuous = response.continuous
         self._is_differentiable = response.differentiable
         self._provides_gradients = response.provides_gradients
@@ -93,13 +280,21 @@ class DisciplineClient:
         """
         Transmits the stream options for the remote analysis to the server.
         """
-        self._disc_stub.SetStreamOptions(self._stream_options)
+        self._ensure_job()
+
+        try:
+            self._disc_stub.SetStreamOptions(self._stream_options)
+        except grpc.RpcError as e:
+            raise_for_rpc_error(e, "send_stream_options")
 
     def get_available_options(self):
         """
         Gets the available options for the analysis discipline.
         """
-        opts = self._disc_stub.GetAvailableOptions(empty.Empty())
+        try:
+            opts = self._disc_stub.GetAvailableOptions(empty.Empty())
+        except grpc.RpcError as e:
+            raise_for_rpc_error(e, "get_available_options")
 
         for name, val in zip(opts.options, opts.type):
             type_str = None
@@ -129,15 +324,24 @@ class DisciplineClient:
             None
         """
         validate_is_dict(options, "send_options")
+        self._ensure_job()
         proto_options = data.DisciplineOptions()
         proto_options.options.update(options)
-        self._disc_stub.SetOptions(proto_options)
+        try:
+            self._disc_stub.SetOptions(proto_options)
+        except grpc.RpcError as e:
+            raise_for_rpc_error(e, "send_options")
 
     def run_setup(self):
         """
         Runs the setup function on the analysis server.
         """
-        self._disc_stub.Setup(empty.Empty())
+        self._ensure_job()
+
+        try:
+            self._disc_stub.Setup(empty.Empty())
+        except grpc.RpcError as e:
+            raise_for_rpc_error(e, "run_setup")
 
     def get_variable_definitions(self):
         """
@@ -146,22 +350,32 @@ class DisciplineClient:
         Both continuous and discrete variable metadata are stored in their
         respective lists.
         """
-        for message in self._disc_stub.GetVariableDefinitions(empty.Empty()):
-            if message.type in (
-                data.VariableType.kDiscreteInput,
-                data.VariableType.kDiscreteOutput,
-            ):
-                self._discrete_var_meta += [message]
-            else:
-                self._var_meta += [message]
+        self._ensure_job()
+
+        try:
+            for message in self._disc_stub.GetVariableDefinitions(empty.Empty()):
+                if message.type in (
+                    data.VariableType.kDiscreteInput,
+                    data.VariableType.kDiscreteOutput,
+                ):
+                    self._discrete_var_meta += [message]
+                else:
+                    self._var_meta += [message]
+        except grpc.RpcError as e:
+            raise_for_rpc_error(e, "get_variable_definitions")
 
     def get_partials_definitions(self):
         """
         Requests metadata information on the partials from the analysis server.
         """
-        for message in self._disc_stub.GetPartialDefinitions(empty.Empty()):
-            if message.name not in self._partials_meta:
-                self._partials_meta += [message]
+        self._ensure_job()
+
+        try:
+            for message in self._disc_stub.GetPartialDefinitions(empty.Empty()):
+                if message.name not in self._partials_meta:
+                    self._partials_meta += [message]
+        except grpc.RpcError as e:
+            raise_for_rpc_error(e, "get_partials_definitions")
 
     def get_dynamic_variables(self):
         """
@@ -207,7 +421,12 @@ class DisciplineClient:
         variable_metadata : list of VariableMetaData
             shapes for dynamic variables
         """
-        self._disc_stub.SetVariableShapes(iter(variable_metadata))
+        self._ensure_job()
+
+        try:
+            self._disc_stub.SetVariableShapes(iter(variable_metadata))
+        except grpc.RpcError as e:
+            raise_for_rpc_error(e, "send_variable_shapes")
 
         # index by type and name once; searching the list per shape is
         # quadratic in the number of variables

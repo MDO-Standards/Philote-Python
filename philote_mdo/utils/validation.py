@@ -61,6 +61,52 @@ class PhiloteServerError(PhiloteError, RuntimeError):
     pass
 
 
+class PhiloteJobError(PhiloteError, RuntimeError):
+    """Base class for errors concerning a server-side job.
+
+    Raised on the client when the server rejects a call because of the job
+    it names, and on the server by ``JobStore`` before the failure is
+    mapped onto a gRPC status code.
+    """
+
+    pass
+
+
+class JobNotFoundError(PhiloteJobError):
+    """Raised when a job id is unknown to the server, or has expired.
+
+    Maps to ``grpc.StatusCode.NOT_FOUND``. Clients must treat this as
+    terminal rather than silently starting a replacement job: the state
+    built up on the old job is gone, and an optimizer that carried on
+    against a fresh discipline would return plausible but wrong results.
+    """
+
+    pass
+
+
+class JobCapacityError(PhiloteJobError):
+    """Raised when a server already holds its maximum number of jobs.
+
+    Maps to ``grpc.StatusCode.RESOURCE_EXHAUSTED``. A job can own a mesh or
+    an initialised solver, so the limit is refused explicitly rather than
+    being allowed to exhaust memory.
+    """
+
+    pass
+
+
+class JobStateError(PhiloteJobError):
+    """Raised when an RPC arrives out of order for the job's current state.
+
+    Maps to ``grpc.StatusCode.FAILED_PRECONDITION``. Setting options after
+    ``Setup`` is the motivating case: the variable metadata has already been
+    built from the previous values, so accepting the call would leave the
+    job describing itself inconsistently.
+    """
+
+    pass
+
+
 # ---------------------------------------------------------------------------
 # Validation helpers
 # ---------------------------------------------------------------------------

@@ -27,6 +27,9 @@ class DisciplineServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
+        self.StartJob = channel.unary_unary('/philote.DisciplineService/StartJob', request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString, response_deserializer=data__pb2.JobHandle.FromString, _registered_method=True)
+        self.EndJob = channel.unary_unary('/philote.DisciplineService/EndJob', request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString, response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, _registered_method=True)
+        self.KeepAlive = channel.unary_unary('/philote.DisciplineService/KeepAlive', request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString, response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, _registered_method=True)
         self.GetInfo = channel.unary_unary('/philote.DisciplineService/GetInfo', request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString, response_deserializer=data__pb2.DisciplineProperties.FromString, _registered_method=True)
         self.SetStreamOptions = channel.unary_unary('/philote.DisciplineService/SetStreamOptions', request_serializer=data__pb2.StreamOptions.SerializeToString, response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, _registered_method=True)
         self.GetAvailableOptions = channel.unary_unary('/philote.DisciplineService/GetAvailableOptions', request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString, response_deserializer=data__pb2.OptionsList.FromString, _registered_method=True)
@@ -42,6 +45,38 @@ class DisciplineServiceServicer(object):
     or implementation. Base classes are necessary to avoid code duplication in
     bindings for implicit and explicit disciplines.
     """
+
+    def StartJob(self, request, context):
+        """Starts a job and returns its handle.
+
+        A job owns one discipline instance and all the state built on it. The
+        client must call this before any RPC other than GetInfo and
+        GetAvailableOptions, and must send the returned id in the
+        "philote-job-id" metadata header on every subsequent call. A call that
+        omits the header is rejected with FAILED_PRECONDITION; one that names an
+        unknown or expired job is rejected with NOT_FOUND.
+
+        Servers may cap the number of concurrent jobs and reject further
+        requests with RESOURCE_EXHAUSTED.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def EndJob(self, request, context):
+        """Ends the job named in the metadata header and releases its resources.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def KeepAlive(self, request, context):
+        """Marks the job named in the metadata header as still in use, so that it
+        is not evicted while the client is idle between evaluations.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def GetInfo(self, request, context):
         """Gets the fundamental properties of the discipline
@@ -101,7 +136,7 @@ class DisciplineServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
 def add_DisciplineServiceServicer_to_server(servicer, server):
-    rpc_method_handlers = {'GetInfo': grpc.unary_unary_rpc_method_handler(servicer.GetInfo, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=data__pb2.DisciplineProperties.SerializeToString), 'SetStreamOptions': grpc.unary_unary_rpc_method_handler(servicer.SetStreamOptions, request_deserializer=data__pb2.StreamOptions.FromString, response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString), 'GetAvailableOptions': grpc.unary_unary_rpc_method_handler(servicer.GetAvailableOptions, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=data__pb2.OptionsList.SerializeToString), 'SetOptions': grpc.unary_unary_rpc_method_handler(servicer.SetOptions, request_deserializer=data__pb2.DisciplineOptions.FromString, response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString), 'Setup': grpc.unary_unary_rpc_method_handler(servicer.Setup, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString), 'GetVariableDefinitions': grpc.unary_stream_rpc_method_handler(servicer.GetVariableDefinitions, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=data__pb2.VariableMetaData.SerializeToString), 'GetPartialDefinitions': grpc.unary_stream_rpc_method_handler(servicer.GetPartialDefinitions, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=data__pb2.PartialsMetaData.SerializeToString), 'SetVariableShapes': grpc.stream_unary_rpc_method_handler(servicer.SetVariableShapes, request_deserializer=data__pb2.VariableMetaData.FromString, response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString)}
+    rpc_method_handlers = {'StartJob': grpc.unary_unary_rpc_method_handler(servicer.StartJob, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=data__pb2.JobHandle.SerializeToString), 'EndJob': grpc.unary_unary_rpc_method_handler(servicer.EndJob, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString), 'KeepAlive': grpc.unary_unary_rpc_method_handler(servicer.KeepAlive, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString), 'GetInfo': grpc.unary_unary_rpc_method_handler(servicer.GetInfo, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=data__pb2.DisciplineProperties.SerializeToString), 'SetStreamOptions': grpc.unary_unary_rpc_method_handler(servicer.SetStreamOptions, request_deserializer=data__pb2.StreamOptions.FromString, response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString), 'GetAvailableOptions': grpc.unary_unary_rpc_method_handler(servicer.GetAvailableOptions, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=data__pb2.OptionsList.SerializeToString), 'SetOptions': grpc.unary_unary_rpc_method_handler(servicer.SetOptions, request_deserializer=data__pb2.DisciplineOptions.FromString, response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString), 'Setup': grpc.unary_unary_rpc_method_handler(servicer.Setup, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString), 'GetVariableDefinitions': grpc.unary_stream_rpc_method_handler(servicer.GetVariableDefinitions, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=data__pb2.VariableMetaData.SerializeToString), 'GetPartialDefinitions': grpc.unary_stream_rpc_method_handler(servicer.GetPartialDefinitions, request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString, response_serializer=data__pb2.PartialsMetaData.SerializeToString), 'SetVariableShapes': grpc.stream_unary_rpc_method_handler(servicer.SetVariableShapes, request_deserializer=data__pb2.VariableMetaData.FromString, response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString)}
     generic_handler = grpc.method_handlers_generic_handler('philote.DisciplineService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
     server.add_registered_method_handlers('philote.DisciplineService', rpc_method_handlers)
@@ -112,6 +147,18 @@ class DisciplineService(object):
     or implementation. Base classes are necessary to avoid code duplication in
     bindings for implicit and explicit disciplines.
     """
+
+    @staticmethod
+    def StartJob(request, target, options=(), channel_credentials=None, call_credentials=None, insecure=False, compression=None, wait_for_ready=None, timeout=None, metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/philote.DisciplineService/StartJob', google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString, data__pb2.JobHandle.FromString, options, channel_credentials, insecure, call_credentials, compression, wait_for_ready, timeout, metadata, _registered_method=True)
+
+    @staticmethod
+    def EndJob(request, target, options=(), channel_credentials=None, call_credentials=None, insecure=False, compression=None, wait_for_ready=None, timeout=None, metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/philote.DisciplineService/EndJob', google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString, google_dot_protobuf_dot_empty__pb2.Empty.FromString, options, channel_credentials, insecure, call_credentials, compression, wait_for_ready, timeout, metadata, _registered_method=True)
+
+    @staticmethod
+    def KeepAlive(request, target, options=(), channel_credentials=None, call_credentials=None, insecure=False, compression=None, wait_for_ready=None, timeout=None, metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/philote.DisciplineService/KeepAlive', google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString, google_dot_protobuf_dot_empty__pb2.Empty.FromString, options, channel_credentials, insecure, call_credentials, compression, wait_for_ready, timeout, metadata, _registered_method=True)
 
     @staticmethod
     def GetInfo(request, target, options=(), channel_credentials=None, call_credentials=None, insecure=False, compression=None, wait_for_ready=None, timeout=None, metadata=None):

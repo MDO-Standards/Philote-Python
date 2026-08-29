@@ -43,8 +43,8 @@ class ExplicitServer(DisciplineServer, disc.ExplicitServiceServicer):
     Base class for remote explicit components.
     """
 
-    def __init__(self, discipline=None):
-        super().__init__(discipline=discipline)
+    def __init__(self, discipline_factory=None, **kwargs):
+        super().__init__(discipline_factory=discipline_factory, **kwargs)
 
     def attach_to_server(self, server):
         """
@@ -57,6 +57,12 @@ class ExplicitServer(DisciplineServer, disc.ExplicitServiceServicer):
         """
         Computes the function evaluation and sends the result to the client.
         """
+        job = self._resolve_job(context)
+
+        # serialise calls within this job. Separate jobs never contend here,
+        # which is what lets two clients evaluate at the same time.
+        job.lock.acquire()
+
         try:
             inputs = {}
             flat_inputs = {}
@@ -64,22 +70,22 @@ class ExplicitServer(DisciplineServer, disc.ExplicitServiceServicer):
             discrete_inputs = {}
             discrete_outputs = {}
 
-            self.preallocate_inputs(inputs, flat_inputs)
+            self.preallocate_inputs(job, inputs, flat_inputs)
             discrete_inputs, _ = self.process_inputs(
                 request_iterator, flat_inputs, discrete_inputs=discrete_inputs
             )
 
             # Call compute with discrete data when discrete variables are present
-            if discrete_inputs or self._discipline._discrete_var_meta:
-                self._discipline.compute(
+            if discrete_inputs or job.discipline._discrete_var_meta:
+                job.discipline.compute(
                     inputs, outputs, discrete_inputs, discrete_outputs
                 )
             else:
-                self._discipline.compute(inputs, outputs)
+                job.discipline.compute(inputs, outputs)
 
             # Stream continuous outputs
             for output_name, value in outputs.items():
-                for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
+                for b, e in get_chunk_indices(value.size, job.stream_opts.num_double):
                     message = data.VariableMessage(
                         continuous=data.Array(
                             name=output_name,
@@ -107,29 +113,37 @@ class ExplicitServer(DisciplineServer, disc.ExplicitServiceServicer):
             context.abort(
                 grpc.StatusCode.INTERNAL, f"ComputeFunction failed: {e}"
             )
+        finally:
+            job.lock.release()
 
     def ComputeGradient(self, request_iterator, context):
         """
         Computes the gradient evaluation and sends the result to the client.
         """
+        job = self._resolve_job(context)
+
+        # serialise calls within this job. Separate jobs never contend here,
+        # which is what lets two clients evaluate at the same time.
+        job.lock.acquire()
+
         try:
             inputs = {}
             flat_inputs = {}
             discrete_inputs = {}
 
-            self.preallocate_inputs(inputs, flat_inputs)
-            jac = self.preallocate_partials()
+            self.preallocate_inputs(job, inputs, flat_inputs)
+            jac = self.preallocate_partials(job)
             discrete_inputs, _ = self.process_inputs(
                 request_iterator, flat_inputs, discrete_inputs=discrete_inputs
             )
 
-            if discrete_inputs or self._discipline._discrete_var_meta:
-                self._discipline.compute_partials(inputs, jac, discrete_inputs)
+            if discrete_inputs or job.discipline._discrete_var_meta:
+                job.discipline.compute_partials(inputs, jac, discrete_inputs)
             else:
-                self._discipline.compute_partials(inputs, jac)
+                job.discipline.compute_partials(inputs, jac)
 
             for jac, value in jac.items():
-                for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
+                for b, e in get_chunk_indices(value.size, job.stream_opts.num_double):
                     message = data.VariableMessage(
                         continuous=data.Array(
                             name=jac[0],
@@ -148,3 +162,5 @@ class ExplicitServer(DisciplineServer, disc.ExplicitServiceServicer):
             context.abort(
                 grpc.StatusCode.INTERNAL, f"ComputeGradient failed: {e}"
             )
+        finally:
+            job.lock.release()

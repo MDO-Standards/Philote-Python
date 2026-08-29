@@ -9,6 +9,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
+- Servers now isolate each client's state in a **job**, so a single discipline
+  server can support concurrent clients.  Previously a server held one
+  discipline instance and shared it: a second client's `Setup` ran
+  `_clear_data()` and rebuilt `_var_meta` while the first client was still
+  using it, and `SetOptions` and the in-place shape edits of
+  `SetVariableShapes` collided the same way.  The victim either aborted with
+  `INTERNAL` on a `KeyError` or, worse, had a short array read into a longer
+  buffer and received a **zero-padded result with no error** -- which an
+  optimizer would happily consume.  `examples/rosenbrock.py` was the sharp
+  case, since its variable shape derives from an option, so whichever client
+  called `SetOptions` last fixed the shapes both clients got.
+- A job is a session owning one discipline instance, so the state an author
+  keeps on `self` -- a mesh, a solver, an `om.Problem` -- is private to one
+  client.  **Every existing discipline hook signature is unchanged**; only the
+  server constructor moves, from `ExplicitServer(discipline=Paraboloid())` to
+  `ExplicitServer(discipline_factory=Paraboloid)`.  A class works directly as a
+  factory when its `initialize()` does its own configuration; a discipline
+  configured externally needs a closure or `functools.partial`.  `Discipline`
+  gains a `job` attribute, giving `self.job.job_id`, and an optional
+  `teardown_job()` hook called when a job ends or is evicted.
+- Three RPCs are added to `DisciplineService`: `StartJob`, `EndJob` and
+  `KeepAlive`.  The job id travels in a `philote-job-id` metadata header rather
+  than a message field, which costs 7.7 us on a unary call and 13.9 us on a
+  stream; HPACK indexes the repeated value, so after the first call it is a
+  byte or two on the wire.  A field would instead have been re-serialized on
+  every chunk of every array with only the first ever read, and each of the
+  unary RPCs -- all of which take `google.protobuf.Empty` -- would have needed
+  its own request message.  Clients attach the header through a channel
+  interceptor, so no call site passes it.  `GetInfo` and `GetAvailableOptions`
+  stay job-independent, since they describe the discipline class.
+- Clients start a job lazily on the first call that needs one, so existing
+  scripts and both OpenMDAO components work unchanged.  `start_job()`,
+  `end_job()`, `keep_alive()` and a `job()` context manager are available for
+  explicit control.  An unknown or expired job raises the new `PhiloteJobError`
+  and is **not** silently replaced: the state that job held is gone, and an
+  optimizer continuing against a fresh discipline would return plausible but
+  wrong results.  As part of this, every client method now translates gRPC
+  errors into Philote exceptions; previously only the compute calls did, and a
+  server-side failure during `run_setup` escaped as a raw `grpc.RpcError`.
+- Servers cap concurrent jobs (`max_jobs`, default 8) and evict idle ones
+  (`ttl`, default one hour), because a job can hold a mesh or a live solver and
+  a client that dies would otherwise leak it.  Exceeding the cap returns
+  `RESOURCE_EXHAUSTED` rather than exhausting memory.  Note that the gRPC
+  thread pool, not `max_jobs`, is the cap that actually binds -- every in-flight
+  RPC holds a worker for its whole duration -- so the server warns at startup
+  when the pool is smaller than the job limit.
+- Separate jobs may evaluate concurrently, with no global lock in the path, but
+  the GIL decides whether that yields throughput.  Measured with four
+  concurrent clients: a pure-Python discipline sees 1.0x (278 ms to 1107 ms), a
+  NumPy `A @ A` sees 0.8x because threaded BLAS already saturates the cores
+  with one call, and a discipline whose compiled solver releases the GIL sees
+  4.0x (306 ms to 310 ms).  Jobs buy correctness unconditionally and throughput
+  conditionally; pure-Python disciplines, including `OpenMdaoSubProblem`, become
+  correct under concurrent clients rather than faster.
+
 - Continuous array data is now read and written through the packed wire
   buffer directly, rather than through the protobuf `repeated double` API,
   which converts every element to and from a boxed Python float.  A packed

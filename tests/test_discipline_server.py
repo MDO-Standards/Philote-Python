@@ -28,6 +28,8 @@
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
 import unittest
+
+from conftest import job_context, make_server, make_server_from_instance
 from unittest.mock import Mock
 
 import grpc
@@ -49,16 +51,21 @@ class TestDisciplineServer(unittest.TestCase):
         """
         Tests the GetInfo RPC of the Discipline Server.
         """
-        server = DisciplineServer()
-        server._discipline = Discipline()
-        server._discipline._is_continuous = True
-        server._discipline._is_differentiable = True
-        server._discipline._provides_gradients = True
-        server._discipline._name = "TestDiscipline"
-        server._discipline._version = "1.2.3"
+        discipline = Discipline()
+        discipline._is_continuous = True
+        discipline._is_differentiable = True
+        discipline._provides_gradients = True
+        discipline._name = "TestDiscipline"
+        discipline._version = "1.2.3"
+
+        # GetInfo answers from an instance of the server's own, so point the
+        # factory at the one this test configured
+        server, job, context = make_server_from_instance(
+            DisciplineServer, discipline
+        )
 
         # mock arguments
-        context = Mock()
+        context = job_context(job=job)
         request = Empty()
 
         # GetInfo is a unary RPC, so it must return a message (not a generator)
@@ -77,28 +84,32 @@ class TestDisciplineServer(unittest.TestCase):
         """
         Tests the SetStreamOptions RPC of the Discipline Server.
         """
-        server = DisciplineServer()
+        discipline = Discipline()
+        server, job, context = make_server_from_instance(
+            DisciplineServer, discipline
+        )
 
         # mock arguments
-        context = Mock()
+        context = job_context(job=job)
         request = data.StreamOptions(num_double=2)
 
         server.SetStreamOptions(request, context)
 
         # check that the streaming options were set properly
-        self.assertEqual(server._stream_opts.num_double, 2)
+        self.assertEqual(job.stream_opts.num_double, 2)
 
     def test_get_available_options(self):
-        server = DisciplineServer()
+        discipline = Discipline()
+        server, job, context = make_server_from_instance(
+            DisciplineServer, discipline
+        )
 
         # mock the request and context parameters (since they are not used in this function)
         request_mock = Mock()
-        context_mock = None
+        context_mock = context
 
-        server._discipline = Discipline()
-
-        # set the mock options_list to _discipline.options_list
-        server._discipline.options_list = {
+        # set the mock options_list to the discipline's options_list
+        discipline.options_list = {
             "option1": "bool",
             "option2": "int",
             "option3": "float",
@@ -115,24 +126,27 @@ class TestDisciplineServer(unittest.TestCase):
         self.assertEqual(results.type, expected_types)
 
     def test_set_options(self):
-        server = DisciplineServer()
+        discipline = Mock()
+        server, job, context = make_server_from_instance(
+            DisciplineServer, discipline
+        )
 
         # mock the request and context parameters
         request_mock = Mock()
-        context_mock = Mock()
+        context_mock = job_context(job=job)
 
         # set some mock options in the request
         request_mock.options = {"key1": "value1", "key2": 42}
 
         # create a mock for the _discipline attribute
         discipline_mock = Mock()
-        server._discipline = discipline_mock
+        job.discipline = discipline_mock
 
         # call the SetOptions function with the mock parameters
         server.SetOptions(request_mock, context_mock)
 
         # assert that the discipline's initialize method was called with the expected options
-        server._discipline.set_options.assert_called_once_with(
+        job.discipline.set_options.assert_called_once_with(
             {"key1": "value1", "key2": 42}
         )
 
@@ -140,35 +154,38 @@ class TestDisciplineServer(unittest.TestCase):
         """
         Tests the Setup RPC of the Discipline Server.
         """
-        context = Mock()
         request = Empty()
 
-        server = DisciplineServer()
+        server, job, context = make_server_from_instance(
+            DisciplineServer, Mock()
+        )
 
-        # mock the 'setup' and 'setup_partials' methods of 'self.discipline'
-        server._discipline = Mock()
-        server._discipline.setup.return_value = None
-        server._discipline.setup_partials.return_value = None
+        # mock the 'setup' and 'setup_partials' methods of the discipline
+        job.discipline.setup.return_value = None
+        job.discipline.setup_partials.return_value = None
 
         server.Setup(request, context)
 
         # assert that the 'setup' and 'setup_partials' methods were called
-        server._discipline.setup.assert_called_once()
-        server._discipline.setup_partials.assert_called_once()
+        job.discipline.setup.assert_called_once()
+        job.discipline.setup_partials.assert_called_once()
 
     def test_get_variable_definitions(self):
         """
         Tests the GetVariableDefinitions RPC of the Discipline Server.
         """
-        server = DisciplineServer()
-        server._discipline = Discipline()
+        discipline = Discipline()
+        server, job, context = make_server_from_instance(
+            DisciplineServer, discipline
+        )
+        discipline = job.discipline
 
         # add an input and an output
-        server._discipline.add_input("x", shape=(2, 2), units="m")
-        server._discipline.add_output("f", shape=(1,), units="m**2")
+        job.discipline.add_input("x", shape=(2, 2), units="m")
+        job.discipline.add_output("f", shape=(1,), units="m**2")
 
         # mock arguments
-        context = Mock()
+        context = job_context(job=job)
         request = Empty()
 
         response_generator = server.GetVariableDefinitions(request, context)
@@ -209,8 +226,8 @@ class TestDisciplineServer(unittest.TestCase):
         Tests the preallocation of inputs for the explicit discipline cas of the
         Discipline Server (outputs are not an input).
         """
-        server = DisciplineServer()
-        discipline = server._discipline = Discipline()
+        server, job, context = make_server(DisciplineServer, Discipline)
+        discipline = job.discipline
         discipline.add_input("x", shape=(2, 2), units="m")
         discipline.add_input("y", shape=(3, 3, 3), units="m**2")
         discipline.add_output("f1", shape=(1,), units="m**3")
@@ -222,7 +239,7 @@ class TestDisciplineServer(unittest.TestCase):
         outputs = {}
         flat_outputs = {}
 
-        server.preallocate_inputs(inputs, flat_inputs, outputs, flat_outputs)
+        server.preallocate_inputs(job, inputs, flat_inputs, outputs, flat_outputs)
 
         # check the number of inputs and outputs
         self.assertEqual(len(inputs), 2)
@@ -246,8 +263,8 @@ class TestDisciplineServer(unittest.TestCase):
         Tests the preallocation of inputs for the implicit discipline cas of the
         Discipline Server (outputs are an input).
         """
-        server = DisciplineServer()
-        discipline = server._discipline = Discipline()
+        server, job, context = make_server(DisciplineServer, Discipline)
+        discipline = job.discipline
         discipline.add_input("x", shape=(2, 2), units="m")
         discipline.add_input("y", shape=(3, 3, 3), units="m**2")
         discipline.add_output("f1", shape=(1,), units="m**3")
@@ -259,7 +276,7 @@ class TestDisciplineServer(unittest.TestCase):
         outputs = {}
         flat_outputs = {}
 
-        server.preallocate_inputs(inputs, flat_inputs, outputs, flat_outputs)
+        server.preallocate_inputs(job, inputs, flat_inputs, outputs, flat_outputs)
 
         # check the number of inputs and outputs
         self.assertEqual(len(inputs), 2)
@@ -302,8 +319,8 @@ class TestDisciplineServer(unittest.TestCase):
         This test is designed to catch the edge cases where either f or x are
         scalar.
         """
-        server = DisciplineServer()
-        discipline = server._discipline = Discipline()
+        server, job, context = make_server(DisciplineServer, Discipline)
+        discipline = job.discipline
         discipline.add_input("x", shape=(1,), units="m")
         discipline.add_input("y", shape=(3, 3), units="m**2")
         discipline.add_output("f1", shape=(1,), units="m**3")
@@ -314,7 +331,7 @@ class TestDisciplineServer(unittest.TestCase):
         discipline.declare_partials("f2", "x")
         discipline.declare_partials("f2", "y")
 
-        jac = server.preallocate_partials()
+        jac = server.preallocate_partials(job)
 
         pairs = [("f1", "x"), ("f1", "y"), ("f2", "x"), ("f2", "y")]
         expected_shapes = [(1,), (3, 3), (2, 3), (2, 3, 3, 3)]
@@ -352,7 +369,7 @@ class TestDisciplineServer(unittest.TestCase):
             ),
         ]
 
-        server = DisciplineServer()
+        server, job, context = make_server(DisciplineServer, Discipline)
 
         # create mock flat_inputs and flat_outputs dictionaries
         flat_inputs = {"x": np.zeros(6)}
@@ -368,13 +385,15 @@ class TestDisciplineServer(unittest.TestCase):
         """
         Tests that GetAvailableOptions correctly maps dict options to kStruct.
         """
-        server = DisciplineServer()
+        discipline = Discipline()
+        server, job, context = make_server_from_instance(
+            DisciplineServer, discipline
+        )
 
         request_mock = Mock()
-        context_mock = None
+        context_mock = context
 
-        server._discipline = Discipline()
-        server._discipline.options_list = {
+        discipline.options_list = {
             "config": "dict",
             "flag": "bool",
         }
@@ -391,10 +410,10 @@ class TestDisciplineServer(unittest.TestCase):
         """
         Tests that SetOptions correctly passes nested dict values through.
         """
-        server = DisciplineServer()
+        server, job, context = make_server(DisciplineServer, Discipline)
 
         request_mock = Mock()
-        context_mock = Mock()
+        context_mock = job_context(job=job)
 
         request_mock.options = {
             "config": {"solver": "newton", "tol": 1e-6, "nested": {"a": 1}},
@@ -402,11 +421,11 @@ class TestDisciplineServer(unittest.TestCase):
         }
 
         discipline_mock = Mock()
-        server._discipline = discipline_mock
+        job.discipline = discipline_mock
 
         server.SetOptions(request_mock, context_mock)
 
-        server._discipline.set_options.assert_called_once_with(
+        job.discipline.set_options.assert_called_once_with(
             {
                 "config": {"solver": "newton", "tol": 1e-6, "nested": {"a": 1}},
                 "name": "test",
@@ -418,15 +437,17 @@ class TestDisciplineServer(unittest.TestCase):
         Tests that GetAvailableOptions calls context.abort for invalid option
         types.
         """
-        server = DisciplineServer()
-        discipline = server._discipline = Discipline()
+        discipline = Discipline()
+        server, job, context = make_server_from_instance(
+            DisciplineServer, discipline
+        )
 
         # Add option with invalid type (bypasses add_option validation by
         # writing directly to options_list)
         discipline.options_list["invalid_option"] = "unknown_type"
 
         request = Empty()
-        context = Mock()
+        context = job_context(job=job)
 
         server.GetAvailableOptions(request, context)
 
@@ -440,7 +461,7 @@ class TestDisciplineServer(unittest.TestCase):
         Tests that process_inputs raises PhiloteValidationError when array
         data is empty.
         """
-        server = DisciplineServer()
+        server, job, context = make_server(DisciplineServer, Discipline)
 
         # Create request with empty data array
         request_iterator = [
@@ -468,16 +489,17 @@ class TestDisciplineServer(unittest.TestCase):
         Tests that GetAvailableOptions calls context.abort with INTERNAL
         for unexpected exceptions.
         """
-        server = DisciplineServer()
         discipline = Mock()
         # options_list property raises an unexpected error
         type(discipline).options_list = property(
             lambda self: (_ for _ in ()).throw(RuntimeError("unexpected"))
         )
-        server._discipline = discipline
+        server, job, context = make_server_from_instance(
+            DisciplineServer, discipline
+        )
 
         request = Mock()
-        context = Mock()
+        context = job_context(job=job)
 
         server.GetAvailableOptions(request, context)
 
@@ -491,14 +513,14 @@ class TestDisciplineServer(unittest.TestCase):
         Tests that SetOptions calls context.abort with INVALID_ARGUMENT
         for PhiloteValidationError.
         """
-        server = DisciplineServer()
+        server, job, context = make_server(DisciplineServer, Discipline)
         discipline = Mock()
         discipline.set_options.side_effect = PhiloteValidationError("bad option")
-        server._discipline = discipline
+        job.discipline = discipline
 
         request = Mock()
         request.options = {}
-        context = Mock()
+        context = job_context(job=job)
 
         server.SetOptions(request, context)
 
@@ -512,14 +534,14 @@ class TestDisciplineServer(unittest.TestCase):
         Tests that SetOptions calls context.abort with INTERNAL for
         unexpected exceptions.
         """
-        server = DisciplineServer()
+        server, job, context = make_server(DisciplineServer, Discipline)
         discipline = Mock()
         discipline.set_options.side_effect = RuntimeError("boom")
-        server._discipline = discipline
+        job.discipline = discipline
 
         request = Mock()
         request.options = {}
-        context = Mock()
+        context = job_context(job=job)
 
         server.SetOptions(request, context)
 
@@ -533,13 +555,13 @@ class TestDisciplineServer(unittest.TestCase):
         Tests that Setup calls context.abort with INVALID_ARGUMENT
         for PhiloteValidationError.
         """
-        server = DisciplineServer()
+        server, job, context = make_server(DisciplineServer, Discipline)
         discipline = Mock()
         discipline.setup.side_effect = PhiloteValidationError("bad setup")
-        server._discipline = discipline
+        job.discipline = discipline
 
         request = Mock()
-        context = Mock()
+        context = job_context(job=job)
 
         server.Setup(request, context)
 
@@ -553,13 +575,13 @@ class TestDisciplineServer(unittest.TestCase):
         Tests that Setup calls context.abort with INTERNAL for
         unexpected exceptions.
         """
-        server = DisciplineServer()
+        server, job, context = make_server(DisciplineServer, Discipline)
         discipline = Mock()
         discipline._clear_data.side_effect = RuntimeError("crash")
-        server._discipline = discipline
+        job.discipline = discipline
 
         request = Mock()
-        context = Mock()
+        context = job_context(job=job)
 
         server.Setup(request, context)
 

@@ -29,6 +29,8 @@
 # control over the information you may find at these locations.
 from concurrent import futures
 import unittest
+
+from conftest import job_context, make_server
 import grpc
 import numpy as np
 from numpy.testing import assert_almost_equal
@@ -50,7 +52,7 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = pmdo.ExplicitServer(discipline=Paraboloid())
+        discipline = pmdo.ExplicitServer(discipline_factory=Paraboloid)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -85,7 +87,7 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = pmdo.ExplicitServer(discipline=Paraboloid())
+        discipline = pmdo.ExplicitServer(discipline_factory=Paraboloid)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -121,7 +123,7 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = pmdo.ExplicitServer(discipline=Rosenbrock())
+        discipline = pmdo.ExplicitServer(discipline_factory=Rosenbrock)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -155,7 +157,7 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = pmdo.ExplicitServer(discipline=Rosenbrock())
+        discipline = pmdo.ExplicitServer(discipline_factory=Rosenbrock)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -192,7 +194,7 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = pmdo.ImplicitServer(discipline=QuadradicImplicit())
+        discipline = pmdo.ImplicitServer(discipline_factory=QuadradicImplicit)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")

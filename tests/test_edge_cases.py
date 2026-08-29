@@ -28,6 +28,9 @@
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
 import unittest
+
+from philote_mdo.general import Discipline
+from conftest import job_context, make_server, make_server_from_instance, bind_job
 from unittest.mock import Mock, MagicMock
 
 import grpc
@@ -42,34 +45,36 @@ class TestDisciplineServerEdgeCases(unittest.TestCase):
     Tests for edge cases in DisciplineServer.
     """
 
-    def test_attach_discipline(self):
+    def test_attach_discipline_factory(self):
         """
         Test attaching a discipline to the server (line 62).
         """
-        server = DisciplineServer()
         discipline = ExplicitDiscipline()
         
         # Test attach_discipline method
-        server.attach_discipline(discipline)
+        server, job, context = make_server_from_instance(
+            DisciplineServer, discipline
+        )
         
         # Verify the discipline was attached
-        self.assertEqual(server._discipline, discipline)
+        self.assertEqual(job.discipline, discipline)
 
     def test_get_available_options_with_str_type(self):
         """
         Test GetAvailableOptions with str option type (covers line 101).
         """
-        server = DisciplineServer()
         discipline = Mock()
         
         # Mock the options_list attribute to return a dict with str type
         discipline.options_list = {"str_option": "str"}
         
-        server.attach_discipline(discipline)
+        server, job, context = make_server_from_instance(
+            DisciplineServer, discipline
+        )
         
         # Create a mock request and context
         request = Mock()
-        context = Mock()
+        context = job_context(job=job)
         
         # This should work and exercise the str type branch
         result = server.GetAvailableOptions(request, context)
@@ -81,15 +86,16 @@ class TestDisciplineServerEdgeCases(unittest.TestCase):
         """
         Test GetAvailableOptions with dict option type (covers kStruct mapping).
         """
-        server = DisciplineServer()
         discipline = Mock()
 
         discipline.options_list = {"config": "dict"}
 
-        server.attach_discipline(discipline)
+        server, job, context = make_server_from_instance(
+            DisciplineServer, discipline
+        )
 
         request = Mock()
-        context = Mock()
+        context = job_context(job=job)
 
         result = server.GetAvailableOptions(request, context)
 
@@ -102,17 +108,18 @@ class TestDisciplineServerEdgeCases(unittest.TestCase):
         Test GetAvailableOptions with invalid option type aborts with
         INVALID_ARGUMENT.
         """
-        server = DisciplineServer()
         discipline = Mock()
 
         # Mock the options_list attribute to return a dict with invalid type
         discipline.options_list = {"invalid_option": "invalid_type"}
 
-        server.attach_discipline(discipline)
+        server, job, context = make_server_from_instance(
+            DisciplineServer, discipline
+        )
 
         # Create a mock request and context
         request = Mock()
-        context = Mock()
+        context = job_context(job=job)
 
         server.GetAvailableOptions(request, context)
 
@@ -125,7 +132,6 @@ class TestDisciplineServerEdgeCases(unittest.TestCase):
         """
         Test process_inputs with empty continuous data arrays.
         """
-        server = DisciplineServer()
         discipline = Mock()
 
         # Set up discipline with continuous variables
@@ -135,7 +141,9 @@ class TestDisciplineServerEdgeCases(unittest.TestCase):
         discipline._var_meta[0].shape = [2]
         discipline._var_meta[0].type = data.kInput
 
-        server.attach_discipline(discipline)
+        server, job, context = make_server_from_instance(
+            DisciplineServer, discipline
+        )
 
         # Create a VariableMessage wrapping an Array with empty data
         message = data.VariableMessage(
@@ -170,7 +178,7 @@ class TestDisciplineClientEdgeCases(unittest.TestCase):
         """
         # Create a mock channel
         channel = Mock()
-        client = DisciplineClient(channel)
+        client = bind_job(DisciplineClient(channel))
 
         # Set up outputs structure
         client._var_meta = [Mock()]

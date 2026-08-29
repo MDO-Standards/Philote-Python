@@ -28,6 +28,8 @@
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
 import unittest
+
+from conftest import bind_job
 from unittest.mock import Mock, MagicMock, patch
 import numpy as np
 from google.protobuf.empty_pb2 import Empty
@@ -49,7 +51,7 @@ class TestDisciplineClient(unittest.TestCase):
         mock_channel = Mock()
 
         # Create an instance of YourClass with the mock channel
-        instance = DisciplineClient(mock_channel)
+        instance = bind_job(DisciplineClient(mock_channel))
 
         # Assert that the attributes are initialized correctly
         self.assertTrue(instance.verbose)
@@ -78,7 +80,7 @@ class TestDisciplineClient(unittest.TestCase):
             version="1.2.3",
         )
 
-        client = DisciplineClient(mock_channel)
+        client = bind_job(DisciplineClient(mock_channel))
         client.get_discipline_info()
 
         # check the values of the response
@@ -96,7 +98,7 @@ class TestDisciplineClient(unittest.TestCase):
         mock_channel = Mock()
         mock_stub = mock_discipline_stub.return_value
 
-        client = DisciplineClient(mock_channel)
+        client = bind_job(DisciplineClient(mock_channel))
         expected_num_double = 10
         client._stream_options = expected_options = data.StreamOptions(
             num_double=expected_num_double,
@@ -208,7 +210,7 @@ class TestDisciplineClient(unittest.TestCase):
         """
         mock_channel = Mock()
         mock_stub = mock_discipline_stub.return_value
-        client = DisciplineClient(mock_channel)
+        client = bind_job(DisciplineClient(mock_channel))
         client.run_setup()
 
         # assert that the 'setup' and 'setup_partials' methods were called
@@ -222,7 +224,7 @@ class TestDisciplineClient(unittest.TestCase):
         """
         mock_channel = Mock()
         mock_stub = mock_discipline_stub.return_value
-        client = DisciplineClient(mock_channel)
+        client = bind_job(DisciplineClient(mock_channel))
 
         input_definition = data.VariableMetaData(
             name="x", shape=[2, 2], units="m", type=data.VariableType.kInput
@@ -268,7 +270,7 @@ class TestDisciplineClient(unittest.TestCase):
         """
         mock_channel = Mock()
         mock_stub = mock_discipline_stub.return_value
-        client = DisciplineClient(mock_channel)
+        client = bind_job(DisciplineClient(mock_channel))
 
         partials_metadata = [
             data.PartialsMetaData(name="input1", subname="output1"),
@@ -296,7 +298,7 @@ class TestDisciplineClient(unittest.TestCase):
         Tests the _assemble_input_messages function of the Discipline Client.
         """
         mock_channel = Mock()
-        client = DisciplineClient(mock_channel)
+        client = bind_job(DisciplineClient(mock_channel))
         client._stream_options.num_double = 2
 
         input_data = {
@@ -345,7 +347,7 @@ class TestDisciplineClient(unittest.TestCase):
         Tests the _recover_outputs function of the Discipline Client.
         """
         mock_channel = Mock()
-        client = DisciplineClient(mock_channel)
+        client = bind_job(DisciplineClient(mock_channel))
 
         client._var_meta = [
             data.VariableMetaData(name="f", type=data.kOutput, shape=(2, 2)),
@@ -387,7 +389,7 @@ class TestDisciplineClient(unittest.TestCase):
         Tests the _recover_residuals function of the Discipline Client.
         """
         mock_channel = Mock()
-        client = DisciplineClient(mock_channel)
+        client = bind_job(DisciplineClient(mock_channel))
 
         client._var_meta = [
             data.VariableMetaData(name="f", type=data.kResidual, shape=(2, 2)),
@@ -429,7 +431,7 @@ class TestDisciplineClient(unittest.TestCase):
         Tests the _recover_partials function of the Discipline Client.
         """
         mock_channel = Mock()
-        client = DisciplineClient(mock_channel)
+        client = bind_job(DisciplineClient(mock_channel))
 
         client._var_meta = [
             data.VariableMetaData(name="f", type=data.kOutput, shape=(1,)),
@@ -489,7 +491,7 @@ class TestDisciplineClient(unittest.TestCase):
         Tests that _recover_outputs raises ValueError when array data is empty.
         """
         mock_channel = Mock()
-        client = DisciplineClient(mock_channel)
+        client = bind_job(DisciplineClient(mock_channel))
 
         client._var_meta = [
             data.VariableMetaData(name="f", type=data.kOutput, shape=(2,)),
@@ -513,7 +515,7 @@ class TestDisciplineClient(unittest.TestCase):
         Tests that _recover_residuals raises ValueError when array data is empty.
         """
         mock_channel = Mock()
-        client = DisciplineClient(mock_channel)
+        client = bind_job(DisciplineClient(mock_channel))
 
         client._var_meta = [
             data.VariableMetaData(name="f", type=data.kResidual, shape=(2,)),
@@ -537,7 +539,7 @@ class TestDisciplineClient(unittest.TestCase):
         Tests that _recover_partials raises ValueError when array data is empty.
         """
         mock_channel = Mock()
-        client = DisciplineClient(mock_channel)
+        client = bind_job(DisciplineClient(mock_channel))
 
         client._var_meta = [
             data.VariableMetaData(name="f", type=data.kOutput, shape=(2,)),
@@ -563,19 +565,19 @@ class TestDisciplineClient(unittest.TestCase):
 
     def test_send_options_non_dict_raises(self):
         mock_channel = Mock()
-        client = DisciplineClient(mock_channel)
+        client = bind_job(DisciplineClient(mock_channel))
         with self.assertRaises(PhiloteValidationError):
             client.send_options("not a dict")
 
     def test_assemble_input_messages_non_dict_raises(self):
         mock_channel = Mock()
-        client = DisciplineClient(mock_channel)
+        client = bind_job(DisciplineClient(mock_channel))
         with self.assertRaises(PhiloteValidationError):
             client._assemble_input_messages("not a dict")
 
     def test_assemble_input_messages_non_array_value_raises(self):
         mock_channel = Mock()
-        client = DisciplineClient(mock_channel)
+        client = bind_job(DisciplineClient(mock_channel))
         with self.assertRaises(PhiloteValidationError):
             client._assemble_input_messages({"x": [1.0, 2.0]})
 
