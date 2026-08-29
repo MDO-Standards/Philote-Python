@@ -55,7 +55,12 @@ class DisciplineServer(disc.DisciplineService):
         self._discipline = discipline
 
         # discipline stream options
-        self._stream_opts = data.StreamOptions(num_double=1000)
+        # doubles per message. The cost of a stream is dominated by the number
+        # of messages in it rather than by their size, so this wants to be as
+        # large as the message ceiling safely allows: at 100k doubles a chunk
+        # is about 780 KiB, or a fifth of gRPC's 4 MiB default, which leaves
+        # room for metadata and for a peer that has lowered the limit.
+        self._stream_opts = data.StreamOptions(num_double=100000)
 
     def attach_to_server(self, server):
         """

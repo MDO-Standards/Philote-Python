@@ -37,6 +37,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in one chunk takes this path, which is most of them for a discipline of
   scalars: 0.095 ms to 0.005 ms across 100 variables.
 
+- The default `num_double` stream option rises from 1,000 to 100,000 on both
+  the client and the server.  With the encoding cost gone, a stream's runtime
+  is set by how many messages it carries rather than by how large they are,
+  at roughly 64 microseconds per message per direction.  A 250k-element round
+  trip drops from 41.7 ms to 2.9 ms.  A chunk is about 780 KiB at the new
+  default, against gRPC's 4 MiB message ceiling.  This is a default only:
+  `StreamOptions` is negotiated as before, and anyone who sets `num_double`
+  explicitly is unaffected.
+
 ### Bug Fixes
 
 - Fixed `ImplicitServer` emitting `Array.end` as an exclusive index, while the
