@@ -100,6 +100,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   function against the residual and the variable against the input or output,
   matching how `SetVariableShapes` already indexes.  An unknown name now
   raises `PhiloteValidationError` instead of `KeyError` (#79).
+- `OpenMdaoSubProblem.compute_partials` built the `of` and `wrt` lists for
+  `compute_totals` with one entry per declared partial, so an output with
+  several inputs (or an input feeding several outputs) was named repeatedly.
+  Both lists are now deduplicated while preserving declaration order, which
+  removes redundant work inside `compute_totals` on every gradient call.
+  Results were already correct, since the totals are indexed by the
+  `(of, wrt)` pair rather than by position (#80).
 
 ### Documentation & Infrastructure
 
