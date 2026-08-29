@@ -145,7 +145,15 @@ class DisciplineClient:
 
         Both continuous and discrete variable metadata are stored in their
         respective lists.
+
+        The local metadata is replaced rather than appended to, so that
+        calling this more than once on the same client (for instance when a
+        client is reused across jobs) mirrors the server, which clears its
+        metadata at the start of every ``Setup``.
         """
+        self._var_meta = []
+        self._discrete_var_meta = []
+
         for message in self._disc_stub.GetVariableDefinitions(empty.Empty()):
             if message.type in (
                 data.VariableType.kDiscreteInput,
@@ -158,10 +166,15 @@ class DisciplineClient:
     def get_partials_definitions(self):
         """
         Requests metadata information on the partials from the analysis server.
+
+        As with ``get_variable_definitions``, the local metadata is replaced
+        rather than appended to, so repeated calls do not accumulate duplicate
+        partials entries.
         """
+        self._partials_meta = []
+
         for message in self._disc_stub.GetPartialDefinitions(empty.Empty()):
-            if message.name not in self._partials_meta:
-                self._partials_meta += [message]
+            self._partials_meta += [message]
 
     def get_dynamic_variables(self):
         """

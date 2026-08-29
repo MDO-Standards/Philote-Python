@@ -291,6 +291,58 @@ class TestDisciplineClient(unittest.TestCase):
         self.assertEqual(client._partials_meta[1].name, "input2")
         self.assertEqual(client._partials_meta[1].subname, "output2")
 
+    @patch("philote_mdo.generated.disciplines_pb2_grpc.DisciplineServiceStub")
+    def test_get_variable_definitions_repeated_call(self, mock_discipline_stub):
+        """
+        Tests that repeated calls to get_variable_definitions replace, rather
+        than accumulate, the local variable metadata.
+        """
+        mock_channel = Mock()
+        mock_stub = mock_discipline_stub.return_value
+        client = DisciplineClient(mock_channel)
+
+        mock_stub.GetVariableDefinitions.return_value = [
+            data.VariableMetaData(
+                name="x", shape=[2, 2], units="m", type=data.VariableType.kInput
+            ),
+            data.VariableMetaData(
+                name="f", shape=[1], units="m**2", type=data.VariableType.kOutput
+            ),
+            data.VariableMetaData(
+                name="n", type=data.VariableType.kDiscreteInput
+            ),
+        ]
+
+        client.get_variable_definitions()
+        client.get_variable_definitions()
+
+        self.assertEqual(len(client._var_meta), 2)
+        self.assertEqual(len(client._discrete_var_meta), 1)
+
+    @patch("philote_mdo.generated.disciplines_pb2_grpc.DisciplineServiceStub")
+    def test_get_partial_definitions_repeated_call(self, mock_discipline_stub):
+        """
+        Tests that repeated calls to get_partials_definitions replace, rather
+        than accumulate, the local partials metadata.
+        """
+        mock_channel = Mock()
+        mock_stub = mock_discipline_stub.return_value
+        client = DisciplineClient(mock_channel)
+
+        mock_stub.GetPartialDefinitions.return_value = [
+            data.PartialsMetaData(name="f", subname="x"),
+            data.PartialsMetaData(name="f", subname="y"),
+        ]
+
+        client.get_partials_definitions()
+        client.get_partials_definitions()
+
+        self.assertEqual(len(client._partials_meta), 2)
+        self.assertEqual(
+            [(p.name, p.subname) for p in client._partials_meta],
+            [("f", "x"), ("f", "y")],
+        )
+
     def test_assemble_input_messages(self):
         """
         Tests the _assemble_input_messages function of the Discipline Client.

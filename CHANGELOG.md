@@ -69,6 +69,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The server now populates the `name` and `version` fields of
   `DisciplineProperties` from the discipline's `_name` / `_version`
   attributes, and the client stores them (#67).
+- `DisciplineClient.get_partials_definitions` guarded against duplicates by
+  testing a `str` against a list of `PartialsMetaData` messages, so the guard
+  never fired and every message was appended unconditionally.  Both
+  `get_variable_definitions` and `get_partials_definitions` now clear their
+  metadata lists before repopulating them, mirroring the `_clear_data()` the
+  server performs at the start of each `Setup`, so a client that is set up
+  more than once replaces its metadata rather than accumulating duplicate
+  Jacobian preallocations and `declare_partials` calls (#78).
 
 ### Documentation & Infrastructure
 
