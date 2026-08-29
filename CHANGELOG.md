@@ -17,12 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bytes are identical and **the protocol is unchanged** -- peers in any
   language are unaffected.  Per direction for 200k doubles, encoding drops
   from 27.4 ms to 0.15 ms and decoding from 7.9 ms to 0.11 ms; a 250k-element
-  round trip over the streaming transport goes from 121 ms to 36 ms.  Decoding
-  stays on the protobuf container below 64 elements, where re-serializing the
-  message to reach its payload would cost more than it saves, so
-  scalar-heavy disciplines are unaffected.  The helpers live in
+  round trip goes from 121 ms to 36 ms at the 1,000-double chunk size that was
+  the default at the time, which the chunking change below takes further.
+  Decoding stays on the protobuf container below 64 elements, where
+  re-serializing the message to reach its payload would cost more than it
+  saves, so scalar-heavy disciplines are unaffected.  The helpers live in
   `philote_mdo.utils.encoding`.
-
 - `DisciplineServer.preallocate_partials` and
   `DisciplineClient._recover_partials` rescanned the full variable metadata
   list twice per declared partial, which is quadratic in the number of
@@ -31,12 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `preallocate_partials` drops from 4.1 ms to 0.16 ms and a full gradient
   round trip from 23.0 ms to 14.6 ms.  The Jacobian block shape rule the two
   sites duplicated is now `philote_mdo.utils.get_partials_shape()`.
-
 - `get_chunk_indices` now returns the single-chunk case directly instead of
   deriving it through two NumPy array constructions.  Every variable that fits
   in one chunk takes this path, which is most of them for a discipline of
   scalars: 0.095 ms to 0.005 ms across 100 variables.
-
 - The default `num_double` stream option rises from 1,000 to 100,000 on both
   the client and the server.  With the encoding cost gone, a stream's runtime
   is set by how many messages it carries rather than by how large they are,
@@ -45,14 +43,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   default, against gRPC's 4 MiB message ceiling.  This is a default only:
   `StreamOptions` is negotiated as before, and anyone who sets `num_double`
   explicitly is unaffected.
-
 - `add_input`, `add_output`, `add_discrete_input` and `add_discrete_output`
   checked for a duplicate declaration by scanning the whole metadata list,
   making the cost of declaring a discipline quadratic in the number of
   variables.  They now consult a set of the declared `(type, name)` pairs.
   Declaring 2,000 variables drops from 684 ms to 6.7 ms, and the cost is now
   linear.
-
 - `SetVariableShapes` on the server and `send_variable_shapes` on the client
   resolved each incoming shape by scanning the whole variable metadata list,
   twice for an implicit output, which is quadratic in the number of dynamic
