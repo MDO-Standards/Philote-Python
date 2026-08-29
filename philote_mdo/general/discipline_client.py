@@ -382,21 +382,14 @@ class DisciplineClient:
         flat_p = utils.PairDict()
 
         # preallocate
-        for part in self._partials_meta:
-            shapef = tuple([d.shape for d in self._var_meta if d.name == part.name][0])
-            shapex = tuple(
-                [d.shape for d in self._var_meta if d.name == part.subname][0]
-            )
+        # index the metadata by name once; scanning it per partial is
+        # quadratic in the number of variables
+        shapes = {var.name: tuple(var.shape) for var in self._var_meta}
 
-            if shapef == (1,):
-                if shapex == (1,):
-                    shape = (1,)
-                else:
-                    shape = shapex
-            elif shapex == (1,):
-                shape = shapef
-            else:
-                shape = shapef + shapex
+        for part in self._partials_meta:
+            shape = utils.get_partials_shape(
+                shapes[part.name], shapes[part.subname]
+            )
 
             partials[(part.name, part.subname)] = np.zeros(shape)
             flat_p[(part.name, part.subname)] = utils.get_flattened_view(

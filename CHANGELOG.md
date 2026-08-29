@@ -23,6 +23,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   scalar-heavy disciplines are unaffected.  The helpers live in
   `philote_mdo.utils.encoding`.
 
+- `DisciplineServer.preallocate_partials` and
+  `DisciplineClient._recover_partials` rescanned the full variable metadata
+  list twice per declared partial, which is quadratic in the number of
+  variables and was paid on every gradient call.  Both now index the metadata
+  by name once.  For a discipline with 100 variables and 100 partials,
+  `preallocate_partials` drops from 4.1 ms to 0.16 ms and a full gradient
+  round trip from 23.0 ms to 14.6 ms.  The Jacobian block shape rule the two
+  sites duplicated is now `philote_mdo.utils.get_partials_shape()`.
+
 ### Bug Fixes
 
 - Fixed `ImplicitServer` emitting `Array.end` as an exclusive index, while the

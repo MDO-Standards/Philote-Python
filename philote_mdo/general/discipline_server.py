@@ -34,7 +34,12 @@ import philote_mdo.generated.data_pb2 as data
 import philote_mdo.generated.disciplines_pb2_grpc as disc
 from google.protobuf.empty_pb2 import Empty
 from google.protobuf import struct_pb2
-from philote_mdo.utils import PairDict, get_flattened_view, read_array_into
+from philote_mdo.utils import (
+    PairDict,
+    get_flattened_view,
+    get_partials_shape,
+    read_array_into,
+)
 from philote_mdo.utils.validation import PhiloteValidationError, validate_shape
 
 
@@ -261,25 +266,12 @@ class DisciplineServer(disc.DisciplineService):
         """
         jac = PairDict()
 
-        for pair in self._discipline._partials_meta:
-            shapef = tuple(
-                [d.shape for d in self._discipline._var_meta if d.name == pair.name][0]
-            )
-            shapex = tuple(
-                [d.shape for d in self._discipline._var_meta if d.name == pair.subname][
-                    0
-                ]
-            )
+        # index the metadata by name once; scanning it per partial is
+        # quadratic in the number of variables
+        shapes = {var.name: tuple(var.shape) for var in self._discipline._var_meta}
 
-            if shapef == (1,):
-                if shapex == (1,):
-                    shape = (1,)
-                else:
-                    shape = shapex
-            elif shapex == (1,):
-                shape = shapef
-            else:
-                shape = shapef + shapex
+        for pair in self._discipline._partials_meta:
+            shape = get_partials_shape(shapes[pair.name], shapes[pair.subname])
 
             jac[(pair.name, pair.subname)] = np.zeros(shape)
 

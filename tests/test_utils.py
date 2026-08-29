@@ -29,7 +29,12 @@
 # control over the information you may find at these locations.
 import unittest
 import numpy as np
-from philote_mdo.utils import get_chunk_indices, get_flattened_view, PairDict
+from philote_mdo.utils import (
+    get_chunk_indices,
+    get_flattened_view,
+    get_partials_shape,
+    PairDict,
+)
 from philote_mdo.utils.validation import PhiloteValidationError
 
 
@@ -108,6 +113,22 @@ class TestUtils(unittest.TestCase):
         pd[("a", "b")] = 1.0
         with self.assertRaises(PhiloteValidationError):
             _ = pd["single_key"]
+
+    def test_get_partials_shape_scalar_over_scalar(self):
+        self.assertEqual(get_partials_shape((1,), (1,)), (1,))
+
+    def test_get_partials_shape_scalar_over_vector(self):
+        """
+        A scalar function drops its own dimension rather than carrying it.
+        """
+        self.assertEqual(get_partials_shape((1,), (4,)), (4,))
+
+    def test_get_partials_shape_vector_over_scalar(self):
+        self.assertEqual(get_partials_shape((3,), (1,)), (3,))
+
+    def test_get_partials_shape_vector_over_vector(self):
+        self.assertEqual(get_partials_shape((3,), (4,)), (3, 4))
+        self.assertEqual(get_partials_shape((2, 2), (4,)), (2, 2, 4))
 
 
 if __name__ == "__main__":
