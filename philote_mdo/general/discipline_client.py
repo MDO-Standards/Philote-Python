@@ -63,7 +63,12 @@ class DisciplineClient:
         self._disc_stub = disc.DisciplineServiceStub(channel)
 
         # streaming options
-        self._stream_options = data.StreamOptions(num_double=1000)
+        # doubles per message. The cost of a stream is dominated by the number
+        # of messages in it rather than by their size, so this wants to be as
+        # large as the message ceiling safely allows: at 100k doubles a chunk
+        # is about 780 KiB, or a fifth of gRPC's 4 MiB default, which leaves
+        # room for metadata and for a peer that has lowered the limit.
+        self._stream_options = data.StreamOptions(num_double=100000)
 
         # variable and partials metadata
         self._var_meta = []
@@ -204,24 +209,27 @@ class DisciplineClient:
         """
         self._disc_stub.SetVariableShapes(iter(variable_metadata))
 
+        # index by type and name once; searching the list per shape is
+        # quadratic in the number of variables
+        index = {}
+        for var in self._var_meta:
+            index.setdefault((var.type, var.name), var)
+
         # update local metadata to reflect the new shapes
         for meta in variable_metadata:
-            for var in self._var_meta:
-                if var.name == meta.name and var.type == meta.type:
-                    var.shape[:] = []
-                    var.shape.extend(meta.shape)
-                    break
+            var = index.get((meta.type, meta.name))
+
+            if var is not None:
+                var.shape[:] = []
+                var.shape.extend(meta.shape)
 
             # for implicit outputs, also update the matching residual
             if meta.type == data.VariableType.kOutput:
-                for var in self._var_meta:
-                    if (
-                        var.name == meta.name
-                        and var.type == data.VariableType.kResidual
-                    ):
-                        var.shape[:] = []
-                        var.shape.extend(meta.shape)
-                        break
+                res = index.get((data.VariableType.kResidual, meta.name))
+
+                if res is not None:
+                    res.shape[:] = []
+                    res.shape.extend(meta.shape)
 
     def _assemble_input_messages(
         self, inputs, outputs=None, discrete_inputs=None, discrete_outputs=None
@@ -248,17 +256,17 @@ class DisciplineClient:
             for b, e in utils.get_chunk_indices(
                 value.size, self._stream_options.num_double
             ):
-                messages += [
-                    data.VariableMessage(
-                        continuous=data.Array(
-                            name=input_name,
-                            start=b,
-                            end=e - 1,
-                            type=data.VariableType.kInput,
-                            data=value.ravel()[b:e],
-                        )
+                message = data.VariableMessage(
+                    continuous=data.Array(
+                        name=input_name,
+                        start=b,
+                        end=e - 1,
+                        type=data.VariableType.kInput,
                     )
-                ]
+                )
+                utils.set_array_data(message.continuous, value.ravel()[b:e])
+
+                messages += [message]
 
         # Continuous outputs (for implicit disciplines)
         if outputs:
@@ -266,17 +274,17 @@ class DisciplineClient:
                 for b, e in utils.get_chunk_indices(
                     value.size, self._stream_options.num_double
                 ):
-                    messages += [
-                        data.VariableMessage(
-                            continuous=data.Array(
-                                name=output_name,
-                                start=b,
-                                end=e - 1,
-                                type=data.VariableType.kOutput,
-                                data=value.ravel()[b:e],
-                            )
+                    message = data.VariableMessage(
+                        continuous=data.Array(
+                            name=output_name,
+                            start=b,
+                            end=e - 1,
+                            type=data.VariableType.kOutput,
                         )
-                    ]
+                    )
+                    utils.set_array_data(message.continuous, value.ravel()[b:e])
+
+                    messages += [message]
 
         # Discrete inputs
         if discrete_inputs:
@@ -329,10 +337,8 @@ class DisciplineClient:
             if variant == "continuous":
                 arr = message.continuous
                 if arr.type == data.kOutput:
-                    b = arr.start
-                    e = arr.end + 1
                     if len(arr.data) > 0:
-                        flat_outputs[arr.name][b:e] = arr.data
+                        utils.read_array_into(arr, flat_outputs[arr.name])
                     else:
                         raise PhiloteValidationError(
                             "Expected continuous variables, but array is empty."
@@ -367,10 +373,8 @@ class DisciplineClient:
             if variant == "continuous":
                 arr = message.continuous
                 if arr.type == data.kResidual:
-                    b = arr.start
-                    e = arr.end + 1
                     if len(arr.data) > 0:
-                        flat_residuals[arr.name][b:e] = arr.data
+                        utils.read_array_into(arr, flat_residuals[arr.name])
                     else:
                         raise PhiloteValidationError(
                             "Expected continuous variables, but array is empty."
@@ -386,21 +390,14 @@ class DisciplineClient:
         flat_p = utils.PairDict()
 
         # preallocate
-        for part in self._partials_meta:
-            shapef = tuple([d.shape for d in self._var_meta if d.name == part.name][0])
-            shapex = tuple(
-                [d.shape for d in self._var_meta if d.name == part.subname][0]
-            )
+        # index the metadata by name once; scanning it per partial is
+        # quadratic in the number of variables
+        shapes = {var.name: tuple(var.shape) for var in self._var_meta}
 
-            if shapef == (1,):
-                if shapex == (1,):
-                    shape = (1,)
-                else:
-                    shape = shapex
-            elif shapex == (1,):
-                shape = shapef
-            else:
-                shape = shapef + shapex
+        for part in self._partials_meta:
+            shape = utils.get_partials_shape(
+                shapes[part.name], shapes[part.subname]
+            )
 
             partials[(part.name, part.subname)] = np.zeros(shape)
             flat_p[(part.name, part.subname)] = utils.get_flattened_view(
@@ -412,12 +409,12 @@ class DisciplineClient:
 
             if variant == "continuous":
                 arr = message.continuous
-                b = arr.start
-                e = arr.end + 1
 
                 if arr.type == data.kPartial:
                     if len(arr.data) > 0:
-                        flat_p[(arr.name, arr.subname)][b:e] = arr.data
+                        utils.read_array_into(
+                            arr, flat_p[(arr.name, arr.subname)]
+                        )
                     else:
                         raise PhiloteValidationError(
                             "Expected continuous outputs for the "

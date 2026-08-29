@@ -28,7 +28,13 @@
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
 from .pair_dict import PairDict
-from .helper import get_chunk_indices, get_flattened_view
+from .encoding import (
+    FAST_DECODE_MIN_ELEMENTS,
+    get_array_data,
+    read_array_into,
+    set_array_data,
+)
+from .helper import get_chunk_indices, get_flattened_view, get_partials_shape
 from .validation import (
     PhiloteError,
     PhiloteValidationError,

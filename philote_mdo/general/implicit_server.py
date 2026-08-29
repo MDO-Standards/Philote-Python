@@ -32,7 +32,7 @@ import philote_mdo.generated.disciplines_pb2_grpc as disc
 import philote_mdo.generated.data_pb2 as data
 import philote_mdo.general as pmdo
 from philote_mdo.general.discipline_server import _python_to_value
-from philote_mdo.utils import get_chunk_indices
+from philote_mdo.utils import get_chunk_indices, set_array_data
 from philote_mdo.utils.validation import PhiloteValidationError
 
 
@@ -185,15 +185,17 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
 
             for res_name, value in residuals.items():
                 for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
-                    yield data.VariableMessage(
+                    message = data.VariableMessage(
                         continuous=data.Array(
                             name=res_name,
                             start=b,
                             end=e - 1,
                             type=data.kResidual,
-                            data=value.ravel()[b:e],
                         )
                     )
+                    set_array_data(message.continuous, value.ravel()[b:e])
+
+                    yield message
         except PhiloteValidationError as e:
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
         except Exception as e:
@@ -252,15 +254,17 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
 
             for output_name, value in outputs.items():
                 for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
-                    yield data.VariableMessage(
+                    message = data.VariableMessage(
                         continuous=data.Array(
                             name=output_name,
                             start=b,
                             end=e - 1,
                             type=data.kOutput,
-                            data=value.ravel()[b:e],
                         )
                     )
+                    set_array_data(message.continuous, value.ravel()[b:e])
+
+                    yield message
         except PhiloteValidationError as e:
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
         except Exception as e:
@@ -324,16 +328,18 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
 
             for jac, value in jac.items():
                 for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
-                    yield data.VariableMessage(
+                    message = data.VariableMessage(
                         continuous=data.Array(
                             name=jac[0],
                             subname=jac[1],
                             type=data.kPartial,
                             start=b,
                             end=e - 1,
-                            data=value.ravel()[b:e],
                         )
                     )
+                    set_array_data(message.continuous, value.ravel()[b:e])
+
+                    yield message
         except PhiloteValidationError as e:
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
         except Exception as e:

@@ -44,6 +44,11 @@ def get_chunk_indices(num_values, chunk_size):
             f"got {chunk_size!r}."
         )
 
+    # the common case is a variable that fits in one chunk, where the answer
+    # is known without building two arrays to derive it
+    if 0 < num_values <= chunk_size:
+        return iter([(0, num_values)])
+
     beg_i = np.arange(0, num_values, chunk_size)
 
     if beg_i.size == 1:
@@ -52,6 +57,31 @@ def get_chunk_indices(num_values, chunk_size):
         end_i = np.append(beg_i[1:], [num_values])
 
     return zip(beg_i, end_i)
+
+
+def get_partials_shape(shapef, shapex):
+    """
+    Returns the shape of the Jacobian block of a function with respect to a
+    variable.
+
+    Note, there are edge cases for this function, where either f or x, or both
+    are scalar. In those cases a (1,) dimension is dropped from the block
+    shape instead of being carried through, so that the partial of a scalar
+    with respect to a vector of length n is (n,) rather than (1, n).
+
+    :param shapef: shape of the function, as a tuple
+    :param shapex: shape of the variable, as a tuple
+    :return: shape of the Jacobian block, as a tuple
+    """
+    if shapef == (1,):
+        if shapex == (1,):
+            return (1,)
+        return shapex
+
+    if shapex == (1,):
+        return shapef
+
+    return shapef + shapex
 
 
 def get_flattened_view(arr):

@@ -203,6 +203,39 @@ class TestDiscipline(unittest.TestCase):
         with self.assertRaises(PhiloteValidationError):
             disc.add_input("x", shape=(3,))
 
+    def test_input_and_output_may_share_a_name(self):
+        """
+        The duplicate check is per variable type, not per name.
+        """
+        disc = Discipline()
+        disc.add_input("x")
+        disc.add_output("x")
+        disc.add_discrete_input("x")
+        disc.add_discrete_output("x")
+
+        self.assertEqual(len(disc._var_meta), 2)
+        self.assertEqual(len(disc._discrete_var_meta), 2)
+
+    def test_clear_data_permits_redeclaration(self):
+        """
+        Clearing the metadata must also clear whatever tracks duplicates.
+        """
+        disc = Discipline()
+        disc.add_input("x")
+        disc.add_output("y")
+        disc.add_discrete_input("di")
+        disc.add_discrete_output("do")
+
+        disc._clear_data()
+
+        disc.add_input("x")
+        disc.add_output("y")
+        disc.add_discrete_input("di")
+        disc.add_discrete_output("do")
+
+        self.assertEqual(len(disc._var_meta), 2)
+        self.assertEqual(len(disc._discrete_var_meta), 2)
+
     def test_add_output_invalid_name(self):
         disc = Discipline()
         with self.assertRaises(PhiloteValidationError):

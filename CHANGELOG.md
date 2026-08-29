@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Features
+
+- Continuous array data is now read and written through the packed wire
+  buffer directly, rather than through the protobuf `repeated double` API,
+  which converts every element to and from a boxed Python float.  A packed
+  `repeated double` is encoded as a length-delimited buffer of little-endian
+  doubles, which is byte for byte what NumPy already holds, so the emitted
+  bytes are identical and **the protocol is unchanged** -- peers in any
+  language are unaffected.  Per direction for 200k doubles, encoding drops
+  from 27.4 ms to 0.15 ms and decoding from 7.9 ms to 0.11 ms; a 250k-element
+  round trip goes from 121 ms to 36 ms at the 1,000-double chunk size that was
+  the default at the time, which the chunking change below takes further.
+  Decoding stays on the protobuf container below 64 elements, where
+  re-serializing the message to reach its payload would cost more than it
+  saves, so scalar-heavy disciplines are unaffected.  The helpers live in
+  `philote_mdo.utils.encoding`.
+- `DisciplineServer.preallocate_partials` and
+  `DisciplineClient._recover_partials` rescanned the full variable metadata
+  list twice per declared partial, which is quadratic in the number of
+  variables and was paid on every gradient call.  Both now index the metadata
+  by name once.  For a discipline with 100 variables and 100 partials,
+  `preallocate_partials` drops from 4.1 ms to 0.16 ms and a full gradient
+  round trip from 23.0 ms to 14.6 ms.  The Jacobian block shape rule the two
+  sites duplicated is now `philote_mdo.utils.get_partials_shape()`.
+- `get_chunk_indices` now returns the single-chunk case directly instead of
+  deriving it through two NumPy array constructions.  Every variable that fits
+  in one chunk takes this path, which is most of them for a discipline of
+  scalars: 0.095 ms to 0.005 ms across 100 variables.
+- The default `num_double` stream option rises from 1,000 to 100,000 on both
+  the client and the server.  With the encoding cost gone, a stream's runtime
+  is set by how many messages it carries rather than by how large they are,
+  at roughly 64 microseconds per message per direction.  A 250k-element round
+  trip drops from 41.7 ms to 2.9 ms.  A chunk is about 780 KiB at the new
+  default, against gRPC's 4 MiB message ceiling.  This is a default only:
+  `StreamOptions` is negotiated as before, and anyone who sets `num_double`
+  explicitly is unaffected.
+- `add_input`, `add_output`, `add_discrete_input` and `add_discrete_output`
+  checked for a duplicate declaration by scanning the whole metadata list,
+  making the cost of declaring a discipline quadratic in the number of
+  variables.  They now consult a set of the declared `(type, name)` pairs.
+  Declaring 2,000 variables drops from 684 ms to 6.7 ms, and the cost is now
+  linear.
+- `SetVariableShapes` on the server and `send_variable_shapes` on the client
+  resolved each incoming shape by scanning the whole variable metadata list,
+  twice for an implicit output, which is quadratic in the number of dynamic
+  variables.  Both now index the metadata by type and name once.  Applying
+  shapes to 1,000 dynamic variables drops from 922 ms to 120 ms.
+
 ### Bug Fixes
 
 - Fixed `ImplicitServer` emitting `Array.end` as an exclusive index, while the
@@ -21,6 +69,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The server now populates the `name` and `version` fields of
   `DisciplineProperties` from the discipline's `_name` / `_version`
   attributes, and the client stores them (#67).
+
+### Documentation & Infrastructure
+
+- Updated the documentation site's dependencies to clear known npm
+  advisories, taking the audit from 42 findings (2 critical, 26 high) to 17
+  (all high).  `npm audit fix` resolved the `webpack-dev-server`, `sockjs`,
+  `ws` and `websocket-driver` chains, and `overrides` pin
+  `serialize-javascript` to `^7.1.0` and `uuid` to `^11.1.1`, neither of
+  which had a fix path through their parents.  The 17 that remain are all
+  `image-size`, reached through `@docusaurus/mdx-loader`, whose advisory
+  covers every published version, so no upgrade resolves it.  All of these
+  are build-time only: the deployed site is static, so they affect a
+  developer running `npm run start` and the CI build, not readers of the
+  docs.
 
 ## [0.8.0] - 2026-05-16
 

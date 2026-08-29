@@ -29,7 +29,12 @@
 # control over the information you may find at these locations.
 import unittest
 import numpy as np
-from philote_mdo.utils import get_chunk_indices, get_flattened_view, PairDict
+from philote_mdo.utils import (
+    get_chunk_indices,
+    get_flattened_view,
+    get_partials_shape,
+    PairDict,
+)
 from philote_mdo.utils.validation import PhiloteValidationError
 
 
@@ -53,6 +58,16 @@ class TestUtils(unittest.TestCase):
         chunk_size = 10
         result = list(get_chunk_indices(num_values, chunk_size))
         self.assertEqual(result, [(0, 5)])
+
+        # test case 3: exactly one full chunk, the boundary of the shortcut
+        result = list(get_chunk_indices(10, 10))
+        self.assertEqual(result, [(0, 10)])
+
+        result = list(get_chunk_indices(11, 10))
+        self.assertEqual(result, [(0, 10), (10, 11)])
+
+        # test case 4: no values yields no chunks, rather than an empty one
+        self.assertEqual(list(get_chunk_indices(0, 10)), [])
 
     def test_get_flattened_view(self):
         """
@@ -108,6 +123,22 @@ class TestUtils(unittest.TestCase):
         pd[("a", "b")] = 1.0
         with self.assertRaises(PhiloteValidationError):
             _ = pd["single_key"]
+
+    def test_get_partials_shape_scalar_over_scalar(self):
+        self.assertEqual(get_partials_shape((1,), (1,)), (1,))
+
+    def test_get_partials_shape_scalar_over_vector(self):
+        """
+        A scalar function drops its own dimension rather than carrying it.
+        """
+        self.assertEqual(get_partials_shape((1,), (4,)), (4,))
+
+    def test_get_partials_shape_vector_over_scalar(self):
+        self.assertEqual(get_partials_shape((3,), (1,)), (3,))
+
+    def test_get_partials_shape_vector_over_vector(self):
+        self.assertEqual(get_partials_shape((3,), (4,)), (3, 4))
+        self.assertEqual(get_partials_shape((2, 2), (4,)), (2, 2, 4))
 
 
 if __name__ == "__main__":

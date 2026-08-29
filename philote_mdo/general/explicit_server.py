@@ -34,7 +34,7 @@ from philote_mdo.general.discipline_server import (
     DisciplineServer,
     _python_to_value,
 )
-from philote_mdo.utils import get_chunk_indices
+from philote_mdo.utils import get_chunk_indices, set_array_data
 from philote_mdo.utils.validation import PhiloteValidationError
 
 
@@ -80,15 +80,17 @@ class ExplicitServer(DisciplineServer, disc.ExplicitServiceServicer):
             # Stream continuous outputs
             for output_name, value in outputs.items():
                 for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
-                    yield data.VariableMessage(
+                    message = data.VariableMessage(
                         continuous=data.Array(
                             name=output_name,
                             type=data.kOutput,
                             start=b,
                             end=e - 1,
-                            data=value.ravel()[b:e],
                         )
                     )
+                    set_array_data(message.continuous, value.ravel()[b:e])
+
+                    yield message
 
             # Stream discrete outputs
             for name, value in discrete_outputs.items():
@@ -128,16 +130,18 @@ class ExplicitServer(DisciplineServer, disc.ExplicitServiceServicer):
 
             for jac, value in jac.items():
                 for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
-                    yield data.VariableMessage(
+                    message = data.VariableMessage(
                         continuous=data.Array(
                             name=jac[0],
                             subname=jac[1],
                             type=data.kPartial,
                             start=b,
                             end=e - 1,
-                            data=value.ravel()[b:e],
                         )
                     )
+                    set_array_data(message.continuous, value.ravel()[b:e])
+
+                    yield message
         except PhiloteValidationError as e:
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
         except Exception as e:

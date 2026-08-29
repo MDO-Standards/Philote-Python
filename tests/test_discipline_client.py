@@ -58,7 +58,7 @@ class TestDisciplineClient(unittest.TestCase):
         self.assertFalse(instance._is_differentiable)
         self.assertFalse(instance._provides_gradients)
         self.assertIsInstance(instance._disc_stub, disc.DisciplineServiceStub)
-        self.assertEqual(instance._stream_options.num_double, 1000)
+        self.assertEqual(instance._stream_options.num_double, 100000)
         self.assertEqual(instance._var_meta, [])
         self.assertEqual(instance._partials_meta, [])
         self.assertEqual(instance.options_list, {})
