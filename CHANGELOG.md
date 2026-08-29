@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Features
+
+- Continuous array data is now read and written through the packed wire
+  buffer directly, rather than through the protobuf `repeated double` API,
+  which converts every element to and from a boxed Python float.  A packed
+  `repeated double` is encoded as a length-delimited buffer of little-endian
+  doubles, which is byte for byte what NumPy already holds, so the emitted
+  bytes are identical and **the protocol is unchanged** -- peers in any
+  language are unaffected.  Per direction for 200k doubles, encoding drops
+  from 27.4 ms to 0.15 ms and decoding from 7.9 ms to 0.11 ms; a 250k-element
+  round trip over the streaming transport goes from 121 ms to 36 ms.  Decoding
+  stays on the protobuf container below 64 elements, where re-serializing the
+  message to reach its payload would cost more than it saves, so
+  scalar-heavy disciplines are unaffected.  The helpers live in
+  `philote_mdo.utils.encoding`.
+
 ### Bug Fixes
 
 - Fixed `ImplicitServer` emitting `Array.end` as an exclusive index, while the

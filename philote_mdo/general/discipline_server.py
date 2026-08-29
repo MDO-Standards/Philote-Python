@@ -34,7 +34,7 @@ import philote_mdo.generated.data_pb2 as data
 import philote_mdo.generated.disciplines_pb2_grpc as disc
 from google.protobuf.empty_pb2 import Empty
 from google.protobuf import struct_pb2
-from philote_mdo.utils import PairDict, get_flattened_view
+from philote_mdo.utils import PairDict, get_flattened_view, read_array_into
 from philote_mdo.utils.validation import PhiloteValidationError, validate_shape
 
 
@@ -312,14 +312,12 @@ class DisciplineServer(disc.DisciplineService):
 
             if variant == "continuous":
                 arr = message.continuous
-                b = arr.start
-                e = arr.end
 
                 if len(arr.data) > 0:
                     if arr.type == data.VariableType.kInput:
-                        flat_inputs[arr.name][b : e + 1] = arr.data
+                        read_array_into(arr, flat_inputs[arr.name])
                     elif arr.type == data.VariableType.kOutput:
-                        flat_outputs[arr.name][b : e + 1] = arr.data
+                        read_array_into(arr, flat_outputs[arr.name])
                 else:
                     raise PhiloteValidationError(
                         "Expected continuous variables but arrays were"

@@ -248,17 +248,17 @@ class DisciplineClient:
             for b, e in utils.get_chunk_indices(
                 value.size, self._stream_options.num_double
             ):
-                messages += [
-                    data.VariableMessage(
-                        continuous=data.Array(
-                            name=input_name,
-                            start=b,
-                            end=e - 1,
-                            type=data.VariableType.kInput,
-                            data=value.ravel()[b:e],
-                        )
+                message = data.VariableMessage(
+                    continuous=data.Array(
+                        name=input_name,
+                        start=b,
+                        end=e - 1,
+                        type=data.VariableType.kInput,
                     )
-                ]
+                )
+                utils.set_array_data(message.continuous, value.ravel()[b:e])
+
+                messages += [message]
 
         # Continuous outputs (for implicit disciplines)
         if outputs:
@@ -266,17 +266,17 @@ class DisciplineClient:
                 for b, e in utils.get_chunk_indices(
                     value.size, self._stream_options.num_double
                 ):
-                    messages += [
-                        data.VariableMessage(
-                            continuous=data.Array(
-                                name=output_name,
-                                start=b,
-                                end=e - 1,
-                                type=data.VariableType.kOutput,
-                                data=value.ravel()[b:e],
-                            )
+                    message = data.VariableMessage(
+                        continuous=data.Array(
+                            name=output_name,
+                            start=b,
+                            end=e - 1,
+                            type=data.VariableType.kOutput,
                         )
-                    ]
+                    )
+                    utils.set_array_data(message.continuous, value.ravel()[b:e])
+
+                    messages += [message]
 
         # Discrete inputs
         if discrete_inputs:
@@ -329,10 +329,8 @@ class DisciplineClient:
             if variant == "continuous":
                 arr = message.continuous
                 if arr.type == data.kOutput:
-                    b = arr.start
-                    e = arr.end + 1
                     if len(arr.data) > 0:
-                        flat_outputs[arr.name][b:e] = arr.data
+                        utils.read_array_into(arr, flat_outputs[arr.name])
                     else:
                         raise PhiloteValidationError(
                             "Expected continuous variables, but array is empty."
@@ -367,10 +365,8 @@ class DisciplineClient:
             if variant == "continuous":
                 arr = message.continuous
                 if arr.type == data.kResidual:
-                    b = arr.start
-                    e = arr.end + 1
                     if len(arr.data) > 0:
-                        flat_residuals[arr.name][b:e] = arr.data
+                        utils.read_array_into(arr, flat_residuals[arr.name])
                     else:
                         raise PhiloteValidationError(
                             "Expected continuous variables, but array is empty."
@@ -412,12 +408,12 @@ class DisciplineClient:
 
             if variant == "continuous":
                 arr = message.continuous
-                b = arr.start
-                e = arr.end + 1
 
                 if arr.type == data.kPartial:
                     if len(arr.data) > 0:
-                        flat_p[(arr.name, arr.subname)][b:e] = arr.data
+                        utils.read_array_into(
+                            arr, flat_p[(arr.name, arr.subname)]
+                        )
                     else:
                         raise PhiloteValidationError(
                             "Expected continuous outputs for the "
