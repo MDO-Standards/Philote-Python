@@ -148,6 +148,49 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         # stop the server
         server.stop(0)
 
+    def test_rosenbrock_option_set_after_construction(self):
+        """
+        Integration test for an option assigned after the component is built.
+
+        The Rosenbrock discipline derives its variable shape from the
+        ``dimension`` option, so an assignment the server never hears about
+        shows up as a shape mismatch (issue #77).
+        """
+        # server code
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+
+        discipline = pmdo.ExplicitServer(discipline=Rosenbrock())
+        discipline.attach_to_server(server)
+
+        server.add_insecure_port("[::]:50051")
+        server.start()
+
+        # client code
+        prob = om.Problem()
+        model = prob.model
+
+        comp = pmdo_om.RemoteExplicitComponent(
+            channel=grpc.insecure_channel("localhost:50051"), dimension=2
+        )
+        model.add_subsystem("Rosenbrock", comp)
+
+        # override the option after the component was constructed
+        comp.options["dimension"] = 4
+
+        prob.setup()
+
+        # the server must have used the assigned dimension, not the one the
+        # constructor was given
+        self.assertEqual(prob.get_val("Rosenbrock.x").shape, (4,))
+
+        prob.set_val("Rosenbrock.x", np.zeros(4))
+        prob.run_model()
+
+        self.assertEqual(prob.get_val("Rosenbrock.f")[0], 3.0)
+
+        # stop the server
+        server.stop(0)
+
     def test_rosenbrock_compute_partials(self):
         """
         Integration test for the Paraboloid compute function.

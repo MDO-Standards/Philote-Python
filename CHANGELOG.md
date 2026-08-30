@@ -57,6 +57,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- Fixed `RemoteExplicitComponent` and `RemoteImplicitComponent` sending the raw
+  constructor keyword arguments to the server rather than the component's
+  resolved options.  An option that reached the component by any other route --
+  an OpenMDAO default, or an assignment such as `comp.options['dimension'] = 10`
+  after construction -- never reached the server, which kept computing with
+  whatever it had.  The failure was silent: the component reported the option as
+  set while the server used a different value.  The options are now read from
+  `comp.options`, restricted to the names the server declared, and transmitted
+  during `setup()` immediately before the remote `Setup` call, so post-
+  construction assignment takes effect.  Options declared without a value are
+  skipped, leaving the server on its own default (#77).
 - Fixed `ImplicitServer` emitting `Array.end` as an exclusive index, while the
   explicit server and both clients treat it as inclusive per the standard.  Any
   implicit variable spanning more than one chunk failed to decode; single-chunk
@@ -69,6 +80,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The server now populates the `name` and `version` fields of
   `DisciplineProperties` from the discipline's `_name` / `_version`
   attributes, and the client stores them (#67).
+- `DisciplineClient.get_partials_definitions` guarded against duplicates by
+  testing a `str` against a list of `PartialsMetaData` messages, so the guard
+  never fired and every message was appended unconditionally.  Both
+  `get_variable_definitions` and `get_partials_definitions` now clear their
+  metadata lists before repopulating them, mirroring the `_clear_data()` the
+  server performs at the start of each `Setup`, so a client that is set up
+  more than once replaces its metadata rather than accumulating duplicate
+  Jacobian preallocations and `declare_partials` calls (#78).
 - `Discipline.add_output` appended the residual metadata an implicit
   discipline needs, but never registered it in the duplicate-name index, so
   the guard covered the output and not its residual.  The residual key is now
