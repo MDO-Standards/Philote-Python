@@ -403,13 +403,14 @@ class DisciplineClient:
         flat_p = utils.PairDict()
 
         # preallocate
-        # index the metadata by name once; scanning it per partial is
+        # index the metadata by (type, name) once; scanning it per partial is
         # quadratic in the number of variables
-        shapes = {var.name: tuple(var.shape) for var in self._var_meta}
+        shapes = utils.build_shape_index(self._var_meta)
 
         for part in self._partials_meta:
             shape = utils.get_partials_shape(
-                shapes[part.name], shapes[part.subname]
+                utils.get_function_shape(shapes, part.name, "_recover_partials"),
+                utils.get_variable_shape(shapes, part.subname, "_recover_partials"),
             )
 
             partials[(part.name, part.subname)] = np.zeros(shape)
