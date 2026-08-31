@@ -52,6 +52,7 @@ from philote_mdo.general.discipline_server import DisciplineServer
 from philote_mdo.general.job import JOB_METADATA_KEY, JobState, JobStore
 from philote_mdo.utils.validation import (
     JobCapacityError,
+    PhiloteServerError,
     JobNotFoundError,
     JobStateError,
     PhiloteJobError,
@@ -515,6 +516,262 @@ class TestThreadPoolWarning(unittest.TestCase):
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             server.attach_to_server(grpc_server)
+
+
+class FakeRpcError(grpc.RpcError):
+    """A gRPC error with a chosen status code, for the client error paths."""
+
+    def __init__(self, code, details="boom"):
+        self._code = code
+        self._details = details
+
+    def code(self):
+        return self._code
+
+    def details(self):
+        return self._details
+
+
+class TestClientErrorTranslation(unittest.TestCase):
+    """
+    Every client call must surface a server failure as a Philote exception.
+
+    Before this, only the compute calls translated, so a failure during the
+    setup phase escaped as a raw grpc.RpcError and callers could not tell an
+    expired job from a genuine server fault.
+    """
+
+    def _client(self):
+        client = pmdo.ExplicitClient(channel=Mock())
+        client._job_id = "job-1"
+        client._disc_stub = Mock()
+        return client
+
+    def test_not_found_becomes_job_not_found(self):
+        for method, call in (
+            ("GetInfo", lambda c: c.get_discipline_info()),
+            ("SetStreamOptions", lambda c: c.send_stream_options()),
+            ("GetAvailableOptions", lambda c: c.get_available_options()),
+            ("SetOptions", lambda c: c.send_options({"a": 1})),
+            ("Setup", lambda c: c.run_setup()),
+            ("GetVariableDefinitions", lambda c: c.get_variable_definitions()),
+            ("GetPartialDefinitions", lambda c: c.get_partials_definitions()),
+            ("SetVariableShapes", lambda c: c.send_variable_shapes([])),
+            ("EndJob", lambda c: c.end_job()),
+            ("KeepAlive", lambda c: c.keep_alive()),
+        ):
+            with self.subTest(rpc=method):
+                client = self._client()
+                getattr(client._disc_stub, method).side_effect = FakeRpcError(
+                    grpc.StatusCode.NOT_FOUND
+                )
+
+                with self.assertRaises(JobNotFoundError):
+                    call(client)
+
+    def test_resource_exhausted_becomes_capacity_error(self):
+        client = self._client()
+        client._job_id = None
+        client._disc_stub.StartJob.side_effect = FakeRpcError(
+            grpc.StatusCode.RESOURCE_EXHAUSTED
+        )
+
+        with self.assertRaises(JobCapacityError):
+            client.start_job()
+
+    def test_other_codes_stay_server_errors(self):
+        client = self._client()
+        client._disc_stub.Setup.side_effect = FakeRpcError(
+            grpc.StatusCode.INTERNAL
+        )
+
+        with self.assertRaises(PhiloteServerError):
+            client.run_setup()
+
+    def test_start_job_is_idempotent(self):
+        client = self._client()
+
+        self.assertEqual(client.start_job(), "job-1")
+        client._disc_stub.StartJob.assert_not_called()
+
+    def test_end_job_without_a_job_is_a_no_op(self):
+        client = self._client()
+        client._job_id = None
+
+        client.end_job()
+
+        client._disc_stub.EndJob.assert_not_called()
+
+    def test_keep_alive_calls_the_rpc(self):
+        client = self._client()
+
+        client.keep_alive()
+
+        client._disc_stub.KeepAlive.assert_called_once()
+
+
+class TestServerWithoutAFactory(unittest.TestCase):
+    """
+    A server built with no factory has to say so, not fail obscurely.
+    """
+
+    def test_every_entry_point_refuses(self):
+        server = pmdo.ExplicitServer()
+
+        for name, call in (
+            ("StartJob", lambda c: server.StartJob(data.JobHandle(), c)),
+            ("Setup", lambda c: server.Setup(data.JobHandle(), c)),
+            ("GetInfo", lambda c: server.GetInfo(data.JobHandle(), c)),
+            ("GetAvailableOptions",
+             lambda c: server.GetAvailableOptions(data.JobHandle(), c)),
+        ):
+            with self.subTest(rpc=name):
+                context = aborting_job_context(job_id="whatever")
+
+                with self.assertRaises(Aborted):
+                    call(context)
+
+                self.assertEqual(
+                    context.abort.call_args[0][0],
+                    grpc.StatusCode.FAILED_PRECONDITION,
+                )
+
+
+class TestServerJobRpcs(unittest.TestCase):
+    """StartJob, EndJob and KeepAlive as handlers."""
+
+    def test_end_job_twice_is_not_found(self):
+        server, job, context = make_server(DisciplineServer, Paraboloid)
+
+        server.EndJob(data.JobHandle(), context)
+
+        second = aborting_job_context(job_id=job.job_id)
+        with self.assertRaises(Aborted):
+            server.EndJob(data.JobHandle(), second)
+
+        self.assertEqual(
+            second.abort.call_args[0][0], grpc.StatusCode.NOT_FOUND
+        )
+
+    def test_end_job_handles_a_concurrent_close(self):
+        """
+        EndJob resolves the job and then closes it, so another thread can
+        close it in between. The handler for that race is not dead code.
+        """
+        server, job, context = make_server(DisciplineServer, Paraboloid)
+        aborting = aborting_job_context(job=job)
+        server._jobs.close = Mock(side_effect=JobNotFoundError("raced"))
+
+        with self.assertRaises(Aborted):
+            server.EndJob(data.JobHandle(), aborting)
+
+        self.assertEqual(
+            aborting.abort.call_args[0][0], grpc.StatusCode.NOT_FOUND
+        )
+
+    def test_end_job_reports_an_unexpected_teardown_failure(self):
+        """A discipline whose teardown_job raises must not be silent."""
+        server, job, context = make_server(DisciplineServer, Paraboloid)
+        aborting = aborting_job_context(job=job)
+        server._jobs.close = Mock(side_effect=RuntimeError("solver stuck"))
+
+        with self.assertRaises(Aborted):
+            server.EndJob(data.JobHandle(), aborting)
+
+        self.assertEqual(
+            aborting.abort.call_args[0][0], grpc.StatusCode.INTERNAL
+        )
+        self.assertIn("EndJob failed", aborting.abort.call_args[0][1])
+
+    def test_keep_alive_refreshes_the_job(self):
+        server, job, context = make_server(DisciplineServer, Paraboloid)
+        job.last_used -= 5.0
+        stale = job.last_used
+
+        server.KeepAlive(data.JobHandle(), context)
+
+        self.assertGreater(job.last_used, stale)
+
+    def test_start_job_reports_capacity(self):
+        server, job, _ = make_server(DisciplineServer, Paraboloid, max_jobs=1)
+        context = aborting_job_context(job=job)
+
+        with self.assertRaises(Aborted):
+            server.StartJob(data.JobHandle(), context)
+
+        self.assertEqual(
+            context.abort.call_args[0][0], grpc.StatusCode.RESOURCE_EXHAUSTED
+        )
+
+    def test_start_job_reports_a_failing_factory(self):
+        def broken():
+            raise RuntimeError("mesh missing")
+
+        server = pmdo.ExplicitServer(discipline_factory=broken, ttl=None)
+        context = aborting_job_context(job_id="x")
+
+        with self.assertRaises(Aborted):
+            server.StartJob(data.JobHandle(), context)
+
+        self.assertEqual(
+            context.abort.call_args[0][0], grpc.StatusCode.INTERNAL
+        )
+
+    def test_unmapped_job_error_falls_back_to_internal(self):
+        from philote_mdo.general.discipline_server import _job_status
+
+        self.assertEqual(
+            _job_status(PhiloteJobError("unclassified")),
+            grpc.StatusCode.INTERNAL,
+        )
+
+
+class TestJobStoreDetails(unittest.TestCase):
+    """Remaining JobStore behaviour."""
+
+    def test_max_jobs_is_reported(self):
+        store = JobStore(Discipline, max_jobs=3, ttl=None)
+        self.addCleanup(store.close_all)
+
+        self.assertEqual(store.max_jobs, 3)
+
+    def test_closing_an_unknown_job_raises(self):
+        store = JobStore(Discipline, ttl=None)
+        self.addCleanup(store.close_all)
+
+        with self.assertRaises(JobNotFoundError):
+            store.close("nope")
+
+    def test_teardown_of_a_half_built_job_is_safe(self):
+        """A job whose factory never finished has no discipline to release."""
+        store = JobStore(Discipline, ttl=None)
+        self.addCleanup(store.close_all)
+
+        job = store.create()
+        job.discipline = None
+
+        store.close(job.job_id)
+
+        self.assertEqual(job.state, JobState.CLOSED)
+
+    def test_sweeper_thread_evicts_without_being_asked(self):
+        torn = []
+
+        class Tracked(Discipline):
+            def teardown_job(self):
+                torn.append(self.job.job_id)
+
+        store = JobStore(Tracked, ttl=0.05, sweep_interval=0.02)
+        self.addCleanup(store.close_all)
+
+        job = store.create()
+
+        deadline = time.monotonic() + 5.0
+        while len(store) and time.monotonic() < deadline:
+            time.sleep(0.02)
+
+        self.assertEqual(len(store), 0)
+        self.assertEqual(torn, [job.job_id])
 
 
 if __name__ == "__main__":
