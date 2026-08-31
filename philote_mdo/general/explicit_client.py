@@ -29,7 +29,8 @@
 # control over the information you may find at these locations.
 import grpc
 from philote_mdo.general.discipline_client import DisciplineClient
-from philote_mdo.utils.validation import PhiloteServerError, validate_is_dict
+from philote_mdo.general.discipline_client import raise_for_rpc_error
+from philote_mdo.utils.validation import validate_is_dict
 import philote_mdo.generated.disciplines_pb2_grpc as disc
 
 
@@ -40,7 +41,7 @@ class ExplicitClient(DisciplineClient):
 
     def __init__(self, channel):
         super().__init__(channel)
-        self._expl_stub = disc.ExplicitServiceStub(channel)
+        self._expl_stub = disc.ExplicitServiceStub(self._channel)
 
     def run_compute(self, inputs, discrete_inputs=None):
         """
@@ -60,6 +61,7 @@ class ExplicitClient(DisciplineClient):
             Continuous outputs, or (continuous outputs, discrete outputs) when
             the server returns discrete output data.
         """
+        self._ensure_job()
         validate_is_dict(inputs, "run_compute (inputs)")
         try:
             messages = self._assemble_input_messages(
@@ -68,9 +70,7 @@ class ExplicitClient(DisciplineClient):
             responses = self._expl_stub.ComputeFunction(iter(messages))
             return self._recover_outputs(responses)
         except grpc.RpcError as e:
-            raise PhiloteServerError(
-                f"Server error during run_compute: {e.details()}"
-            ) from e
+            raise_for_rpc_error(e, "run_compute")
 
     def run_compute_partials(self, inputs, discrete_inputs=None):
         """
@@ -84,6 +84,7 @@ class ExplicitClient(DisciplineClient):
         discrete_inputs : dict, optional
             Discrete input values.
         """
+        self._ensure_job()
         validate_is_dict(inputs, "run_compute_partials (inputs)")
         try:
             messages = self._assemble_input_messages(
@@ -94,6 +95,4 @@ class ExplicitClient(DisciplineClient):
 
             return partials
         except grpc.RpcError as e:
-            raise PhiloteServerError(
-                f"Server error during run_compute_partials: {e.details()}"
-            ) from e
+            raise_for_rpc_error(e, "run_compute_partials")

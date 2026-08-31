@@ -28,6 +28,8 @@
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
 import unittest
+
+from conftest import patch_discipline_stub
 from unittest.mock import Mock, MagicMock, patch
 import numpy as np
 import philote_mdo.generated.data_pb2 as data
@@ -39,6 +41,16 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
     """
     Unit tests for the OpenMDAO implicit component/client.
     """
+
+    def setUp(self):
+        # the component claims a job from inside __init__, so the stub has
+        # to be mocked before construction rather than after
+        self._job_patch = patch_discipline_stub()
+        self._job_patch.start()
+
+    def tearDown(self):
+        self._job_patch.stop()
+
 
     @patch("philote_mdo.general.ImplicitClient")
     def test_constructor(self, mock_explicit_client, mock_implicit_component):

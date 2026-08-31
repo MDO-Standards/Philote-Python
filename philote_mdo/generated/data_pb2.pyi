@@ -50,6 +50,14 @@ class DisciplineProperties(_message.Message):
     def __init__(self, continuous: bool=..., differentiable: bool=..., provides_gradients: bool=..., name: _Optional[str]=..., version: _Optional[str]=...) -> None:
         ...
 
+class JobHandle(_message.Message):
+    __slots__ = ('job_id',)
+    JOB_ID_FIELD_NUMBER: _ClassVar[int]
+    job_id: str
+
+    def __init__(self, job_id: _Optional[str]=...) -> None:
+        ...
+
 class StreamOptions(_message.Message):
     __slots__ = ('num_double',)
     NUM_DOUBLE_FIELD_NUMBER: _ClassVar[int]

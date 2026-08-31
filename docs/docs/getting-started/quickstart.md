@@ -68,18 +68,33 @@ from concurrent import futures
 import grpc
 # ...
 
-server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
 ```
 
-Next, the **Paraboloid** discipline is attached to the server:
+Next, the **Paraboloid** discipline is attached to the server. Note the class
+`Paraboloid`, not an instance `Paraboloid()` — the server builds one discipline
+per job, which is what lets several clients share a server without overwriting
+each other's setup, so it needs something it can call:
 
 ```python
 import philote_mdo.general as pmdo
 from philote_mdo.examples import Paraboloid
 # ...
 
-discipline = pmdo.ExplicitServer(discipline=Paraboloid())
+discipline = pmdo.ExplicitServer(discipline=Paraboloid)
 discipline.attach_to_server(server)
+```
+
+A class works directly as a factory when its `initialize()` performs its own
+configuration. A discipline that has to be configured from the outside needs a
+closure or `functools.partial` instead:
+
+```python
+from functools import partial
+
+discipline = pmdo.ExplicitServer(
+    discipline=partial(MyDiscipline, mesh_file="wing.cgns")
+)
 ```
 
 Finally, the port of the server is defined (opening a port is necessary for network communication) and the server is started:
@@ -106,9 +121,9 @@ import philote_mdo.general as pmdo
 from philote_mdo.examples import Paraboloid
 
 
-server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
 
-discipline = pmdo.ExplicitServer(discipline=Paraboloid())
+discipline = pmdo.ExplicitServer(discipline=Paraboloid)
 discipline.attach_to_server(server)
 
 server.add_insecure_port("[::]:50051")
@@ -116,6 +131,46 @@ server.start()
 print("Server started. Listening on port 50051.")
 server.wait_for_termination()
 ```
+
+## Jobs
+
+Each client gets its own **job** on the server: a session owning one discipline
+instance and everything built on it, including the options it set and the
+variable metadata `Setup` produced. Two clients can therefore use one server at
+the same time without interfering.
+
+The client starts a job on its first call that needs one, so the code above
+needs no changes to benefit. When you want to control the lifetime explicitly,
+use the context manager, which releases the server's resources on exit:
+
+```python
+with client.job():
+    client.run_setup()
+    client.get_variable_definitions()
+    outputs = client.run_compute(inputs)
+```
+
+If the server no longer recognises a job -- it expired, or the server was
+restarted -- the client raises `PhiloteJobError`. It deliberately does not
+start a replacement job on your behalf, because whatever state the old job held
+is gone, and an optimizer that carried on would return plausible but wrong
+results.
+
+:::note
+Servers cap the number of concurrent jobs (`max_jobs`) and evict jobs that go
+unused (`ttl`). Make sure the gRPC thread pool has at least as many workers as
+the job cap: every in-flight RPC holds a worker for its whole duration, so a
+pool smaller than the cap makes jobs queue instead of run. The server warns at
+startup when the two are mismatched.
+:::
+
+:::warning
+Separate jobs may evaluate at the same time, but Python's GIL decides whether
+that produces a speedup. A discipline wrapping a compiled solver releases the
+GIL and genuinely runs in parallel. A pure-Python discipline does not: jobs make
+it *correct* under concurrent clients, not faster. For parallel evaluation of
+pure-Python disciplines, run several server processes.
+:::
 
 ## Calling the Discipline Using a Client
 

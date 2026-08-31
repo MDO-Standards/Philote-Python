@@ -28,6 +28,8 @@
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
 import unittest
+
+from conftest import bind_job
 from unittest.mock import Mock, patch
 
 import grpc
@@ -51,7 +53,7 @@ class TestExplicitClient(unittest.TestCase):
         """
         mock_channel = Mock()
         mock_stub = mock_explicit_stub.return_value
-        client = ExplicitClient(mock_channel)
+        client = bind_job(ExplicitClient(mock_channel))
         client._var_meta = [
             data.VariableMetaData(name="f", type=data.kOutput, shape=(3,)),
             data.VariableMetaData(name="x", type=data.kInput, shape=(2, 2)),
@@ -96,7 +98,7 @@ class TestExplicitClient(unittest.TestCase):
         """
         mock_channel = Mock()
         mock_stub = mock_explicit_stub.return_value
-        client = ExplicitClient(mock_channel)
+        client = bind_job(ExplicitClient(mock_channel))
         client._var_meta = [
             data.VariableMetaData(name="f", type=data.kOutput, shape=(1,)),
             data.VariableMetaData(name="x", type=data.kInput, shape=(2, 2)),
@@ -140,7 +142,7 @@ class TestExplicitClient(unittest.TestCase):
 
     def test_run_compute_non_dict_raises(self):
         mock_channel = Mock()
-        client = ExplicitClient(mock_channel)
+        client = bind_job(ExplicitClient(mock_channel))
         with self.assertRaises(PhiloteValidationError):
             client.run_compute("not a dict")
 
@@ -148,7 +150,7 @@ class TestExplicitClient(unittest.TestCase):
     def test_run_compute_grpc_error_wraps(self, mock_explicit_stub):
         mock_channel = Mock()
         mock_stub = mock_explicit_stub.return_value
-        client = ExplicitClient(mock_channel)
+        client = bind_job(ExplicitClient(mock_channel))
         client._var_meta = [
             data.VariableMetaData(name="x", type=data.kInput, shape=(1,)),
         ]
@@ -166,7 +168,7 @@ class TestExplicitClient(unittest.TestCase):
     def test_run_compute_partials_grpc_error_wraps(self, mock_explicit_stub):
         mock_channel = Mock()
         mock_stub = mock_explicit_stub.return_value
-        client = ExplicitClient(mock_channel)
+        client = bind_job(ExplicitClient(mock_channel))
         client._var_meta = [
             data.VariableMetaData(name="f", type=data.kOutput, shape=(1,)),
             data.VariableMetaData(name="x", type=data.kInput, shape=(1,)),
@@ -184,6 +186,6 @@ class TestExplicitClient(unittest.TestCase):
 
     def test_run_compute_partials_non_dict_raises(self):
         mock_channel = Mock()
-        client = ExplicitClient(mock_channel)
+        client = bind_job(ExplicitClient(mock_channel))
         with self.assertRaises(PhiloteValidationError):
             client.run_compute_partials(42)

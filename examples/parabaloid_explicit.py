@@ -34,9 +34,15 @@ from philote_mdo.examples import Paraboloid
 
 
 def run():
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    # the pool must be at least as large as the server's job cap: every
+    # in-flight RPC holds a worker for its whole duration
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
 
-    discipline = pmdo.ExplicitServer(discipline=Paraboloid())
+    # One discipline instance is built per job, so concurrent clients do not
+    # interfere. A class works as the factory here because its initialize()
+    # does its own configuration; a discipline configured from the outside
+    # needs a closure or functools.partial.
+    discipline = pmdo.ExplicitServer(discipline=Paraboloid)
     discipline.attach_to_server(server)
 
     server.add_insecure_port("[::]:50051")

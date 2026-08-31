@@ -29,6 +29,9 @@
 # control over the information you may find at these locations.
 from concurrent import futures
 import unittest
+
+from philote_mdo.general import Discipline
+from conftest import job_context, make_server, make_server_from_instance
 from unittest.mock import Mock
 
 import grpc
@@ -127,18 +130,15 @@ class TestSetVariableShapesRPC(unittest.TestCase):
     """Unit tests for the SetVariableShapes RPC handler."""
 
     def _make_server_with_dynamic_disc(self):
-        server = DisciplineServer()
         disc = Discipline()
         disc.add_input("x", dynamic_shape=True)
         disc.add_output("y", dynamic_shape=True)
         disc.add_input("z", shape=(2,))  # static
-        server._discipline = disc
-        return server
+        return make_server_from_instance(DisciplineServer, disc)
 
     def test_set_shapes_for_dynamic_variables(self):
         """SetVariableShapes updates shapes on dynamic variables."""
-        server = self._make_server_with_dynamic_disc()
-        context = Mock()
+        server, job, context = self._make_server_with_dynamic_disc()
 
         x_meta = data.VariableMetaData(
             name="x", type=data.VariableType.kInput, shape=[5]
@@ -149,7 +149,7 @@ class TestSetVariableShapesRPC(unittest.TestCase):
         server.SetVariableShapes(iter([x_meta, y_meta]), context)
 
         # verify shapes were updated
-        for var in server._discipline._var_meta:
+        for var in job.discipline._var_meta:
             if var.name == "x":
                 self.assertEqual(list(var.shape), [5])
             if var.name == "y" and var.type == data.VariableType.kOutput:
@@ -157,8 +157,7 @@ class TestSetVariableShapesRPC(unittest.TestCase):
 
     def test_reject_shape_for_static_variable(self):
         """SetVariableShapes aborts when targeting a non-dynamic variable."""
-        server = self._make_server_with_dynamic_disc()
-        context = Mock()
+        server, job, context = self._make_server_with_dynamic_disc()
 
         z_meta = data.VariableMetaData(
             name="z", type=data.VariableType.kInput, shape=[10]
@@ -168,8 +167,7 @@ class TestSetVariableShapesRPC(unittest.TestCase):
 
     def test_reject_unknown_variable(self):
         """SetVariableShapes aborts when the variable name is not found."""
-        server = self._make_server_with_dynamic_disc()
-        context = Mock()
+        server, job, context = self._make_server_with_dynamic_disc()
 
         meta = data.VariableMetaData(
             name="nope", type=data.VariableType.kInput, shape=[3]
@@ -179,8 +177,7 @@ class TestSetVariableShapesRPC(unittest.TestCase):
 
     def test_reject_invalid_shape(self):
         """SetVariableShapes aborts on invalid (non-positive) shape."""
-        server = self._make_server_with_dynamic_disc()
-        context = Mock()
+        server, job, context = self._make_server_with_dynamic_disc()
 
         meta = data.VariableMetaData(
             name="x", type=data.VariableType.kInput, shape=[-1]
@@ -190,10 +187,10 @@ class TestSetVariableShapesRPC(unittest.TestCase):
 
     def test_preallocate_raises_when_shape_unset(self):
         """preallocate_inputs raises if a dynamic variable has no shape."""
-        server = self._make_server_with_dynamic_disc()
+        server, job, context = self._make_server_with_dynamic_disc()
 
         with self.assertRaises(PhiloteValidationError):
-            server.preallocate_inputs({}, {})
+            server.preallocate_inputs(job, {}, {})
 
 
 # ---------------------------------------------------------------
@@ -240,7 +237,7 @@ class TestFlexibleDisciplineIntegration(unittest.TestCase):
         """Client sets shapes, then computes with the FlexibleDiscipline."""
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = ExplicitServer(discipline=FlexibleDiscipline())
+        discipline = ExplicitServer(discipline=FlexibleDiscipline)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -282,7 +279,7 @@ class TestFlexibleDisciplineIntegration(unittest.TestCase):
         """Client sets shapes, then computes partials."""
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = ExplicitServer(discipline=FlexibleDiscipline())
+        discipline = ExplicitServer(discipline=FlexibleDiscipline)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -319,7 +316,7 @@ class TestFlexibleDisciplineIntegration(unittest.TestCase):
 
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = ExplicitServer(discipline=Paraboloid())
+        discipline = ExplicitServer(discipline=Paraboloid)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -376,7 +373,7 @@ class TestDynamicImplicitIntegration(unittest.TestCase):
         """SetVariableShapes updates residual entries for implicit disciplines."""
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = ImplicitServer(discipline=DynamicImplicit())
+        discipline = ImplicitServer(discipline=DynamicImplicit)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -416,12 +413,12 @@ class TestSetVariableShapesGenericException(unittest.TestCase):
     """Tests the generic exception handler in SetVariableShapes."""
 
     def test_generic_exception_aborts(self):
-        server = DisciplineServer()
+        server, job, context = make_server(DisciplineServer, Discipline)
         disc = Discipline()
         disc.add_input("x", dynamic_shape=True)
-        server._discipline = disc
+        job.discipline = disc
 
-        context = Mock()
+        context = job_context(job=job)
 
         # Craft an iterator that raises a non-validation exception
         def bad_iterator():

@@ -28,6 +28,8 @@
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
 import unittest
+
+from conftest import bind_job
 from unittest.mock import Mock, patch
 
 import grpc
@@ -51,7 +53,7 @@ class TestImplicitClient(unittest.TestCase):
         """
         mock_channel = Mock()
         mock_stub = mock_implicit_stub.return_value
-        client = ImplicitClient(mock_channel)
+        client = bind_job(ImplicitClient(mock_channel))
         client._var_meta = [
             data.VariableMetaData(name="f", type=data.kOutput, shape=(3,)),
             data.VariableMetaData(name="f", type=data.kResidual, shape=(3,)),
@@ -103,7 +105,7 @@ class TestImplicitClient(unittest.TestCase):
         """
         mock_channel = Mock()
         mock_stub = mock_implicit_stub.return_value
-        client = ImplicitClient(mock_channel)
+        client = bind_job(ImplicitClient(mock_channel))
         client._var_meta = [
             data.VariableMetaData(name="f", type=data.kOutput, shape=(3,)),
             data.VariableMetaData(name="f", type=data.kResidual, shape=(3,)),
@@ -154,7 +156,7 @@ class TestImplicitClient(unittest.TestCase):
         """
         mock_channel = Mock()
         mock_stub = mock_implicit_stub.return_value
-        client = ImplicitClient(mock_channel)
+        client = bind_job(ImplicitClient(mock_channel))
         client._var_meta = [
             data.VariableMetaData(name="f", type=data.kOutput, shape=(2,)),
             data.VariableMetaData(name="f", type=data.kResidual, shape=(2,)),
@@ -208,7 +210,7 @@ class TestImplicitClient(unittest.TestCase):
     def test_run_compute_residuals_grpc_error_wraps(self, mock_implicit_stub):
         mock_channel = Mock()
         mock_stub = mock_implicit_stub.return_value
-        client = ImplicitClient(mock_channel)
+        client = bind_job(ImplicitClient(mock_channel))
         client._var_meta = [
             data.VariableMetaData(name="x", type=data.kInput, shape=(1,)),
             data.VariableMetaData(name="f", type=data.kOutput, shape=(1,)),
@@ -230,7 +232,7 @@ class TestImplicitClient(unittest.TestCase):
     def test_run_solve_residuals_grpc_error_wraps(self, mock_implicit_stub):
         mock_channel = Mock()
         mock_stub = mock_implicit_stub.return_value
-        client = ImplicitClient(mock_channel)
+        client = bind_job(ImplicitClient(mock_channel))
         client._var_meta = [
             data.VariableMetaData(name="x", type=data.kInput, shape=(1,)),
             data.VariableMetaData(name="f", type=data.kOutput, shape=(1,)),
@@ -249,7 +251,7 @@ class TestImplicitClient(unittest.TestCase):
     def test_run_residual_gradients_grpc_error_wraps(self, mock_implicit_stub):
         mock_channel = Mock()
         mock_stub = mock_implicit_stub.return_value
-        client = ImplicitClient(mock_channel)
+        client = bind_job(ImplicitClient(mock_channel))
         client._var_meta = [
             data.VariableMetaData(name="x", type=data.kInput, shape=(1,)),
             data.VariableMetaData(name="f", type=data.kOutput, shape=(1,)),
@@ -270,25 +272,25 @@ class TestImplicitClient(unittest.TestCase):
 
     def test_run_compute_residuals_non_dict_inputs_raises(self):
         mock_channel = Mock()
-        client = ImplicitClient(mock_channel)
+        client = bind_job(ImplicitClient(mock_channel))
         with self.assertRaises(PhiloteValidationError):
             client.run_compute_residuals("not a dict", {"f": np.array([1.0])})
 
     def test_run_compute_residuals_non_dict_outputs_raises(self):
         mock_channel = Mock()
-        client = ImplicitClient(mock_channel)
+        client = bind_job(ImplicitClient(mock_channel))
         with self.assertRaises(PhiloteValidationError):
             client.run_compute_residuals({"x": np.array([1.0])}, "not a dict")
 
     def test_run_solve_residuals_non_dict_raises(self):
         mock_channel = Mock()
-        client = ImplicitClient(mock_channel)
+        client = bind_job(ImplicitClient(mock_channel))
         with self.assertRaises(PhiloteValidationError):
             client.run_solve_residuals(42)
 
     def test_run_residual_gradients_non_dict_raises(self):
         mock_channel = Mock()
-        client = ImplicitClient(mock_channel)
+        client = bind_job(ImplicitClient(mock_channel))
         with self.assertRaises(PhiloteValidationError):
             client.run_residual_gradients("bad", {"f": np.array([1.0])})
 

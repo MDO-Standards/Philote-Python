@@ -28,6 +28,8 @@
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
 import unittest
+
+from conftest import job_context, make_server
 from unittest.mock import Mock
 
 import grpc
@@ -50,13 +52,13 @@ class TestExplicitServer(unittest.TestCase):
         """
         Tests the ComputeFunction RPC of the Explicit Server.
         """
-        server = ExplicitServer()
-        discipline = server._discipline = ExplicitDiscipline()
-        server._stream_opts.num_double = 3
+        server, job, context = make_server(ExplicitServer, ExplicitDiscipline)
+        discipline = job.discipline
+        job.stream_opts.num_double = 3
         discipline.add_input("x", shape=(5,), units="")
         discipline.add_output("f", shape=(2,), units="")
 
-        context = Mock()
+        context = job_context(job=job)
         request_iterator = [
             data.VariableMessage(
                 continuous=data.Array(
@@ -76,7 +78,7 @@ class TestExplicitServer(unittest.TestCase):
         def compute(inputs, outputs):
             outputs["f"] = np.array([rosen(inputs["x"]), rosen(inputs["x"].T - 2.0)])
 
-        server._discipline.compute = compute
+        job.discipline.compute = compute
 
         # call the function
         response_generator = server.ComputeFunction(request_iterator, context)
@@ -97,14 +99,14 @@ class TestExplicitServer(unittest.TestCase):
         """
         Tests the ComputeGradient RPC of the Explicit Server.
         """
-        server = ExplicitServer()
-        discipline = server._discipline = ExplicitDiscipline()
-        server._stream_opts.num_double = 3
+        server, job, context = make_server(ExplicitServer, ExplicitDiscipline)
+        discipline = job.discipline
+        job.stream_opts.num_double = 3
         discipline.add_input("x", shape=(5,), units="")
         discipline.add_output("f", shape=(1,), units="")
         discipline.declare_partials("f", "x")
 
-        context = Mock()
+        context = job_context(job=job)
         request_iterator = [
             data.VariableMessage(
                 continuous=data.Array(
@@ -124,7 +126,7 @@ class TestExplicitServer(unittest.TestCase):
         def compute_partials(inputs, jac):
             jac["f", "x"] = rosen_der(inputs["x"])
 
-        server._discipline.compute_partials = compute_partials
+        job.discipline.compute_partials = compute_partials
 
         # call the function
         response_generator = server.ComputeGradient(request_iterator, context)
@@ -153,12 +155,12 @@ class TestExplicitServer(unittest.TestCase):
         Tests that ComputeFunction calls context.abort with INVALID_ARGUMENT
         when a PhiloteValidationError is raised.
         """
-        server = ExplicitServer()
-        discipline = server._discipline = ExplicitDiscipline()
+        server, job, context = make_server(ExplicitServer, ExplicitDiscipline)
+        discipline = job.discipline
         discipline.add_input("x", shape=(1,), units="")
         discipline.add_output("f", shape=(1,), units="")
 
-        context = Mock()
+        context = job_context(job=job)
         request_iterator = [
             data.VariableMessage(
                 continuous=data.Array(
@@ -171,7 +173,7 @@ class TestExplicitServer(unittest.TestCase):
         def bad_compute(inputs, outputs):
             raise PhiloteValidationError("bad input data")
 
-        server._discipline.compute = bad_compute
+        job.discipline.compute = bad_compute
 
         list(server.ComputeFunction(request_iterator, context))
 
@@ -185,13 +187,13 @@ class TestExplicitServer(unittest.TestCase):
         Tests that ComputeGradient calls context.abort with INVALID_ARGUMENT
         when a PhiloteValidationError is raised.
         """
-        server = ExplicitServer()
-        discipline = server._discipline = ExplicitDiscipline()
+        server, job, context = make_server(ExplicitServer, ExplicitDiscipline)
+        discipline = job.discipline
         discipline.add_input("x", shape=(1,), units="")
         discipline.add_output("f", shape=(1,), units="")
         discipline.declare_partials("f", "x")
 
-        context = Mock()
+        context = job_context(job=job)
         request_iterator = [
             data.VariableMessage(
                 continuous=data.Array(
@@ -204,7 +206,7 @@ class TestExplicitServer(unittest.TestCase):
         def bad_partials(inputs, jac):
             raise PhiloteValidationError("invalid partials")
 
-        server._discipline.compute_partials = bad_partials
+        job.discipline.compute_partials = bad_partials
 
         list(server.ComputeGradient(request_iterator, context))
 
@@ -218,12 +220,12 @@ class TestExplicitServer(unittest.TestCase):
         Tests that ComputeFunction calls context.abort when the discipline's
         compute raises an exception.
         """
-        server = ExplicitServer()
-        discipline = server._discipline = ExplicitDiscipline()
+        server, job, context = make_server(ExplicitServer, ExplicitDiscipline)
+        discipline = job.discipline
         discipline.add_input("x", shape=(1,), units="")
         discipline.add_output("f", shape=(1,), units="")
 
-        context = Mock()
+        context = job_context(job=job)
         request_iterator = [
             data.VariableMessage(
                 continuous=data.Array(
@@ -236,7 +238,7 @@ class TestExplicitServer(unittest.TestCase):
         def bad_compute(inputs, outputs):
             raise RuntimeError("division by zero in compute")
 
-        server._discipline.compute = bad_compute
+        job.discipline.compute = bad_compute
 
         # Exhaust the generator
         list(server.ComputeFunction(request_iterator, context))
@@ -251,13 +253,13 @@ class TestExplicitServer(unittest.TestCase):
         Tests that ComputeGradient calls context.abort when the discipline's
         compute_partials raises an exception.
         """
-        server = ExplicitServer()
-        discipline = server._discipline = ExplicitDiscipline()
+        server, job, context = make_server(ExplicitServer, ExplicitDiscipline)
+        discipline = job.discipline
         discipline.add_input("x", shape=(1,), units="")
         discipline.add_output("f", shape=(1,), units="")
         discipline.declare_partials("f", "x")
 
-        context = Mock()
+        context = job_context(job=job)
         request_iterator = [
             data.VariableMessage(
                 continuous=data.Array(
@@ -270,7 +272,7 @@ class TestExplicitServer(unittest.TestCase):
         def bad_partials(inputs, jac):
             raise RuntimeError("singular matrix")
 
-        server._discipline.compute_partials = bad_partials
+        job.discipline.compute_partials = bad_partials
 
         list(server.ComputeGradient(request_iterator, context))
 
