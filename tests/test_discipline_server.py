@@ -38,6 +38,7 @@ from google.protobuf.empty_pb2 import Empty
 from philote_mdo.general import Discipline, DisciplineServer
 from philote_mdo.utils.validation import PhiloteValidationError
 import philote_mdo.generated.data_pb2 as data
+import philote_mdo.generated.disciplines_pb2_grpc as disc
 
 
 class TestDisciplineServer(unittest.TestCase):
@@ -609,6 +610,31 @@ class TestDisciplineServer(unittest.TestCase):
         args = context.abort.call_args
         self.assertEqual(args[0][0], grpc.StatusCode.INTERNAL)
         self.assertIn("Setup failed", args[0][1])
+
+    def test_servicer_base_class(self):
+        """
+        Tests that the server derives from the servicer, not the static API.
+        """
+        self.assertTrue(issubclass(DisciplineServer, disc.DisciplineServiceServicer))
+        self.assertNotIn(disc.DisciplineService, DisciplineServer.__mro__)
+
+    def test_missing_rpc_falls_back_to_servicer_default(self):
+        """
+        Tests that an RPC a subclass fails to define resolves to the servicer's
+        UNIMPLEMENTED default rather than to the static-call API.
+        """
+        skip = ("__dict__", "__weakref__", "GetInfo")
+        attrs = {k: v for k, v in vars(DisciplineServer).items() if k not in skip}
+        partial_cls = type("PartialServer", DisciplineServer.__bases__, attrs)
+
+        # the inherited GetInfo must come from the servicer, not the static API
+        self.assertIs(partial_cls.GetInfo, disc.DisciplineServiceServicer.GetInfo)
+
+        context = Mock()
+        with self.assertRaises(NotImplementedError):
+            partial_cls().GetInfo(Empty(), context)
+
+        context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
 
 
 if __name__ == "__main__":

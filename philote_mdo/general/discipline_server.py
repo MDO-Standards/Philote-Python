@@ -46,7 +46,7 @@ from philote_mdo.utils import (
 from philote_mdo.utils.validation import PhiloteValidationError, validate_shape
 
 
-class DisciplineServer(disc.DisciplineService):
+class DisciplineServer(disc.DisciplineServiceServicer):
     """
     Base class for all server classes.
     """
