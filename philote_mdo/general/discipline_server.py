@@ -94,7 +94,7 @@ class DisciplineServer(disc.DisciplineServiceServicer):
 
     def __init__(
         self,
-        discipline_factory=None,
+        discipline=None,
         max_jobs=DEFAULT_MAX_JOBS,
         ttl=DEFAULT_TTL,
         sweep_interval=DEFAULT_SWEEP_INTERVAL,
@@ -108,8 +108,8 @@ class DisciplineServer(disc.DisciplineServiceServicer):
         # live jobs, created once a factory is attached
         self._jobs = None
 
-        if discipline_factory is not None:
-            self.attach_discipline_factory(discipline_factory)
+        if discipline is not None:
+            self.attach_discipline(discipline)
 
     def attach_to_server(self, server):
         """
@@ -118,7 +118,7 @@ class DisciplineServer(disc.DisciplineServiceServicer):
         self._warn_on_thread_pool(server)
         disc.add_DisciplineServiceServicer_to_server(self, server)
 
-    def attach_discipline_factory(self, factory):
+    def attach_discipline(self, factory):
         """
         Adds a discipline factory to the server.
 

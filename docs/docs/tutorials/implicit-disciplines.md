@@ -233,7 +233,7 @@ def run_server():
 
     # Create and attach implicit server. It takes a factory and builds one
     # discipline per job, so concurrent clients do not interfere.
-    impl_server = pmdo.ImplicitServer(discipline_factory=QuadraticSolver)
+    impl_server = pmdo.ImplicitServer(discipline=QuadraticSolver)
     impl_server.attach_to_server(server)
 
     # Start server
@@ -267,7 +267,7 @@ def run_production_server():
         ]
     )
 
-    impl_server = pmdo.ImplicitServer(discipline_factory=QuadraticSolver)
+    impl_server = pmdo.ImplicitServer(discipline=QuadraticSolver)
     impl_server.attach_to_server(server)
 
     # Use secure connection in production

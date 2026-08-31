@@ -42,7 +42,7 @@ def run():
     # interfere. A class works as the factory here because its initialize()
     # does its own configuration; a discipline configured from the outside
     # needs a closure or functools.partial.
-    discipline = pmdo.ExplicitServer(discipline_factory=Paraboloid)
+    discipline = pmdo.ExplicitServer(discipline=Paraboloid)
     discipline.attach_to_server(server)
 
     server.add_insecure_port("[::]:50051")

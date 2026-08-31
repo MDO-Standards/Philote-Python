@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   keeps on `self` -- a mesh, a solver, an `om.Problem` -- is private to one
   client.  **Every existing discipline hook signature is unchanged**; only the
   server constructor moves, from `ExplicitServer(discipline=Paraboloid())` to
-  `ExplicitServer(discipline_factory=Paraboloid)`.  A class works directly as a
+  `ExplicitServer(discipline=Paraboloid)`.  A class works directly as a
   factory when its `initialize()` does its own configuration; a discipline
   configured externally needs a closure or `functools.partial`.  `Discipline`
   gains a `job` attribute, giving `self.job.job_id`, and an optional

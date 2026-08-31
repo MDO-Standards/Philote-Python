@@ -68,7 +68,7 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         >>> # per job, so concurrent clients do not interfere.
         >>> server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
         >>> impl_server = pmdo.ImplicitServer(
-        ...     discipline_factory=MyImplicitDiscipline
+        ...     discipline=MyImplicitDiscipline
         ... )
         >>> impl_server.attach_to_server(server)
         >>>
@@ -88,13 +88,13 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         - The underlying discipline must implement all required implicit methods
     """
 
-    def __init__(self, discipline_factory=None, **kwargs):
+    def __init__(self, discipline=None, **kwargs):
         """
         Initialize the implicit discipline server.
 
         Parameters
         ----------
-        discipline_factory : callable, optional
+        discipline : callable, optional
             Zero-argument callable returning a fresh implicit discipline, which
             must implement compute_residuals, solve_residuals and
             residual_partials. One instance is built per job, so the state a
@@ -105,9 +105,9 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
 
         Examples
         --------
-        >>> server = ImplicitServer(discipline_factory=MyImplicitDiscipline)
+        >>> server = ImplicitServer(discipline=MyImplicitDiscipline)
         """
-        super().__init__(discipline_factory=discipline_factory, **kwargs)
+        super().__init__(discipline=discipline, **kwargs)
 
     def attach_to_server(self, server):
         """
@@ -124,7 +124,7 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         Examples
         --------
         >>> server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-        >>> impl_server = ImplicitServer(discipline_factory=MyImplicitDiscipline)
+        >>> impl_server = ImplicitServer(discipline=MyImplicitDiscipline)
         >>> impl_server.attach_to_server(server)
         >>> server.add_insecure_port('[::]:50051')
         >>> server.start()

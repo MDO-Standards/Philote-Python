@@ -237,7 +237,7 @@ class TestFlexibleDisciplineIntegration(unittest.TestCase):
         """Client sets shapes, then computes with the FlexibleDiscipline."""
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = ExplicitServer(discipline_factory=FlexibleDiscipline)
+        discipline = ExplicitServer(discipline=FlexibleDiscipline)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -279,7 +279,7 @@ class TestFlexibleDisciplineIntegration(unittest.TestCase):
         """Client sets shapes, then computes partials."""
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = ExplicitServer(discipline_factory=FlexibleDiscipline)
+        discipline = ExplicitServer(discipline=FlexibleDiscipline)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -316,7 +316,7 @@ class TestFlexibleDisciplineIntegration(unittest.TestCase):
 
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = ExplicitServer(discipline_factory=Paraboloid)
+        discipline = ExplicitServer(discipline=Paraboloid)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -373,7 +373,7 @@ class TestDynamicImplicitIntegration(unittest.TestCase):
         """SetVariableShapes updates residual entries for implicit disciplines."""
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = ImplicitServer(discipline_factory=DynamicImplicit)
+        discipline = ImplicitServer(discipline=DynamicImplicit)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")

@@ -50,7 +50,7 @@ class IntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = pmdo.ExplicitServer(discipline_factory=Paraboloid)
+        discipline = pmdo.ExplicitServer(discipline=Paraboloid)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -85,7 +85,7 @@ class IntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = pmdo.ExplicitServer(discipline_factory=Paraboloid)
+        discipline = pmdo.ExplicitServer(discipline=Paraboloid)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -121,7 +121,7 @@ class IntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = pmdo.ImplicitServer(discipline_factory=QuadradicImplicit)
+        discipline = pmdo.ImplicitServer(discipline=QuadradicImplicit)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -157,7 +157,7 @@ class IntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = pmdo.ImplicitServer(discipline_factory=QuadradicImplicit)
+        discipline = pmdo.ImplicitServer(discipline=QuadradicImplicit)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -192,7 +192,7 @@ class IntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = pmdo.ImplicitServer(discipline_factory=QuadradicImplicit)
+        discipline = pmdo.ImplicitServer(discipline=QuadradicImplicit)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -250,7 +250,7 @@ class IntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        pmdo.ImplicitServer(discipline_factory=VectorImplicit).attach_to_server(server)
+        pmdo.ImplicitServer(discipline=VectorImplicit).attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
         server.start()
@@ -292,7 +292,7 @@ class IntegrationTests(unittest.TestCase):
         discipline._name = "Paraboloid"
         discipline._version = "1.0.0"
         pmdo.ExplicitServer(
-            discipline_factory=lambda: discipline
+            discipline=lambda: discipline
         ).attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -360,7 +360,7 @@ class StructOptionIntegrationTests(unittest.TestCase):
         """
         # server
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-        discipline = pmdo.ExplicitServer(discipline_factory=StructOptionDiscipline)
+        discipline = pmdo.ExplicitServer(discipline=StructOptionDiscipline)
         discipline.attach_to_server(server)
         server.add_insecure_port("[::]:50051")
         server.start()

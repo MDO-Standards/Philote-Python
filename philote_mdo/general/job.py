@@ -168,9 +168,15 @@ class JobStore:
     ):
         if not callable(discipline_factory):
             raise TypeError(
-                "discipline_factory must be a zero-argument callable that "
-                "returns a Discipline, got "
-                f"{type(discipline_factory).__name__}."
+                f"discipline must be a zero-argument callable returning a "
+                f"Discipline, got an instance of "
+                f"{type(discipline_factory).__name__}. Pass the class rather "
+                f"than an instance of it -- "
+                f"ExplicitServer(discipline={type(discipline_factory).__name__})"
+                f", not "
+                f"ExplicitServer(discipline={type(discipline_factory).__name__}())"
+                f". The server builds one discipline per job, so it needs "
+                f"something it can call."
             )
 
         self._factory = discipline_factory

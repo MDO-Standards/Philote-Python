@@ -109,7 +109,7 @@ class TestDiscreteIntegration(unittest.TestCase):
     def _start_server(self, discipline, port):
         """Helper to start a gRPC server with the given discipline."""
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
-        explicit_server = pmdo.ExplicitServer(discipline_factory=lambda: discipline)
+        explicit_server = pmdo.ExplicitServer(discipline=lambda: discipline)
         explicit_server.attach_to_server(server)
         server.add_insecure_port(f"[::]:{port}")
         server.start()

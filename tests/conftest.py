@@ -103,7 +103,7 @@ def make_server(server_cls, discipline_factory, **kwargs):
     """
     kwargs.setdefault("ttl", None)
 
-    server = server_cls(discipline_factory=discipline_factory, **kwargs)
+    server = server_cls(discipline=discipline_factory, **kwargs)
     job = server._jobs.create()
 
     return server, job, job_context(job=job)

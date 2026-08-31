@@ -71,17 +71,17 @@ import grpc
 server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
 ```
 
-Next, the **Paraboloid** discipline is attached to the server. Note that the
-server takes a *factory* rather than an instance. It builds one discipline per
-job, which is what lets several clients share a server without overwriting each
-other's setup:
+Next, the **Paraboloid** discipline is attached to the server. Note the class
+`Paraboloid`, not an instance `Paraboloid()` — the server builds one discipline
+per job, which is what lets several clients share a server without overwriting
+each other's setup, so it needs something it can call:
 
 ```python
 import philote_mdo.general as pmdo
 from philote_mdo.examples import Paraboloid
 # ...
 
-discipline = pmdo.ExplicitServer(discipline_factory=Paraboloid)
+discipline = pmdo.ExplicitServer(discipline=Paraboloid)
 discipline.attach_to_server(server)
 ```
 
@@ -93,7 +93,7 @@ closure or `functools.partial` instead:
 from functools import partial
 
 discipline = pmdo.ExplicitServer(
-    discipline_factory=partial(MyDiscipline, mesh_file="wing.cgns")
+    discipline=partial(MyDiscipline, mesh_file="wing.cgns")
 )
 ```
 
@@ -123,7 +123,7 @@ from philote_mdo.examples import Paraboloid
 
 server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
 
-discipline = pmdo.ExplicitServer(discipline_factory=Paraboloid)
+discipline = pmdo.ExplicitServer(discipline=Paraboloid)
 discipline.attach_to_server(server)
 
 server.add_insecure_port("[::]:50051")

@@ -52,7 +52,7 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
 
-        discipline = pmdo.ExplicitServer(discipline_factory=Paraboloid)
+        discipline = pmdo.ExplicitServer(discipline=Paraboloid)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -87,7 +87,7 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
 
-        discipline = pmdo.ExplicitServer(discipline_factory=Paraboloid)
+        discipline = pmdo.ExplicitServer(discipline=Paraboloid)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -123,7 +123,7 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
 
-        discipline = pmdo.ExplicitServer(discipline_factory=Rosenbrock)
+        discipline = pmdo.ExplicitServer(discipline=Rosenbrock)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -161,7 +161,7 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
 
-        discipline = pmdo.ExplicitServer(discipline_factory=Rosenbrock)
+        discipline = pmdo.ExplicitServer(discipline=Rosenbrock)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -200,7 +200,7 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
 
-        discipline = pmdo.ExplicitServer(discipline_factory=Rosenbrock)
+        discipline = pmdo.ExplicitServer(discipline=Rosenbrock)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -237,7 +237,7 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
 
-        discipline = pmdo.ImplicitServer(discipline_factory=QuadradicImplicit)
+        discipline = pmdo.ImplicitServer(discipline=QuadradicImplicit)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")

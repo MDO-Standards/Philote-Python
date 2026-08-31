@@ -45,7 +45,7 @@ class TestDisciplineServerEdgeCases(unittest.TestCase):
     Tests for edge cases in DisciplineServer.
     """
 
-    def test_attach_discipline_factory(self):
+    def test_attach_discipline(self):
         """
         Test attaching a discipline to the server (line 62).
         """

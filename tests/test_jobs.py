@@ -71,7 +71,7 @@ def serve(discipline_factory, server_cls=pmdo.ExplicitServer, workers=16, **kwar
         ``(grpc_server, port)``. Stop the server with ``.stop(0)``.
     """
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=workers))
-    server_cls(discipline_factory=discipline_factory, **kwargs).attach_to_server(server)
+    server_cls(discipline=discipline_factory, **kwargs).attach_to_server(server)
     port = server.add_insecure_port("[::]:0")
     server.start()
 
@@ -498,7 +498,7 @@ class TestThreadPoolWarning(unittest.TestCase):
         grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=2))
         self.addCleanup(grpc_server.stop, 0)
 
-        server = pmdo.ExplicitServer(discipline_factory=Paraboloid, max_jobs=8)
+        server = pmdo.ExplicitServer(discipline=Paraboloid, max_jobs=8)
 
         with self.assertWarns(RuntimeWarning) as caught:
             server.attach_to_server(grpc_server)
@@ -511,7 +511,7 @@ class TestThreadPoolWarning(unittest.TestCase):
         grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
         self.addCleanup(grpc_server.stop, 0)
 
-        server = pmdo.ExplicitServer(discipline_factory=Paraboloid, max_jobs=8)
+        server = pmdo.ExplicitServer(discipline=Paraboloid, max_jobs=8)
 
         with warnings.catch_warnings():
             warnings.simplefilter("error")
@@ -707,7 +707,7 @@ class TestServerJobRpcs(unittest.TestCase):
         def broken():
             raise RuntimeError("mesh missing")
 
-        server = pmdo.ExplicitServer(discipline_factory=broken, ttl=None)
+        server = pmdo.ExplicitServer(discipline=broken, ttl=None)
         context = aborting_job_context(job_id="x")
 
         with self.assertRaises(Aborted):
@@ -734,6 +734,21 @@ class TestJobStoreDetails(unittest.TestCase):
         self.addCleanup(store.close_all)
 
         self.assertEqual(store.max_jobs, 3)
+
+    def test_passing_an_instance_says_how_to_fix_it(self):
+        """
+        `discipline=` took an instance before this change and takes a class
+        now, so the same call means something different. An instance is not
+        callable, so it fails immediately rather than silently -- and the
+        message has to say what to write instead.
+        """
+        with self.assertRaises(TypeError) as caught:
+            pmdo.ExplicitServer(discipline=Paraboloid())
+
+        message = str(caught.exception)
+        self.assertIn("discipline=Paraboloid)", message)
+        self.assertIn("not", message)
+        self.assertIn("discipline=Paraboloid())", message)
 
     def test_closing_an_unknown_job_raises(self):
         store = JobStore(Discipline, ttl=None)
