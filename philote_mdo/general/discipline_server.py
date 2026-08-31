@@ -82,7 +82,7 @@ def _job_status(exc):
     return grpc.StatusCode.INTERNAL
 
 
-class DisciplineServer(disc.DisciplineService):
+class DisciplineServer(disc.DisciplineServiceServicer):
     """
     Base class for all server classes.
 

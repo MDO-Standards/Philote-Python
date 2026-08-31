@@ -112,6 +112,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- `DisciplineServer` inherited `DisciplineService`, the generated experimental
+  static-call API, rather than `DisciplineServiceServicer`, the servicer base
+  that `add_DisciplineServiceServicer_to_server` is written against.  No
+  shipping code path reached the difference, because `DisciplineServer`
+  overrides all eight RPCs itself, but the class did not inherit the
+  `UNIMPLEMENTED` defaults a servicer base provides.  An RPC left undefined --
+  for instance one added to the `.proto` and not yet implemented -- resolved
+  instead to a static client stub, which registers without complaint and then
+  fails at call time by treating the `ServicerContext` as a target address,
+  raising out of the handler without setting a status, so the caller saw
+  `UNKNOWN` rather than `UNIMPLEMENTED`.  The base is now
+  `DisciplineServiceServicer`, matching `ExplicitServer` and `ImplicitServer`
+  (#70).
+
 - Fixed `RemoteExplicitComponent` and `RemoteImplicitComponent` sending the raw
   constructor keyword arguments to the server rather than the component's
   resolved options.  An option that reached the component by any other route --
