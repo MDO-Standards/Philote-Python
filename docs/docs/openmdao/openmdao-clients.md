@@ -106,6 +106,21 @@ print(f"Optimal x: {prob['x']}")
 print(f"Optimal objective: {prob['f_xy']}")
 ```
 
+Server options can also be assigned after the component is constructed, as
+long as it happens before `prob.setup()`:
+
+```python
+component = pmom.RemoteExplicitComponent(channel=channel)
+component.options["tolerance"] = 1e-8
+
+prob.setup()   # the resolved options are sent to the server here
+```
+
+The component transmits its resolved options to the server during `setup()`,
+immediately before the remote setup runs. Only the options the server declared
+are sent; an option that was never assigned is left out, so the server keeps
+its own default.
+
 ## Remote Implicit Components
 
 ### Basic Usage

@@ -450,6 +450,7 @@ class TestOpenMdaoUtilsDynamicShapes(unittest.TestCase):
 
         comp._client._var_meta = [var]
         comp._client._discrete_var_meta = []
+        comp._client.options_list = {}
 
         from philote_mdo.openmdao.utils import client_setup
 
@@ -471,6 +472,7 @@ class TestOpenMdaoUtilsDynamicShapes(unittest.TestCase):
 
         comp._client._var_meta = [var]
         comp._client._discrete_var_meta = []
+        comp._client.options_list = {}
 
         from philote_mdo.openmdao.utils import client_setup
 

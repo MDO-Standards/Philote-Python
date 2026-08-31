@@ -252,6 +252,37 @@ class TestDiscipline(unittest.TestCase):
         with self.assertRaises(PhiloteValidationError):
             disc.add_output("y")
 
+    def test_implicit_add_output_registers_the_residual(self):
+        """
+        The residual entry an implicit discipline adds alongside its output
+        must be covered by the duplicate index as well.
+        """
+        disc = Discipline()
+        disc._is_implicit = True
+        disc.add_output("x", shape=(2,), units="m")
+
+        types = [var.type for var in disc._var_meta]
+        self.assertEqual(
+            types, [data.VariableType.kOutput, data.VariableType.kResidual]
+        )
+        self.assertIn((data.VariableType.kOutput, "x"), disc._declared)
+        self.assertIn((data.VariableType.kResidual, "x"), disc._declared)
+
+    def test_implicit_clear_data_permits_redeclaration(self):
+        """
+        Clearing the metadata must also drop the residual key, otherwise the
+        output cannot be redeclared without leaving a stale entry behind.
+        """
+        disc = Discipline()
+        disc._is_implicit = True
+        disc.add_output("x", shape=(2,))
+
+        disc._clear_data()
+        disc.add_output("x", shape=(2,))
+
+        self.assertEqual(len(disc._var_meta), 2)
+        self.assertIn((data.VariableType.kResidual, "x"), disc._declared)
+
     def test_add_option_invalid_name(self):
         disc = Discipline()
         with self.assertRaises(PhiloteValidationError):

@@ -38,8 +38,11 @@ from google.protobuf.empty_pb2 import Empty
 from google.protobuf import struct_pb2
 from philote_mdo.utils import (
     PairDict,
+    build_shape_index,
     get_flattened_view,
+    get_function_shape,
     get_partials_shape,
+    get_variable_shape,
     read_array_into,
 )
 from philote_mdo.utils.validation import (
@@ -505,12 +508,15 @@ class DisciplineServer(disc.DisciplineService):
         """
         jac = PairDict()
 
-        # index the metadata by name once; scanning it per partial is
+        # index the metadata by (type, name) once; scanning it per partial is
         # quadratic in the number of variables
-        shapes = {var.name: tuple(var.shape) for var in job.discipline._var_meta}
+        shapes = build_shape_index(job.discipline._var_meta)
 
         for pair in job.discipline._partials_meta:
-            shape = get_partials_shape(shapes[pair.name], shapes[pair.subname])
+            shape = get_partials_shape(
+                get_function_shape(shapes, pair.name, "preallocate_partials"),
+                get_variable_shape(shapes, pair.subname, "preallocate_partials"),
+            )
 
             jac[(pair.name, pair.subname)] = np.zeros(shape)
 

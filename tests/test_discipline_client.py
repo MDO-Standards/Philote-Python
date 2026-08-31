@@ -293,6 +293,58 @@ class TestDisciplineClient(unittest.TestCase):
         self.assertEqual(client._partials_meta[1].name, "input2")
         self.assertEqual(client._partials_meta[1].subname, "output2")
 
+    @patch("philote_mdo.generated.disciplines_pb2_grpc.DisciplineServiceStub")
+    def test_get_variable_definitions_repeated_call(self, mock_discipline_stub):
+        """
+        Tests that repeated calls to get_variable_definitions replace, rather
+        than accumulate, the local variable metadata.
+        """
+        mock_channel = Mock()
+        mock_stub = mock_discipline_stub.return_value
+        client = DisciplineClient(mock_channel)
+
+        mock_stub.GetVariableDefinitions.return_value = [
+            data.VariableMetaData(
+                name="x", shape=[2, 2], units="m", type=data.VariableType.kInput
+            ),
+            data.VariableMetaData(
+                name="f", shape=[1], units="m**2", type=data.VariableType.kOutput
+            ),
+            data.VariableMetaData(
+                name="n", type=data.VariableType.kDiscreteInput
+            ),
+        ]
+
+        client.get_variable_definitions()
+        client.get_variable_definitions()
+
+        self.assertEqual(len(client._var_meta), 2)
+        self.assertEqual(len(client._discrete_var_meta), 1)
+
+    @patch("philote_mdo.generated.disciplines_pb2_grpc.DisciplineServiceStub")
+    def test_get_partial_definitions_repeated_call(self, mock_discipline_stub):
+        """
+        Tests that repeated calls to get_partials_definitions replace, rather
+        than accumulate, the local partials metadata.
+        """
+        mock_channel = Mock()
+        mock_stub = mock_discipline_stub.return_value
+        client = DisciplineClient(mock_channel)
+
+        mock_stub.GetPartialDefinitions.return_value = [
+            data.PartialsMetaData(name="f", subname="x"),
+            data.PartialsMetaData(name="f", subname="y"),
+        ]
+
+        client.get_partials_definitions()
+        client.get_partials_definitions()
+
+        self.assertEqual(len(client._partials_meta), 2)
+        self.assertEqual(
+            [(p.name, p.subname) for p in client._partials_meta],
+            [("f", "x"), ("f", "y")],
+        )
+
     def test_assemble_input_messages(self):
         """
         Tests the _assemble_input_messages function of the Discipline Client.
@@ -485,6 +537,46 @@ class TestDisciplineClient(unittest.TestCase):
         for (name, subname), expected_data in expected_partials.items():
             self.assertTrue((name, subname) in partials)
             np.testing.assert_array_equal(partials[(name, subname)], expected_data)
+
+    def test_recover_partials_implicit_uses_the_residual_shape(self):
+        """
+        For an implicit discipline the metadata contains an output and a
+        residual of the same name. The partial is taken of the residual, so
+        the preallocation must resolve against that entry.
+        """
+        mock_channel = Mock()
+        client = DisciplineClient(mock_channel)
+
+        client._var_meta = [
+            data.VariableMetaData(name="x", type=data.kInput, shape=(3,)),
+            data.VariableMetaData(name="y", type=data.kOutput, shape=(2,)),
+            data.VariableMetaData(name="y", type=data.kResidual, shape=(4,)),
+        ]
+        client._partials_meta = [
+            data.PartialsMetaData(name="y", subname="x"),
+            data.PartialsMetaData(name="y", subname="y"),
+        ]
+
+        partials = client._recover_partials([])
+
+        self.assertEqual(partials[("y", "x")].shape, (4, 3))
+        self.assertEqual(partials[("y", "y")].shape, (4, 2))
+
+    def test_recover_partials_unknown_variable(self):
+        """
+        A partial declared against metadata the client never received reports
+        a validation error rather than a bare KeyError.
+        """
+        mock_channel = Mock()
+        client = DisciplineClient(mock_channel)
+
+        client._var_meta = [
+            data.VariableMetaData(name="f", type=data.kOutput, shape=(1,)),
+        ]
+        client._partials_meta = [data.PartialsMetaData(name="f", subname="missing")]
+
+        with self.assertRaises(PhiloteValidationError):
+            client._recover_partials([])
 
     def test_recover_outputs_empty_array_raises_error(self):
         """

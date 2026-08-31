@@ -349,8 +349,16 @@ class DisciplineClient:
 
         Both continuous and discrete variable metadata are stored in their
         respective lists.
+
+        The local metadata is replaced rather than appended to, so that
+        calling this more than once on the same client (for instance when a
+        client is reused across jobs) mirrors the server, which clears its
+        metadata at the start of every ``Setup``.
         """
         self._ensure_job()
+
+        self._var_meta = []
+        self._discrete_var_meta = []
 
         try:
             for message in self._disc_stub.GetVariableDefinitions(empty.Empty()):
@@ -367,13 +375,18 @@ class DisciplineClient:
     def get_partials_definitions(self):
         """
         Requests metadata information on the partials from the analysis server.
+
+        As with ``get_variable_definitions``, the local metadata is replaced
+        rather than appended to, so repeated calls do not accumulate duplicate
+        partials entries.
         """
         self._ensure_job()
 
+        self._partials_meta = []
+
         try:
             for message in self._disc_stub.GetPartialDefinitions(empty.Empty()):
-                if message.name not in self._partials_meta:
-                    self._partials_meta += [message]
+                self._partials_meta += [message]
         except grpc.RpcError as e:
             raise_for_rpc_error(e, "get_partials_definitions")
 
@@ -609,13 +622,14 @@ class DisciplineClient:
         flat_p = utils.PairDict()
 
         # preallocate
-        # index the metadata by name once; scanning it per partial is
+        # index the metadata by (type, name) once; scanning it per partial is
         # quadratic in the number of variables
-        shapes = {var.name: tuple(var.shape) for var in self._var_meta}
+        shapes = utils.build_shape_index(self._var_meta)
 
         for part in self._partials_meta:
             shape = utils.get_partials_shape(
-                shapes[part.name], shapes[part.subname]
+                utils.get_function_shape(shapes, part.name, "_recover_partials"),
+                utils.get_variable_shape(shapes, part.subname, "_recover_partials"),
             )
 
             partials[(part.name, part.subname)] = np.zeros(shape)

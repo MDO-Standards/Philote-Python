@@ -222,14 +222,16 @@ class Discipline:
 
         if self._is_implicit:
             res_meta = data.VariableMetaData()
-            res_meta.type = data.VariableType.kOutput
+            res_meta.type = data.VariableType.kResidual
             res_meta.name = name
             if not dynamic_shape:
                 res_meta.shape.extend(shape)
             res_meta.units = units
-            res_meta.type = data.VariableType.kResidual
             res_meta.dynamic_shape = dynamic_shape
             self._var_meta += [res_meta]
+            # the residual is a separate entry in the metadata list, so it
+            # also has to be registered for the duplicate check to cover it
+            self._declared.add((data.VariableType.kResidual, name))
 
     def declare_partials(self, func, var):
         """
