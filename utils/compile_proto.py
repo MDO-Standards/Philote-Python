@@ -38,35 +38,49 @@ def main():
     print("Compiling proto files.")
 
     proto_include = os.path.join(resources.files("grpc_tools"), "_proto")
+    generated_dir = "./philote_mdo/generated/"
 
     # proto files
     proto_files = ["data.proto", "disciplines.proto"]
 
+    # A FileDescriptorSet, generated alongside the Python code below, lets
+    # protoletariat rewrite the generated imports without shelling out to a
+    # standalone "protoc" executable, which most environments do not have on
+    # PATH (grpc_tools bundles its own protoc, used in-process below).
+    descriptor_set_path = os.path.join(generated_dir, "_descriptor.bin")
+
     # compile the proto files for use in python
-    grpc_tools.protoc.main(
+    return_code = grpc_tools.protoc.main(
         [
             "grpc_tools.protoc",
             "-I{}".format(proto_include),
             "-I{}".format("./proto"),
-            "--python_out=./philote_mdo/generated/",
-            "--pyi_out=./philote_mdo/generated/",
-            "--grpc_python_out=./philote_mdo/generated/",
+            "--python_out={}".format(generated_dir),
+            "--pyi_out={}".format(generated_dir),
+            "--grpc_python_out={}".format(generated_dir),
+            "--descriptor_set_out={}".format(descriptor_set_path),
+            "--include_imports",
         ]
         + proto_files
     )
+    if return_code != 0:
+        msg = "Compiling the proto files failed (see the protoc output above)."
+        raise RuntimeError(msg)
 
-
-    # call protoletariat to convert absolute imports to relative ones
-    protol.main(
-        [
-            "--in-place",
-            "--dont-create-package",
-            "--python-out=./philote_mdo/generated/",
-            "protoc",
-            "--proto-path=./proto",
-        ]
-        + proto_files
-    )
+    try:
+        # call protoletariat to convert absolute imports to relative ones,
+        # using the FileDescriptorSet generated above.
+        protol.main(
+            [
+                "--python-out={}".format(generated_dir),
+                "--in-place",
+                "--dont-create-package",
+                "raw",
+                descriptor_set_path,
+            ]
+        )
+    finally:
+        os.remove(descriptor_set_path)
 
 
 if __name__ == "__main__":
