@@ -31,7 +31,7 @@ Documentation = "https://mdo-standards.github.io/Philote-Python/"
 
 [project.optional-dependencies]
 openmdao = ["openmdao>=3.0"]
-gemseo = ["gemseo>=6.0"]
+gemseo = ["gemseo>=6.0,<7.0"]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",

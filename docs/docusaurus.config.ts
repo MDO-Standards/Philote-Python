@@ -27,11 +27,6 @@ const config: Config = {
         locales: ["en"],
     },
 
-    markdown: {
-        mermaid: true,
-    },
-    themes: ["@docusaurus/theme-mermaid"],
-
     stylesheets: [
         {
             href: "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css",
