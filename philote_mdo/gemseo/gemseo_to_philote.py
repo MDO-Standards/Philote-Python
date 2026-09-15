@@ -27,7 +27,7 @@ from scipy.sparse import issparse
 
 from philote_mdo.general.explicit_discipline import ExplicitDiscipline
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from gemseo.core.discipline.discipline import Discipline
 
 

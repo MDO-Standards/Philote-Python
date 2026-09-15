@@ -17,7 +17,9 @@
 # originally authored by Francois Gallard, IRT Saint Exupery.
 from concurrent import futures
 import unittest
+from unittest.mock import patch
 import grpc
+from numpy import array
 from numpy.testing import assert_allclose
 from scipy.sparse import issparse
 from gemseo.problems.mdo.sellar.sellar_1 import Sellar1
@@ -97,6 +99,46 @@ class GEMSEOToPhiloteTests(unittest.TestCase):
                 jac_loc.ravel(),
                 atol=1e-8,
             )
+
+    def test_setup_uses_default_output_data_size(self):
+        """
+        The size of a Philote output declared by setup() is taken from the
+        wrapped discipline's default_output_data when it holds an ndarray,
+        instead of falling back to default_data_size.
+        """
+        sellar1 = Sellar1()
+        sellar1.default_output_data.update({"y_1": array([0.0, 0.0])})
+
+        wrapper = GEMSEOtoPhiloteDiscipline(sellar1)
+        wrapper.setup()
+
+        y_1_meta = next(m for m in wrapper._var_meta if m.name == "y_1")
+        self.assertEqual(y_1_meta.shape, [2])
+
+    def test_compute_partials_skips_output_not_in_grammar(self):
+        """
+        Jacobian entries returned by the wrapped discipline for an output
+        that is not part of its own output grammar are ignored, rather than
+        being forwarded to the Philote-MDO client.
+        """
+        sellar1 = Sellar1()
+        wrapper = GEMSEOtoPhiloteDiscipline(sellar1)
+        wrapper.setup()
+        wrapper.setup_partials()
+
+        inputs = sellar1.default_input_data
+        real_jac = sellar1.linearize(inputs, compute_all_jacobians=True)
+        jac_with_extra_output = dict(real_jac)
+        jac_with_extra_output["not_a_declared_output"] = {
+            "x_1": array([[1.0]])
+        }
+
+        partials = {}
+        with patch.object(sellar1, "linearize", return_value=jac_with_extra_output):
+            wrapper.compute_partials(inputs, partials)
+
+        self.assertIn(("y_1", "x_1"), partials)
+        self.assertNotIn(("not_a_declared_output", "x_1"), partials)
 
 
 if __name__ == "__main__":

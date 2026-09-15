@@ -21,6 +21,7 @@ import grpc
 from numpy import array
 import philote_mdo.general as pmdo
 from philote_mdo.examples import Paraboloid
+from philote_mdo.examples import Rosenbrock
 from philote_mdo.gemseo import PhiloteDiscipline
 
 PORT = "[::]:50051"
@@ -71,6 +72,37 @@ class PhiloteToGEMSEOTests(unittest.TestCase):
 
         self.assertEqual(paraboloid_disc.jac["f_xy"]["x"][0][0], -2.0)
         self.assertEqual(paraboloid_disc.jac["f_xy"]["y"][0][0], 13.0)
+
+    def test_missing_channel_raises_value_error(self):
+        """
+        Constructing a PhiloteDiscipline without a channel raises ValueError.
+        """
+        with self.assertRaises(ValueError):
+            PhiloteDiscipline(channel=None)
+
+        with self.assertRaises(ValueError):
+            PhiloteDiscipline(channel="")
+
+    def test_rosenbrock_with_options(self):
+        """
+        Discipline options passed to the constructor are sent to the server
+        and used to build a Rosenbrock discipline of the requested dimension.
+        """
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
+        discipline = pmdo.ExplicitServer(discipline=Rosenbrock())
+        discipline.attach_to_server(server)
+        server.add_insecure_port(PORT)
+        server.start()
+
+        rosenbrock_disc = PhiloteDiscipline(
+            channel=grpc.insecure_channel(CHANNEL), dimension=3
+        )
+
+        out = rosenbrock_disc.execute({"x": array([1.0, 1.0, 1.0])})
+
+        server.stop(0)
+
+        self.assertEqual(out["f"][0], 0.0)
 
 
 if __name__ == "__main__":

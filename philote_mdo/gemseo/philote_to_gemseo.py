@@ -29,7 +29,7 @@ from numpy import prod
 import philote_mdo.general as pm
 import philote_mdo.generated.data_pb2 as data
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterable
 
 
