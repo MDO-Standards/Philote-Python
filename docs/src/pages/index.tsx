@@ -249,10 +249,16 @@ const features: FeatureItem[] = [
             "First-class support for both explicit components and residual-based implicit disciplines, with analytic partial derivatives.",
     },
     {
-        label: "INTEROP",
+        label: "INTEROPERABILITY : OpenMDAO",
         title: "OpenMDAO Bindings",
         description:
             "Drop-in RemoteExplicitComponent and RemoteImplicitComponent for OpenMDAO models, plus a wrapper to host OpenMDAO groups as Philote servers.",
+    },
+    {
+        label: "INTEROPERABILITY : GEMSEO",
+        title: "GEMSEO Bindings",
+        description:
+            "Drop-in GEMSEO Disciplines for Philote Disciplines, plus a wrapper to host GEMSEO Disciplines or processes as Philote servers.",
     },
     {
         label: "DISTRIBUTED",
@@ -357,6 +363,7 @@ export default function Home(): ReactNode {
                     <Stat value="Python 3.9+" label="Runtime" />
                     <Stat value="gRPC" label="Transport" />
                     <Stat value="OpenMDAO" label="Integration" />
+                    <Stat value="GEMSEO" label="Integration" />
                     <Stat value="Apache-2" label="License" />
                 </div>
             </section>
