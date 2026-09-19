@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import ClassVar
 
 from gemseo.core.discipline.discipline import Discipline
@@ -31,6 +32,7 @@ import philote_mdo.generated.data_pb2 as data
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterable
+    from collections.abc import Mapping
 
 
 class PhiloteDiscipline(Discipline):
@@ -47,6 +49,14 @@ class PhiloteDiscipline(Discipline):
     Executing the discipline (:meth:`.execute`) and linearizing it
     (:meth:`.linearize`) transparently call the remote server to compute
     the outputs and the Jacobian, respectively.
+
+    The discrete variables of the remote discipline are part of the
+    grammars, next to the continuous ones, and are read from and written to
+    the local data like any other variable. Since a Philote discrete
+    variable may carry any JSON-compatible value, its grammar element is
+    bound to no type. Discrete variables are never differentiated: they are
+    excluded from the Jacobian, including when it is requested in full with
+    ``compute_all_jacobians=True``.
     """
 
     default_grammar_type: ClassVar[GrammarType] = GrammarType.SIMPLE
@@ -67,15 +77,21 @@ class PhiloteDiscipline(Discipline):
         Raises:
             ValueError: When ``channel`` is empty or ``None``.
             NotImplementedError: When the server declares dynamic-shape
-                or discrete variables, which are not supported yet.
+                variables, which are not supported yet.
         """
         if not channel:
             msg = "No channel provided, the Philote client will not be able to connect."
             raise ValueError(msg)
-        # The shape of each input and output variable, indexed by name;
-        # filled in by _initialize_grammars() and used by _compute_jacobian()
-        # to reshape the flattened partial derivatives sent by the server.
+        # The shape of each continuous input and output variable, indexed by
+        # name; filled in by _initialize_grammars() and used by
+        # _compute_jacobian() to reshape the flattened partial derivatives
+        # sent by the server.
         self._shapes = {}
+        # The names of the discrete input and output variables, filled in by
+        # _initialize_grammars(); discrete inputs travel on their own side of
+        # the wire protocol and so must be split off the GEMSEO input data.
+        self._discrete_input_names = set()
+        self._discrete_output_names = set()
         # generic Philote client
         self._client = pm.ExplicitClient(channel=channel)
 
@@ -99,7 +115,9 @@ class PhiloteDiscipline(Discipline):
 
         This sends the input values to the remote Philote discipline server
         through the ``ComputeFunction`` RPC and returns the resulting output
-        values.
+        values. Continuous and discrete inputs are sent separately, and the
+        discrete outputs returned by the server, if any, are merged back into
+        the output data.
 
         Args:
             input_data: The input data, without namespace prefixes.
@@ -107,7 +125,37 @@ class PhiloteDiscipline(Discipline):
         Returns:
             The output data computed by the remote discipline.
         """
-        return self._client.run_compute(input_data)
+        inputs, discrete_inputs = self._split_input_data(input_data)
+        outputs = self._client.run_compute(inputs, discrete_inputs=discrete_inputs)
+        # run_compute returns (outputs, discrete_outputs) when the server
+        # sends back discrete output data, and a plain dictionary otherwise.
+        if isinstance(outputs, tuple):
+            outputs, discrete_outputs = outputs
+            outputs.update(discrete_outputs)
+        return outputs
+
+    def _split_input_data(self, input_data: Mapping[str, Any]) -> tuple[dict, dict]:
+        """Split the GEMSEO input data into continuous and discrete inputs.
+
+        The GEMSEO input grammar holds the continuous and the discrete inputs
+        side by side, while the Philote wire protocol carries them in two
+        distinct kinds of message.
+
+        Args:
+            input_data: The input data, without namespace prefixes.
+
+        Returns:
+            The continuous input values and the discrete input values,
+            both indexed by variable name.
+        """
+        inputs = {}
+        discrete_inputs = {}
+        for name, value in input_data.items():
+            if name in self._discrete_input_names:
+                discrete_inputs[name] = value
+            else:
+                inputs[name] = value
+        return inputs, discrete_inputs
 
     def _compute_jacobian(
         self,
@@ -136,7 +184,10 @@ class PhiloteDiscipline(Discipline):
             output_names: The names of the outputs to be differentiated.
                 If empty, use all the outputs.
         """
-        jac_flat = self._client.run_compute_partials(self.get_input_data())
+        inputs, discrete_inputs = self._split_input_data(self.get_input_data())
+        jac_flat = self._client.run_compute_partials(
+            inputs, discrete_inputs=discrete_inputs
+        )
         for jac_key, jac_val in jac_flat.items():
             out_name, in_name = jac_key
             out_size = int(prod(self._shapes[out_name]))
@@ -147,6 +198,43 @@ class PhiloteDiscipline(Discipline):
             else:
                 self.jac[out_name][in_name] = jac_loc
 
+    def _get_differentiated_io(
+        self,
+        compute_all_jacobians: bool = False,
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """Return the inputs and outputs used in the differentiation.
+
+        The discrete variables are filtered out, as they cannot be
+        differentiated. GEMSEO already does this when the differentiated
+        variables are selected with :meth:`.add_differentiated_inputs` and
+        :meth:`.add_differentiated_outputs`, but not when the whole Jacobian
+        is requested.
+
+        Args:
+            compute_all_jacobians: Whether to compute the Jacobians of all the
+                outputs with respect to all the inputs.
+
+        Returns:
+            The names of the differentiated inputs
+            and the names of the differentiated outputs.
+        """
+        input_names, output_names = super()._get_differentiated_io(
+            compute_all_jacobians
+        )
+        if not compute_all_jacobians:
+            return input_names, output_names
+
+        return (
+            tuple(
+                name for name in input_names if name not in self._discrete_input_names
+            ),
+            tuple(
+                name
+                for name in output_names
+                if name not in self._discrete_output_names
+            ),
+        )
+
     def _initialize_grammars(self):
         """Set up the GEMSEO discipline input and output grammars.
 
@@ -156,17 +244,19 @@ class PhiloteDiscipline(Discipline):
         :meth:`~philote_mdo.general.discipline_client.DisciplineClient.get_variable_definitions`.
         It does not perform any RPC call itself.
 
+        Continuous variables are bound to :class:`~numpy.ndarray`, while
+        discrete variables are bound to no type at all, since a Philote
+        discrete variable may hold any JSON-compatible value.
+
         Raises:
-            NotImplementedError: When the server declares dynamic-shape or
-                discrete variables. Their shapes would have to be sent to
-                the server, and discrete variables would be missing from the
-                grammars and silently left at their server-side defaults.
+            NotImplementedError: When the server declares dynamic-shape
+                variables, whose shapes would have to be sent to the server.
         """
         unsupported = [
             f"{var.name} (dynamic shape)"
             for var in self._client._var_meta
             if var.dynamic_shape
-        ] + [f"{var.name} (discrete)" for var in self._client._discrete_var_meta]
+        ]
         if unsupported:
             msg = (
                 "PhiloteDiscipline does not support these server variables yet: "
@@ -184,5 +274,21 @@ class PhiloteDiscipline(Discipline):
             if var.type == data.kOutput:
                 output_names.append(var.name)
                 self._shapes[var.name] = tuple(var.shape)
+
+        for var in self._client._discrete_var_meta:
+            if var.type == data.kDiscreteInput:
+                self._discrete_input_names.add(var.name)
+
+            if var.type == data.kDiscreteOutput:
+                self._discrete_output_names.add(var.name)
+
         self.input_grammar.update_from_names(input_names)
         self.output_grammar.update_from_names(output_names)
+        # A None type means that the grammar accepts any value for that name,
+        # which is what a Philote discrete variable may carry.
+        self.input_grammar.update_from_types(
+            dict.fromkeys(self._discrete_input_names)
+        )
+        self.output_grammar.update_from_types(
+            dict.fromkeys(self._discrete_output_names)
+        )
