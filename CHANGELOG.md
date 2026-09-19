@@ -57,11 +57,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a GEMSEO interface (`philote_mdo.gemseo`) allowing GEMSEO
   disciplines to be called from Philote-MDO, and Philote-MDO disciplines
   (local or remote, e.g. served from OpenMDAO) to be called from GEMSEO.
-  The discrete variables of a remote Philote discipline are part of the
-  GEMSEO grammars next to the continuous ones, bound to no type since a
-  discrete variable may carry any JSON-compatible value, and are excluded
-  from the Jacobian, including when it is requested in full with
-  `compute_all_jacobians=True`.
+  Discrete variables are carried in both directions.  The discrete
+  variables of a remote Philote discipline are part of the GEMSEO
+  grammars next to the continuous ones, bound to no type since a discrete
+  variable may carry any JSON-compatible value.  Conversely, a variable
+  of a wrapped GEMSEO discipline is served as a discrete Philote variable
+  when its grammar's data converter does not report it as numeric.
+  Discrete variables are excluded from the Jacobian, including when it is
+  requested in full with `compute_all_jacobians=True`.
 - Added examples and tutorials demonstrating interoperability between
   GEMSEO, OpenMDAO and OpenAeroStruct through Philote-MDO.
 
