@@ -50,7 +50,9 @@ flowchart LR
 
 Both directions carry the discipline's Jacobian, not just its output
 values, so a remote discipline can be used in a gradient-based
-optimization exactly like a local one.
+optimization exactly like a local one. Both also carry the discipline's
+discrete variables next to its continuous ones -- see
+[Discrete variables](#discrete-variables) below.
 
 This page walks through the first, and simplest, direction --
 `PhiloteDiscipline` consuming a remote discipline -- using the complete
@@ -249,6 +251,72 @@ if __name__ == "__main__":
 See the actual, always up-to-date source at
 [`examples/paraboloid_gemseo.py`](https://github.com/MDO-Standards/Philote-Python/blob/main/examples/paraboloid_gemseo.py)
 in the repository.
+
+## Discrete variables
+
+Philote-MDO distinguishes **continuous** variables, which travel over the
+wire as arrays of doubles, from **discrete** variables, which carry any
+JSON-compatible value: a string, a boolean, an integer, a list, or a
+nested structure. `philote_mdo.gemseo` supports them in both directions,
+and nothing has to be configured to enable it.
+
+### Serving a GEMSEO discipline that has discrete variables
+
+`GEMSEOtoPhiloteDiscipline` classifies every name of the wrapped
+discipline's grammars by asking the grammar's data converter whether that
+name holds numeric data:
+
+```python
+discipline.input_grammar.data_converter.is_numeric(name)
+```
+
+A name reported as numeric is declared as a continuous Philote variable;
+every other name is declared as a discrete one. A grammar element typed
+`str`, `bool`, `dict` or `list` is therefore served as a discrete
+variable automatically:
+
+```python
+class ScalingDiscipline(Discipline):
+    default_grammar_type = GrammarType.SIMPLE
+
+    def __init__(self):
+        super().__init__()
+        self.input_grammar.update_from_names(["x"])           # continuous
+        self.input_grammar.update_from_types({"mode": str})   # discrete
+        self.output_grammar.update_from_names(["y"])          # continuous
+        self.output_grammar.update_from_types({"used_mode": str})  # discrete
+```
+
+### Consuming a remote discipline that has discrete variables
+
+`PhiloteDiscipline` puts the server's discrete variables in its GEMSEO
+grammars next to the continuous ones, bound to no type, since a discrete
+variable may carry any value. They are then read and written like any
+other variable:
+
+```python
+remote = PhiloteDiscipline(channel=grpc.insecure_channel("localhost:50051"))
+
+out = remote.execute({"x": array([1.0, 2.0]), "mode": "triple"})
+
+print(out["y"], out["used_mode"])
+```
+
+:::note
+Discrete variables are never differentiated: no partial derivative is
+declared for them, and they are excluded from the Jacobian, including
+when it is requested in full with `compute_all_jacobians=True`.
+
+Integer-valued variables are numeric, so they travel as continuous
+Philote variables, but they are not differentiable either and are
+likewise left out of the Jacobian.
+:::
+
+:::warning
+Philote-MDO does not transfer default values, so a discrete input has no
+default on the client side. It must be part of the input data passed to
+`execute()`, just like a continuous one.
+:::
 
 ## Where to go next
 
