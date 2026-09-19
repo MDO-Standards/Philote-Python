@@ -130,6 +130,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation & Infrastructure
 
+- Dropped support for Python 3.9, which reached end of life in October
+  2025. `requires-python` is now `>=3.10`, and CI no longer tests 3.9.
+  GEMSEO 6.3 requires Python 3.10, so the 3.9 job was the only one
+  testing an older GEMSEO (6.2); the latest `grpcio`, `protobuf` and
+  OpenMDAO also require 3.10 or later.
 - Updated the documentation site's dependencies to clear known npm
   advisories, taking the audit from 42 findings (2 critical, 26 high) to 17
   (all high).  `npm audit fix` resolved the `webpack-dev-server`, `sockjs`,

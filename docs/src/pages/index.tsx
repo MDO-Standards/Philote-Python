@@ -360,7 +360,7 @@ export default function Home(): ReactNode {
 
             <section className={styles.statsBar}>
                 <div className={styles.statsInner}>
-                    <Stat value="Python 3.9+" label="Runtime" />
+                    <Stat value="Python 3.10+" label="Runtime" />
                     <Stat value="gRPC" label="Transport" />
                     <Stat value="OpenMDAO" label="Integration" />
                     <Stat value="GEMSEO" label="Integration" />
