@@ -41,6 +41,7 @@ installed automatically during the installation process:
 To run the unit and integration tests, you will need:
 
 - openmdao (can be found [here](https://github.com/OpenMDAO/OpenMDAO) or installed via pip)
+- gemseo (can be found [here](https://gitlab.com/gemseo/dev/gemseo) or installed via pip)
 
 ## Installation
 
