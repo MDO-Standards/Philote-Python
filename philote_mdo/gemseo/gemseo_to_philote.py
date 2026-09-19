@@ -55,24 +55,24 @@ class GEMSEOtoPhiloteDiscipline(
     (see :meth:`~gemseo.core.discipline.discipline.Discipline.linearize`).
     """
 
-    gemseo_discipine: Discipline
+    gemseo_discipline: Discipline
     """The GEMSEO discipline to be wrapped."""
 
     default_data_size: int
     """The default size used to declare a variable that has no default value."""
 
-    def __init__(self, gemseo_discipine: Discipline, default_data_size: int = 1):
+    def __init__(self, gemseo_discipline: Discipline, default_data_size: int = 1):
         """Initialize the GEMSEO discipline.
 
         Args:
-            gemseo_discipine: The GEMSEO discipline to be wrapped.
+            gemseo_discipline: The GEMSEO discipline to be wrapped.
             default_data_size: The default data size to be declared for an
                 input or output variable when the wrapped GEMSEO discipline
                 does not define a default value (as a
                 :class:`~numpy.ndarray`) for it in its grammars.
         """
         super().__init__()
-        self.gemseo_discipine = gemseo_discipine
+        self.gemseo_discipline = gemseo_discipline
         self.default_data_size = default_data_size
 
     def setup(self):
@@ -87,7 +87,7 @@ class GEMSEOtoPhiloteDiscipline(
         when it is a :class:`~numpy.ndarray`, and from
         :attr:`.default_data_size` otherwise.
         """
-        disc = self.gemseo_discipine
+        disc = self.gemseo_discipline
         for input_name in disc.input_grammar.names:
             data = disc.default_input_data.get(input_name)
             size = self.default_data_size
@@ -108,8 +108,8 @@ class GEMSEOtoPhiloteDiscipline(
         wrapped GEMSEO discipline are declared as partial derivatives to
         be computed by :meth:`.compute_partials`.
         """
-        for output_name in self.gemseo_discipine.output_grammar.names:
-            for input_name in self.gemseo_discipine.input_grammar.names:
+        for output_name in self.gemseo_discipline.output_grammar.names:
+            for input_name in self.gemseo_discipline.input_grammar.names:
                 self.declare_partials(output_name, input_name)
 
     def compute(self, inputs, outputs):
@@ -121,8 +121,8 @@ class GEMSEOtoPhiloteDiscipline(
                 computed by the wrapped GEMSEO discipline, indexed by
                 output name.
         """
-        out = self.gemseo_discipine.execute(inputs)
-        outputs.update({k: out[k] for k in self.gemseo_discipine.output_grammar.names})
+        out = self.gemseo_discipline.execute(inputs)
+        outputs.update({k: out[k] for k in self.gemseo_discipline.output_grammar.names})
 
     def compute_partials(self, inputs, partials):
         """Linearize the wrapped GEMSEO discipline.
@@ -133,9 +133,9 @@ class GEMSEOtoPhiloteDiscipline(
                 computed by the wrapped GEMSEO discipline, indexed by
                 ``(output_name, input_name)`` pairs.
         """
-        jac = self.gemseo_discipine.linearize(inputs, compute_all_jacobians=True)
-        output_names = self.gemseo_discipine.output_grammar.names
-        input_names = self.gemseo_discipine.input_grammar.names
+        jac = self.gemseo_discipline.linearize(inputs, compute_all_jacobians=True)
+        output_names = self.gemseo_discipline.output_grammar.names
+        input_names = self.gemseo_discipline.input_grammar.names
 
         for out_k, jac_in in jac.items():
             if out_k not in output_names:
