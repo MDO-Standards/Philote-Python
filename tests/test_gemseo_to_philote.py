@@ -75,6 +75,42 @@ class ScalingDiscipline(Discipline):
         self.jac["y"]["x"] = self._get_factor(self.io.data["mode"]) * eye(2)
 
 
+class IntegerDiscipline(Discipline):
+    """A GEMSEO discipline with an integer input and an integer output.
+
+    An integer variable is numeric, so Philote carries it as a continuous
+    variable, but it is not differentiable.
+    """
+
+    default_grammar_type = GrammarType.SIMPLE
+
+    def __init__(self):
+        super().__init__()
+        self.input_grammar.update_from_names(["x"])
+        self.input_grammar.update_from_types({"n": int})
+        self.output_grammar.update_from_names(["y"])
+        self.output_grammar.update_from_types({"count": int})
+        self.default_input_data = {"x": array([1.0]), "n": 2}
+
+    def _run(self, input_data):
+        return {"y": input_data["n"] * input_data["x"], "count": input_data["n"]}
+
+
+class DiscreteOnlyDiscipline(Discipline):
+    """A GEMSEO discipline whose variables are all non-numeric."""
+
+    default_grammar_type = GrammarType.SIMPLE
+
+    def __init__(self):
+        super().__init__()
+        self.input_grammar.update_from_types({"mode": str})
+        self.output_grammar.update_from_types({"used_mode": str})
+        self.default_input_data = {"mode": "double"}
+
+    def _run(self, input_data):
+        return {"used_mode": input_data["mode"]}
+
+
 class GEMSEOToPhiloteTests(unittest.TestCase):
     """
     Integration tests for GEMSEOtoPhiloteDiscipline, which wraps a GEMSEO
@@ -270,6 +306,43 @@ class DiscreteVariableTests(unittest.TestCase):
         server.start()
         self.addCleanup(server.stop, 0)
         return PhiloteDiscipline(channel=grpc.insecure_channel(CHANNEL))
+
+
+    def test_setup_partials_skips_integer_variables(self):
+        """
+        An integer variable is numeric, so it is served as a continuous
+        Philote variable rather than a discrete one, but it is not
+        differentiable and so takes no part in the Jacobian.
+        """
+        wrapper = GEMSEOtoPhiloteDiscipline(IntegerDiscipline())
+        wrapper.setup()
+        wrapper.setup_partials()
+
+        self.assertEqual(
+            [m.name for m in wrapper._var_meta], ["x", "n", "y", "count"]
+        )
+        self.assertEqual(list(wrapper._discrete_var_meta), [])
+        self.assertEqual(
+            [(m.name, m.subname) for m in wrapper._partials_meta], [("y", "x")]
+        )
+
+    def test_compute_partials_without_declared_partials(self):
+        """
+        When no variable holds continuous data, setup_partials() declares
+        nothing and compute_partials() does not linearize the wrapped
+        discipline at all.
+        """
+        discipline = DiscreteOnlyDiscipline()
+        wrapper = GEMSEOtoPhiloteDiscipline(discipline)
+        wrapper.setup()
+        wrapper.setup_partials()
+
+        partials = {}
+        with patch.object(discipline, "linearize") as linearize:
+            wrapper.compute_partials({}, partials, {"mode": "double"})
+
+        linearize.assert_not_called()
+        self.assertEqual(partials, {})
 
 
 if __name__ == "__main__":
