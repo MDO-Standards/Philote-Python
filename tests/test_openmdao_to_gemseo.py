@@ -19,6 +19,7 @@ from concurrent import futures
 import unittest
 import grpc
 from numpy import array
+from numpy.testing import assert_allclose
 import philote_mdo.general as pmdo
 import philote_mdo.openmdao as pmdo_om
 from philote_mdo.examples.sellar import SellarMDA
@@ -65,12 +66,14 @@ class OpenMDAOToGEMSEOTests(unittest.TestCase):
 
         sellar_mda = PhiloteDiscipline(channel=grpc.insecure_channel(CHANNEL))
 
-        out = sellar_mda.execute({"x": array([1.0]), "z": array([2.0, 3.0])})
+        # canonical Sellar starting point
+        out = sellar_mda.execute({"x": array([1.0]), "z": array([5.0, 2.0])})
 
         server.stop(0)
 
-        self.assertIn("obj", out)
-        self.assertIn("con1", out)
+        # canonical Sellar result at that point
+        assert_allclose(out["obj"], 28.58830817, rtol=1e-8)
+        assert_allclose(out["con1"], -22.42830237, rtol=1e-8)
 
     def test_sellar_mda_linearize(self):
         """
