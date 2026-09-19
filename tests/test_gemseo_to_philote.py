@@ -78,8 +78,8 @@ class ScalingDiscipline(Discipline):
 class IntegerDiscipline(Discipline):
     """A GEMSEO discipline with an integer input and an integer output.
 
-    An integer variable is numeric, so Philote carries it as a continuous
-    variable, but it is not differentiable.
+    A Philote continuous variable travels as an array of doubles, so an
+    integer variable belongs to the discrete side of the protocol.
     """
 
     default_grammar_type = GrammarType.SIMPLE
@@ -97,7 +97,7 @@ class IntegerDiscipline(Discipline):
 
 
 class DiscreteOnlyDiscipline(Discipline):
-    """A GEMSEO discipline whose variables are all non-numeric."""
+    """A GEMSEO discipline whose variables are all discrete."""
 
     default_grammar_type = GrammarType.SIMPLE
 
@@ -307,21 +307,20 @@ class DiscreteVariableTests(unittest.TestCase):
         self.addCleanup(server.stop, 0)
         return PhiloteDiscipline(channel=grpc.insecure_channel(CHANNEL))
 
-
-    def test_setup_partials_skips_integer_variables(self):
+    def test_integer_variables_are_discrete(self):
         """
-        An integer variable is numeric, so it is served as a continuous
-        Philote variable rather than a discrete one, but it is not
-        differentiable and so takes no part in the Jacobian.
+        A Philote continuous variable is an array of doubles, so an
+        integer-valued variable is served as a discrete one and takes no
+        part in the Jacobian.
         """
         wrapper = GEMSEOtoPhiloteDiscipline(IntegerDiscipline())
         wrapper.setup()
         wrapper.setup_partials()
 
+        self.assertEqual([m.name for m in wrapper._var_meta], ["x", "y"])
         self.assertEqual(
-            [m.name for m in wrapper._var_meta], ["x", "n", "y", "count"]
+            [m.name for m in wrapper._discrete_var_meta], ["n", "count"]
         )
-        self.assertEqual(list(wrapper._discrete_var_meta), [])
         self.assertEqual(
             [(m.name, m.subname) for m in wrapper._partials_meta], [("y", "x")]
         )

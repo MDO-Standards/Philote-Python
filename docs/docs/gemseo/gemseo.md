@@ -264,16 +264,16 @@ and nothing has to be configured to enable it.
 
 `GEMSEOtoPhiloteDiscipline` classifies every name of the wrapped
 discipline's grammars by asking the grammar's data converter whether that
-name holds numeric data:
+name holds continuous data:
 
 ```python
-discipline.input_grammar.data_converter.is_numeric(name)
+discipline.input_grammar.data_converter.is_continuous(name)
 ```
 
-A name reported as numeric is declared as a continuous Philote variable;
-every other name is declared as a discrete one. A grammar element typed
-`str`, `bool`, `dict` or `list` is therefore served as a discrete
-variable automatically:
+A name reported as continuous is declared as a continuous Philote
+variable; every other name is declared as a discrete one. A grammar
+element typed `str`, `bool`, `int`, `dict` or `list` is therefore served
+as a discrete variable automatically:
 
 ```python
 class ScalingDiscipline(Discipline):
@@ -286,6 +286,18 @@ class ScalingDiscipline(Discipline):
         self.output_grammar.update_from_names(["y"])          # continuous
         self.output_grammar.update_from_types({"used_mode": str})  # discrete
 ```
+
+:::note
+`is_continuous` is the right question to ask, rather than `is_numeric`,
+because an integer is numeric but a continuous Philote variable is an
+array of doubles. An integer-valued variable therefore belongs to the
+discrete side of the protocol, as it does in OpenMDAO.
+
+A `SimpleGrammar` cannot see the dtype of an element it types as
+`ndarray`, so an integer-valued *array* still travels as a continuous
+variable. Use a `JSONGrammar` or a `PydanticGrammar` if that distinction
+matters.
+:::
 
 ### Consuming a remote discipline that has discrete variables
 
@@ -306,10 +318,6 @@ print(out["y"], out["used_mode"])
 Discrete variables are never differentiated: no partial derivative is
 declared for them, and they are excluded from the Jacobian, including
 when it is requested in full with `compute_all_jacobians=True`.
-
-Integer-valued variables are numeric, so they travel as continuous
-Philote variables, but they are not differentiable either and are
-likewise left out of the Jacobian.
 :::
 
 :::warning

@@ -62,9 +62,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   grammars next to the continuous ones, bound to no type since a discrete
   variable may carry any JSON-compatible value.  Conversely, a variable
   of a wrapped GEMSEO discipline is served as a discrete Philote variable
-  when its grammar's data converter does not report it as numeric.
-  Discrete variables are excluded from the Jacobian, including when it is
-  requested in full with `compute_all_jacobians=True`.
+  when its grammar's data converter does not report it as continuous,
+  which includes the integer-valued ones, since a continuous Philote
+  variable is an array of doubles.  Discrete variables are excluded from
+  the Jacobian, including when it is requested in full with
+  `compute_all_jacobians=True`.
 - Added examples and tutorials demonstrating interoperability between
   GEMSEO, OpenMDAO and OpenAeroStruct through Philote-MDO.
 

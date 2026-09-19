@@ -53,18 +53,21 @@ class GEMSEOtoPhiloteDiscipline(
         server.attach_to_server(grpc_server)
 
     The input and output variables of the wrapped discipline that hold
-    numeric data, as reported by the ``is_numeric`` method of their
+    continuous data, as reported by the ``is_continuous`` method of their
     grammar's data converter, are exposed as flat (1D) continuous Philote
     variables. Every other variable is exposed as a Philote discrete
     variable, which carries any JSON-compatible value.
 
-    The Jacobian of every continuous output with respect to every
-    continuous input is made available, computed on demand using GEMSEO's
-    own differentiation capabilities (see
-    :meth:`~gemseo.core.discipline.discipline.Discipline.linearize`). The
-    variables that do not hold continuous data are left out of the
-    Jacobian: the discrete ones, and also the integer-valued ones, which
-    are numeric but not differentiable.
+    This is the split of the Philote-MDO protocol itself: a continuous
+    variable travels as an array of doubles, while a discrete variable
+    travels as a ``google.protobuf.Value``. An integer-valued variable
+    therefore belongs to the discrete side, as it does in OpenMDAO.
+
+    The Jacobian of every output with respect to every input is made
+    available, computed on demand using GEMSEO's own differentiation
+    capabilities (see
+    :meth:`~gemseo.core.discipline.discipline.Discipline.linearize`).
+    The discrete variables are left out of it.
     """
 
     gemseo_discipline: Discipline
@@ -98,7 +101,7 @@ class GEMSEOtoPhiloteDiscipline(
         """Declare the Philote inputs and outputs from the GEMSEO grammars.
 
         Every name of the wrapped GEMSEO discipline's input and output
-        grammars that holds numeric data is declared as a flat (1D)
+        grammars that holds continuous data is declared as a flat (1D)
         continuous Philote variable. Its size is taken from the
         corresponding default value in
         :attr:`~gemseo.core.discipline.discipline.Discipline.default_input_data`
@@ -132,26 +135,26 @@ class GEMSEOtoPhiloteDiscipline(
 
     @staticmethod
     def _split_names(grammar: BaseGrammar) -> tuple[tuple[str, ...], tuple[str, ...]]:
-        """Split the names of a grammar into numeric and non-numeric ones.
+        """Split the names of a grammar into continuous and discrete ones.
 
         Args:
             grammar: The input or output grammar of the wrapped discipline.
 
         Returns:
-            The names bound to numeric data,
-            which Philote carries as continuous variables,
+            The names bound to continuous data,
+            which Philote carries as arrays of doubles,
             and the other names,
             which Philote carries as discrete variables.
         """
-        is_numeric = grammar.data_converter.is_numeric
-        numeric_names = []
+        is_continuous = grammar.data_converter.is_continuous
+        continuous_names = []
         discrete_names = []
         for name in grammar.names:
-            if is_numeric(name):
-                numeric_names.append(name)
+            if is_continuous(name):
+                continuous_names.append(name)
             else:
                 discrete_names.append(name)
-        return tuple(numeric_names), tuple(discrete_names)
+        return tuple(continuous_names), tuple(discrete_names)
 
     def _get_size(self, defaults: Mapping[str, Any], name: str) -> int:
         """Return the size to declare for a continuous Philote variable.
@@ -173,23 +176,15 @@ class GEMSEOtoPhiloteDiscipline(
     def setup_partials(self):
         """Declare the Jacobian of every output with respect to every input.
 
-        No sparsity pattern is assumed: all the input-output pairs of the
-        wrapped GEMSEO discipline are declared as partial derivatives to
-        be computed by :meth:`.compute_partials`.
-
-        Only the variables that hold continuous data take part in the
-        Jacobian, so that no partial derivative is declared that
-        :meth:`.compute_partials` would then leave at zero.
+        No sparsity pattern is assumed: all the continuous input-output
+        pairs of the wrapped GEMSEO discipline are declared as partial
+        derivatives to be computed by :meth:`.compute_partials`. The
+        discrete variables are not differentiable, so they take no part in
+        the Jacobian.
         """
-        disc = self.gemseo_discipline
-        is_continuous_input = disc.input_grammar.data_converter.is_continuous
-        is_continuous_output = disc.output_grammar.data_converter.is_continuous
         for output_name in self._output_names:
-            if not is_continuous_output(output_name):
-                continue
             for input_name in self._input_names:
-                if is_continuous_input(input_name):
-                    self.declare_partials(output_name, input_name)
+                self.declare_partials(output_name, input_name)
 
     def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
         """Execute the wrapped GEMSEO discipline.
@@ -232,13 +227,13 @@ class GEMSEOtoPhiloteDiscipline(
                 name, if any.
         """
         if not self._partials_meta:
-            # Every variable is discrete or integer-valued, so setup_partials()
-            # declared nothing to differentiate.
+            # The discipline has no continuous input or no continuous output,
+            # so setup_partials() declared nothing to differentiate.
             return
 
         disc = self.gemseo_discipline
-        # Both of these filter out the names that do not hold continuous
-        # data, which leaves exactly the subset setup_partials() declared.
+        # Restrict the differentiation to the continuous variables, which is
+        # exactly the subset that setup_partials() declared.
         disc.add_differentiated_inputs(self._input_names)
         disc.add_differentiated_outputs(self._output_names)
         jac = disc.linearize(self._merge_inputs(inputs, discrete_inputs))
