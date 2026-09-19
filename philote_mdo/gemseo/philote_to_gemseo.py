@@ -59,12 +59,15 @@ class PhiloteDiscipline(Discipline):
             channel: The gRPC channel to the Philote discipline server,
                 e.g. created with ``grpc.insecure_channel("localhost:50051")``.
             name: The name of the discipline.
-                If empty, use the name of the remote discipline class.
+                If empty, use the name reported by the server,
+                or the class name if the server reports none.
             **options: The discipline options to send to the server,
                 if any.
 
         Raises:
             ValueError: When ``channel`` is empty or ``None``.
+            NotImplementedError: When the server declares dynamic-shape
+                or discrete variables, which are not supported yet.
         """
         if not channel:
             msg = "No channel provided, the Philote client will not be able to connect."
@@ -76,8 +79,10 @@ class PhiloteDiscipline(Discipline):
         # generic Philote client
         self._client = pm.ExplicitClient(channel=channel)
 
-        # call the init function of the explicit component
-        super().__init__(name=name)
+        # call the init function of the explicit component; an empty name
+        # makes GEMSEO fall back to the class name
+        self._client.get_discipline_info()
+        super().__init__(name=name or self._client._name)
 
         self._client.send_stream_options()
         if options:
@@ -150,7 +155,25 @@ class PhiloteDiscipline(Discipline):
         from the remote discipline server by
         :meth:`~philote_mdo.general.discipline_client.DisciplineClient.get_variable_definitions`.
         It does not perform any RPC call itself.
+
+        Raises:
+            NotImplementedError: When the server declares dynamic-shape or
+                discrete variables. Their shapes would have to be sent to
+                the server, and discrete variables would be missing from the
+                grammars and silently left at their server-side defaults.
         """
+        unsupported = [
+            f"{var.name} (dynamic shape)"
+            for var in self._client._var_meta
+            if var.dynamic_shape
+        ] + [f"{var.name} (discrete)" for var in self._client._discrete_var_meta]
+        if unsupported:
+            msg = (
+                "PhiloteDiscipline does not support these server variables yet: "
+                + ", ".join(unsupported)
+            )
+            raise NotImplementedError(msg)
+
         input_names = []
         output_names = []
         for var in self._client._var_meta:
