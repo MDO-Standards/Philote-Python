@@ -19,6 +19,9 @@ from concurrent import futures
 import unittest
 import grpc
 from numpy import array
+from numpy import eye
+from numpy import ndarray
+from numpy.testing import assert_allclose
 import philote_mdo.general as pmdo
 from philote_mdo.examples import Paraboloid
 from philote_mdo.examples import Rosenbrock
@@ -39,16 +42,29 @@ class DynamicShapeDiscipline(pmdo.ExplicitDiscipline):
         outputs["y"] = 2.0 * inputs["x"]
 
 
-class DiscreteInputDiscipline(pmdo.ExplicitDiscipline):
-    """A discipline with a discrete input next to a continuous one."""
+class DiscreteDiscipline(pmdo.ExplicitDiscipline):
+    """A discipline with a discrete input and a discrete output.
+
+    The discrete input ``factor`` scales the continuous output ``y``, so
+    that both the outputs and the Jacobian depend on it, and the discrete
+    output ``tags`` echoes a non-scalar discrete value back to the client.
+    """
 
     def setup(self):
-        self.add_input("x", shape=(1,))
-        self.add_discrete_input("mode", default="a")
-        self.add_output("y", shape=(1,))
+        self.add_input("x", shape=(2,))
+        self.add_discrete_input("factor", default=2.0)
+        self.add_output("y", shape=(2,))
+        self.add_discrete_output("tags")
+
+    def setup_partials(self):
+        self.declare_partials("y", "x")
 
     def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
-        outputs["y"] = 2.0 * inputs["x"]
+        outputs["y"] = discrete_inputs["factor"] * inputs["x"]
+        discrete_outputs["tags"] = ["scaled", discrete_inputs["factor"]]
+
+    def compute_partials(self, inputs, partials, discrete_inputs=None):
+        partials["y", "x"] = discrete_inputs["factor"] * eye(2)
 
 
 class PhiloteToGEMSEOTests(unittest.TestCase):
@@ -187,17 +203,66 @@ class PhiloteToGEMSEOTests(unittest.TestCase):
         self.assertIn("x (dynamic shape)", str(ctx.exception))
         self.assertIn("y (dynamic shape)", str(ctx.exception))
 
-    def test_discrete_variables_raise(self):
+    def test_discrete_variables_in_grammars(self):
         """
-        Discrete server variables are rejected at construction rather than
-        silently left at their server-side defaults.
+        Discrete server variables are added to the grammars next to the
+        continuous ones, and bound to no type, since they may carry any
+        JSON-compatible value.
         """
-        self._serve(DiscreteInputDiscipline())
+        self._serve(DiscreteDiscipline())
 
-        with self.assertRaises(NotImplementedError) as ctx:
-            PhiloteDiscipline(channel=grpc.insecure_channel(CHANNEL))
+        disc = PhiloteDiscipline(channel=grpc.insecure_channel(CHANNEL))
 
-        self.assertIn("mode (discrete)", str(ctx.exception))
+        self.assertEqual({n: disc.input_grammar[n] for n in disc.input_grammar},
+                         {"x": ndarray, "factor": None})
+        self.assertEqual({n: disc.output_grammar[n] for n in disc.output_grammar},
+                         {"y": ndarray, "tags": None})
+
+    def test_discrete_variables_compute(self):
+        """
+        Discrete inputs are sent to the server and discrete outputs are
+        returned in the local data, next to the continuous ones.
+        """
+        self._serve(DiscreteDiscipline())
+
+        disc = PhiloteDiscipline(channel=grpc.insecure_channel(CHANNEL))
+
+        out = disc.execute({"x": array([1.0, 2.0]), "factor": 3.0})
+
+        assert_allclose(out["y"], array([3.0, 6.0]))
+        self.assertEqual(out["tags"], ["scaled", 3.0])
+
+    def test_discrete_input_changes_output(self):
+        """
+        A different discrete input value yields a different output, which
+        shows the value is actually sent rather than left at the
+        server-side default.
+        """
+        self._serve(DiscreteDiscipline())
+
+        disc = PhiloteDiscipline(channel=grpc.insecure_channel(CHANNEL))
+
+        out = disc.execute({"x": array([1.0, 2.0]), "factor": 10.0})
+
+        assert_allclose(out["y"], array([10.0, 20.0]))
+
+    def test_discrete_variables_linearize(self):
+        """
+        Discrete variables are excluded from the full Jacobian, and the
+        discrete inputs are sent along with the continuous ones so that the
+        server can use them to compute the partials.
+        """
+        self._serve(DiscreteDiscipline())
+
+        disc = PhiloteDiscipline(channel=grpc.insecure_channel(CHANNEL))
+
+        jac = disc.linearize(
+            {"x": array([1.0, 2.0]), "factor": 3.0}, compute_all_jacobians=True
+        )
+
+        self.assertEqual(list(jac), ["y"])
+        self.assertEqual(list(jac["y"]), ["x"])
+        assert_allclose(jac["y"]["x"], 3.0 * eye(2))
 
 
 if __name__ == "__main__":
