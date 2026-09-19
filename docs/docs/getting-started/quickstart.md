@@ -119,9 +119,9 @@ server.wait_for_termination()
 
 ## Calling the Discipline Using a Client
 
-Now that a server is running, it can be queried using a client. Philote-Python offers a number of clients for this purpose, ranging from the general implementation to OpenMDAO and CSDL components. However, under the hood, the OpenMDAO and CSDL components use the general client implementation.
+Now that a server is running, it can be queried using a client. Philote-Python offers a number of clients for this purpose, ranging from the general implementation to OpenMDAO and CSDL components and GEMSEO disciplines. However, under the hood, these all use the general client implementation.
 
-This example will use the general explicit client implementation. Despite it being fully functional and able to run in scientific workflows, it probably is not a realistic MDO workflow. The [OpenMDAO clients](../openmdao/openmdao-clients.md) tutorial demonstrates calling Philote disciplines from the OpenMDAO framework.
+This example will use the general explicit client implementation. Despite it being fully functional and able to run in scientific workflows, it probably is not a realistic MDO workflow. The [OpenMDAO clients](../openmdao/openmdao-clients.md) and [GEMSEO](../gemseo/gemseo.md) tutorials demonstrate calling Philote disciplines from the OpenMDAO and GEMSEO frameworks.
 
 First, the explicit client must be imported and initialized using a gRPC channel.
 

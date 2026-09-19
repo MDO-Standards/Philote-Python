@@ -54,6 +54,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   twice for an implicit output, which is quadratic in the number of dynamic
   variables.  Both now index the metadata by type and name once.  Applying
   shapes to 1,000 dynamic variables drops from 922 ms to 120 ms.
+- Added a GEMSEO interface (`philote_mdo.gemseo`) allowing GEMSEO
+  disciplines to be called from Philote-MDO, and Philote-MDO disciplines
+  (local or remote, e.g. served from OpenMDAO) to be called from GEMSEO.
+- Added examples and tutorials demonstrating interoperability between
+  GEMSEO, OpenMDAO and OpenAeroStruct through Philote-MDO.
 
 ### Bug Fixes
 
@@ -121,9 +126,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   removes redundant work inside `compute_totals` on every gradient call.
   Results were already correct, since the totals are indexed by the
   `(of, wrt)` pair rather than by position (#80).
+- Fixed the compilation of the proto files on Windows.
 
 ### Documentation & Infrastructure
 
+- Dropped support for Python 3.9, which reached end of life in October
+  2025. `requires-python` is now `>=3.10`, and CI no longer tests 3.9.
+  GEMSEO 6.3 requires Python 3.10, so the 3.9 job was the only one
+  testing an older GEMSEO (6.2); the latest `grpcio`, `protobuf` and
+  OpenMDAO also require 3.10 or later.
 - Updated the documentation site's dependencies to clear known npm
   advisories, taking the audit from 42 findings (2 critical, 26 high) to 17
   (all high).  `npm audit fix` resolved the `webpack-dev-server`, `sockjs`,
