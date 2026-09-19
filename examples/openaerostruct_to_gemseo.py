@@ -36,8 +36,10 @@ usable design variable, and ``CL``/``CD`` the only usable objective and
 constraint, for a gradient-based scenario. The other flight-condition and
 mission parameters are kept fixed at their default values.
 
-This requires GEMSEO, OpenMDAO, OpenAeroStruct and ``philote-examples`` to
-be installed (``pip install gemseo openaerostruct philote-examples``).
+This requires GEMSEO, OpenMDAO, OpenAeroStruct and ``philote-examples``
+0.5.1 or later, the first version whose ``OasAerostructDiscipline``
+declares these partial derivatives, to be installed
+(``pip install gemseo openaerostruct "philote-examples>=0.5.1"``).
 """
 
 from __future__ import annotations

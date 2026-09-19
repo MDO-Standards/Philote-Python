@@ -15,9 +15,12 @@ finite-element structural model, solved together with an OpenMDAO
 nonlinear solver -- and it is optimized with a gradient-based algorithm.
 
 This example additionally requires OpenMDAO, OpenAeroStruct and the
-[`philote-examples`](https://pypi.org/project/philote-examples/) package
-(`pip install openaerostruct philote-examples`), which provides the
-`OasAerostructDiscipline` used below.
+[`philote-examples`](https://pypi.org/project/philote-examples/) package,
+version 0.5.1 or later
+(`pip install openaerostruct "philote-examples>=0.5.1"`), which provides
+the `OasAerostructDiscipline` used below. Earlier versions of
+`philote-examples` do not declare the partial derivatives this tutorial
+relies on.
 
 ## Why this matters: hiding an OpenMDAO MDA behind a Philote-MDO discipline
 
