@@ -18,9 +18,9 @@ the output values and, if available, the Jacobian.
 **both** directions:
 
 - `PhiloteDiscipline` is a GEMSEO `Discipline` that connects to *any*
-  Philote-MDO server (be it a `philote-mdo` discipline, an OpenAeroStruct
-  model, or an OpenMDAO component served through
-  `philote_mdo.openmdao.RemoteExplicitComponent`) and exposes it as a
+  (explicit) Philote-MDO server (be it a `philote-mdo` discipline, an
+  OpenAeroStruct model, or an OpenMDAO group served through
+  `philote_mdo.openmdao.OpenMdaoSubProblem`) and exposes it as a
   normal discipline, usable in an `MDOScenario` or an `MDA` like any
   other.
 - `GEMSEOtoPhiloteDiscipline` does the opposite: it wraps a GEMSEO
