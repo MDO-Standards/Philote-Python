@@ -29,6 +29,8 @@
 # control over the information you may find at these locations.
 from concurrent import futures
 import unittest
+
+from conftest import job_context, make_server
 import grpc
 import numpy as np
 import philote_mdo.general as pmdo
@@ -48,7 +50,7 @@ class IntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = pmdo.ExplicitServer(discipline=Paraboloid())
+        discipline = pmdo.ExplicitServer(discipline=Paraboloid)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -83,7 +85,7 @@ class IntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = pmdo.ExplicitServer(discipline=Paraboloid())
+        discipline = pmdo.ExplicitServer(discipline=Paraboloid)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -119,7 +121,7 @@ class IntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = pmdo.ImplicitServer(discipline=QuadradicImplicit())
+        discipline = pmdo.ImplicitServer(discipline=QuadradicImplicit)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -155,7 +157,7 @@ class IntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = pmdo.ImplicitServer(discipline=QuadradicImplicit())
+        discipline = pmdo.ImplicitServer(discipline=QuadradicImplicit)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -190,7 +192,7 @@ class IntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        discipline = pmdo.ImplicitServer(discipline=QuadradicImplicit())
+        discipline = pmdo.ImplicitServer(discipline=QuadradicImplicit)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -248,7 +250,7 @@ class IntegrationTests(unittest.TestCase):
         # server code
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
-        pmdo.ImplicitServer(discipline=VectorImplicit()).attach_to_server(server)
+        pmdo.ImplicitServer(discipline=VectorImplicit).attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
         server.start()
@@ -289,7 +291,9 @@ class IntegrationTests(unittest.TestCase):
         discipline = Paraboloid()
         discipline._name = "Paraboloid"
         discipline._version = "1.0.0"
-        pmdo.ExplicitServer(discipline=discipline).attach_to_server(server)
+        pmdo.ExplicitServer(
+            discipline=lambda: discipline
+        ).attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
         server.start()
@@ -356,7 +360,7 @@ class StructOptionIntegrationTests(unittest.TestCase):
         """
         # server
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-        discipline = pmdo.ExplicitServer(discipline=StructOptionDiscipline())
+        discipline = pmdo.ExplicitServer(discipline=StructOptionDiscipline)
         discipline.attach_to_server(server)
         server.add_insecure_port("[::]:50051")
         server.start()

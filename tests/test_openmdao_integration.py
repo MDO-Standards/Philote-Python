@@ -29,6 +29,8 @@
 # control over the information you may find at these locations.
 from concurrent import futures
 import unittest
+
+from conftest import job_context, make_server
 import grpc
 import numpy as np
 from numpy.testing import assert_almost_equal
@@ -48,9 +50,9 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         Integration test for the Paraboloid compute function.
         """
         # server code
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
 
-        discipline = pmdo.ExplicitServer(discipline=Paraboloid())
+        discipline = pmdo.ExplicitServer(discipline=Paraboloid)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -83,9 +85,9 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         Integration test for the Paraboloid compute function.
         """
         # server code
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
 
-        discipline = pmdo.ExplicitServer(discipline=Paraboloid())
+        discipline = pmdo.ExplicitServer(discipline=Paraboloid)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -119,9 +121,9 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         Integration test for the Paraboloid compute function.
         """
         # server code
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
 
-        discipline = pmdo.ExplicitServer(discipline=Rosenbrock())
+        discipline = pmdo.ExplicitServer(discipline=Rosenbrock)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -157,9 +159,9 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         shows up as a shape mismatch (issue #77).
         """
         # server code
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
 
-        discipline = pmdo.ExplicitServer(discipline=Rosenbrock())
+        discipline = pmdo.ExplicitServer(discipline=Rosenbrock)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -196,9 +198,9 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         Integration test for the Paraboloid compute function.
         """
         # server code
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
 
-        discipline = pmdo.ExplicitServer(discipline=Rosenbrock())
+        discipline = pmdo.ExplicitServer(discipline=Rosenbrock)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")
@@ -233,9 +235,9 @@ class OpenMDAOIntegrationTests(unittest.TestCase):
         example.
         """
         # server code
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
 
-        discipline = pmdo.ImplicitServer(discipline=QuadradicImplicit())
+        discipline = pmdo.ImplicitServer(discipline=QuadradicImplicit)
         discipline.attach_to_server(server)
 
         server.add_insecure_port("[::]:50051")

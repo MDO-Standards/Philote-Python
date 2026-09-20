@@ -64,12 +64,12 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         >>> import grpc
         >>> import philote_mdo.general as pmdo
         >>>
-        >>> # Create your implicit discipline
-        >>> discipline = MyImplicitDiscipline()
-        >>>
-        >>> # Create and configure server
-        >>> server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-        >>> impl_server = pmdo.ImplicitServer(discipline=discipline)
+        >>> # Create and configure server. One discipline instance is built
+        >>> # per job, so concurrent clients do not interfere.
+        >>> server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
+        >>> impl_server = pmdo.ImplicitServer(
+        ...     discipline=MyImplicitDiscipline
+        ... )
         >>> impl_server.attach_to_server(server)
         >>>
         >>> # Start server
@@ -79,7 +79,7 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         >>> server.wait_for_termination()
 
     Attributes:
-        _discipline (ImplicitDiscipline): The underlying implicit discipline being served
+        _jobs (JobStore): The live jobs, each owning its own discipline instance
 
     Notes:
         - Inherits from both DisciplineServer and gRPC ImplicitServiceServicer
@@ -88,22 +88,26 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         - The underlying discipline must implement all required implicit methods
     """
 
-    def __init__(self, discipline=None):
+    def __init__(self, discipline=None, **kwargs):
         """
         Initialize the implicit discipline server.
 
         Parameters
         ----------
-        discipline : ImplicitDiscipline, optional
-            The implicit discipline to serve. Must implement compute_residuals,
-            solve_residuals, and residual_partials methods.
+        discipline : callable, optional
+            Zero-argument callable returning a fresh implicit discipline, which
+            must implement compute_residuals, solve_residuals and
+            residual_partials. One instance is built per job, so the state a
+            client accumulates stays private to it.
+        **kwargs
+            Job limits passed to ``DisciplineServer``: ``max_jobs``, ``ttl``
+            and ``sweep_interval``.
 
         Examples
         --------
-        >>> discipline = MyImplicitDiscipline()
-        >>> server = ImplicitServer(discipline=discipline)
+        >>> server = ImplicitServer(discipline=MyImplicitDiscipline)
         """
-        super().__init__(discipline=discipline)
+        super().__init__(discipline=discipline, **kwargs)
 
     def attach_to_server(self, server):
         """
@@ -120,7 +124,7 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         Examples
         --------
         >>> server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-        >>> impl_server = ImplicitServer(discipline=my_discipline)
+        >>> impl_server = ImplicitServer(discipline=MyImplicitDiscipline)
         >>> impl_server.attach_to_server(server)
         >>> server.add_insecure_port('[::]:50051')
         >>> server.start()
@@ -156,6 +160,12 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         - Streams results back in chunks for efficiency
         - This method is called automatically by the gRPC framework
         """
+        job = self._resolve_job(context)
+
+        # serialise calls within this job. Separate jobs never contend here,
+        # which is what lets two clients evaluate at the same time.
+        job.lock.acquire()
+
         try:
             # inputs and outputs
             inputs = {}
@@ -166,7 +176,7 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
             discrete_inputs = {}
             discrete_outputs = {}
 
-            self.preallocate_inputs(inputs, flat_inputs, outputs, flat_outputs)
+            self.preallocate_inputs(job, inputs, flat_inputs, outputs, flat_outputs)
             discrete_inputs, discrete_outputs = self.process_inputs(
                 request_iterator,
                 flat_inputs,
@@ -176,15 +186,15 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
             )
 
             # Call the user-defined compute_residuals function
-            if discrete_inputs or self._discipline._discrete_var_meta:
-                self._discipline.compute_residuals(
+            if discrete_inputs or job.discipline._discrete_var_meta:
+                job.discipline.compute_residuals(
                     inputs, outputs, residuals, discrete_inputs, discrete_outputs
                 )
             else:
-                self._discipline.compute_residuals(inputs, outputs, residuals)
+                job.discipline.compute_residuals(inputs, outputs, residuals)
 
             for res_name, value in residuals.items():
-                for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
+                for b, e in get_chunk_indices(value.size, job.stream_opts.num_double):
                     message = data.VariableMessage(
                         continuous=data.Array(
                             name=res_name,
@@ -202,6 +212,8 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
             context.abort(
                 grpc.StatusCode.INTERNAL, f"ComputeResiduals failed: {e}"
             )
+        finally:
+            job.lock.release()
 
     def SolveResiduals(self, request_iterator, context):
         """
@@ -230,6 +242,12 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         - Outputs are streamed back in chunks for large arrays
         - This method is called automatically by the gRPC framework
         """
+        job = self._resolve_job(context)
+
+        # serialise calls within this job. Separate jobs never contend here,
+        # which is what lets two clients evaluate at the same time.
+        job.lock.acquire()
+
         try:
             # inputs and outputs
             inputs = {}
@@ -238,7 +256,7 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
             flat_outputs = {}
             discrete_inputs = {}
 
-            self.preallocate_inputs(inputs, flat_inputs, outputs, flat_outputs)
+            self.preallocate_inputs(job, inputs, flat_inputs, outputs, flat_outputs)
             discrete_inputs, _ = self.process_inputs(
                 request_iterator,
                 flat_inputs,
@@ -247,13 +265,13 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
             )
 
             # Call the user-defined solve function
-            if discrete_inputs or self._discipline._discrete_var_meta:
-                self._discipline.solve_residuals(inputs, outputs, discrete_inputs)
+            if discrete_inputs or job.discipline._discrete_var_meta:
+                job.discipline.solve_residuals(inputs, outputs, discrete_inputs)
             else:
-                self._discipline.solve_residuals(inputs, outputs)
+                job.discipline.solve_residuals(inputs, outputs)
 
             for output_name, value in outputs.items():
-                for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
+                for b, e in get_chunk_indices(value.size, job.stream_opts.num_double):
                     message = data.VariableMessage(
                         continuous=data.Array(
                             name=output_name,
@@ -271,6 +289,8 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
             context.abort(
                 grpc.StatusCode.INTERNAL, f"SolveResiduals failed: {e}"
             )
+        finally:
+            job.lock.release()
 
     def ComputeResidualGradients(self, request_iterator, context):
         """
@@ -299,6 +319,12 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
         - Used for gradient-based optimization and sensitivity analysis
         - This method is called automatically by the gRPC framework
         """
+        job = self._resolve_job(context)
+
+        # serialise calls within this job. Separate jobs never contend here,
+        # which is what lets two clients evaluate at the same time.
+        job.lock.acquire()
+
         try:
             # inputs and outputs
             inputs = {}
@@ -308,8 +334,8 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
             discrete_inputs = {}
             discrete_outputs = {}
 
-            self.preallocate_inputs(inputs, flat_inputs, outputs, flat_outputs)
-            jac = self.preallocate_partials()
+            self.preallocate_inputs(job, inputs, flat_inputs, outputs, flat_outputs)
+            jac = self.preallocate_partials(job)
             discrete_inputs, discrete_outputs = self.process_inputs(
                 request_iterator,
                 flat_inputs,
@@ -319,15 +345,15 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
             )
 
             # Call the user-defined residual partials function
-            if discrete_inputs or self._discipline._discrete_var_meta:
-                self._discipline.residual_partials(
+            if discrete_inputs or job.discipline._discrete_var_meta:
+                job.discipline.residual_partials(
                     inputs, outputs, jac, discrete_inputs, discrete_outputs
                 )
             else:
-                self._discipline.residual_partials(inputs, outputs, jac)
+                job.discipline.residual_partials(inputs, outputs, jac)
 
             for jac, value in jac.items():
-                for b, e in get_chunk_indices(value.size, self._stream_opts.num_double):
+                for b, e in get_chunk_indices(value.size, job.stream_opts.num_double):
                     message = data.VariableMessage(
                         continuous=data.Array(
                             name=jac[0],
@@ -347,6 +373,8 @@ class ImplicitServer(pmdo.DisciplineServer, disc.ImplicitServiceServicer):
                 grpc.StatusCode.INTERNAL,
                 f"ComputeResidualGradients failed: {e}",
             )
+        finally:
+            job.lock.release()
 
     # def MatrixFreeGradients(self, request_iterator, context):
     #     """

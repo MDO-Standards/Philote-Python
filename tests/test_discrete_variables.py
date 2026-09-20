@@ -31,6 +31,9 @@
 Unit tests for discrete variable support across the Philote stack.
 """
 import unittest
+
+from philote_mdo.general import Discipline
+from conftest import patch_discipline_stub, job_context, make_server, bind_job
 from unittest.mock import Mock, MagicMock, patch
 
 import numpy as np
@@ -155,12 +158,12 @@ class TestDisciplineServerDiscrete(unittest.TestCase):
 
     def test_get_variable_definitions_includes_discrete(self):
         """GetVariableDefinitions should stream both continuous and discrete metadata."""
-        server = DisciplineServer()
-        server._discipline = Discipline()
-        server._discipline.add_input("x", shape=(1,))
-        server._discipline.add_discrete_input("mode")
+        server, job, context = make_server(DisciplineServer, Discipline)
+        discipline = job.discipline
+        job.discipline.add_input("x", shape=(1,))
+        job.discipline.add_discrete_input("mode")
 
-        responses = list(server.GetVariableDefinitions(None, None))
+        responses = list(server.GetVariableDefinitions(None, context))
         self.assertEqual(len(responses), 2)
         types = [r.type for r in responses]
         self.assertIn(data.VariableType.kInput, types)
@@ -168,7 +171,7 @@ class TestDisciplineServerDiscrete(unittest.TestCase):
 
     def test_process_inputs_with_discrete(self):
         """process_inputs should demux continuous and discrete messages."""
-        server = DisciplineServer()
+        server, job, context = make_server(DisciplineServer, Discipline)
 
         flat_inputs = {"x": np.zeros(2)}
         discrete_inputs = {}
@@ -229,7 +232,7 @@ class TestDisciplineClientDiscrete(unittest.TestCase):
             ),
         ]
 
-        client = DisciplineClient(mock_channel)
+        client = bind_job(DisciplineClient(mock_channel))
         client.get_variable_definitions()
 
         self.assertEqual(len(client._var_meta), 2)
@@ -238,7 +241,7 @@ class TestDisciplineClientDiscrete(unittest.TestCase):
     def test_assemble_input_messages_with_discrete(self):
         """_assemble_input_messages should include discrete messages."""
         mock_channel = Mock()
-        client = DisciplineClient(mock_channel)
+        client = bind_job(DisciplineClient(mock_channel))
         client._stream_options.num_double = 10
 
         inputs = {"x": np.array([1.0])}
@@ -263,7 +266,7 @@ class TestDisciplineClientDiscrete(unittest.TestCase):
     def test_assemble_input_messages_with_discrete_outputs(self):
         """_assemble_input_messages should include discrete output messages."""
         mock_channel = Mock()
-        client = DisciplineClient(mock_channel)
+        client = bind_job(DisciplineClient(mock_channel))
         client._stream_options.num_double = 10
 
         inputs = {"x": np.array([1.0])}
@@ -287,7 +290,7 @@ class TestDisciplineClientDiscrete(unittest.TestCase):
     def test_recover_outputs_with_discrete(self):
         """_recover_outputs should return (outputs, discrete_outputs) tuple."""
         mock_channel = Mock()
-        client = DisciplineClient(mock_channel)
+        client = bind_job(DisciplineClient(mock_channel))
         client._var_meta = [
             data.VariableMetaData(name="f", type=data.kOutput, shape=(1,)),
         ]
@@ -324,14 +327,14 @@ class TestExplicitServerDiscrete(unittest.TestCase):
 
     def test_compute_function_with_discrete(self):
         """ComputeFunction should pass discrete data to discipline.compute."""
-        server = ExplicitServer()
+        server, job, context = make_server(ExplicitServer, Discipline)
         discipline = ExplicitDiscipline()
         discipline.add_input("x", shape=(1,))
         discipline.add_output("f", shape=(1,))
         discipline.add_discrete_input("mode")
         discipline.add_discrete_output("status")
-        server._discipline = discipline
-        server._stream_opts.num_double = 10
+        job.discipline = discipline
+        job.stream_opts.num_double = 10
 
         captured = {}
 
@@ -358,7 +361,7 @@ class TestExplicitServerDiscrete(unittest.TestCase):
             ),
         ]
 
-        responses = list(server.ComputeFunction(request_iterator, None))
+        responses = list(server.ComputeFunction(request_iterator, context))
 
         # Should have received the discrete input
         self.assertEqual(captured["discrete_inputs"]["mode"], "fast")
@@ -379,14 +382,14 @@ class TestExplicitServerDiscrete(unittest.TestCase):
 
     def test_compute_gradient_with_discrete(self):
         """ComputeGradient should pass discrete data to compute_partials."""
-        server = ExplicitServer()
+        server, job, context = make_server(ExplicitServer, Discipline)
         discipline = ExplicitDiscipline()
         discipline.add_input("x", shape=(1,))
         discipline.add_output("f", shape=(1,))
         discipline.add_discrete_input("mode")
         discipline.declare_partials("f", "x")
-        server._discipline = discipline
-        server._stream_opts.num_double = 10
+        job.discipline = discipline
+        job.stream_opts.num_double = 10
 
         captured = {}
 
@@ -412,7 +415,7 @@ class TestExplicitServerDiscrete(unittest.TestCase):
             ),
         ]
 
-        responses = list(server.ComputeGradient(request_iterator, None))
+        responses = list(server.ComputeGradient(request_iterator, context))
 
         self.assertEqual(captured["discrete_inputs"]["mode"], "fast")
         self.assertEqual(len(responses), 1)
@@ -457,10 +460,10 @@ class TestImplicitServerDiscrete(unittest.TestCase):
         ]
 
     def test_compute_residuals_with_discrete(self):
-        server = ImplicitServer()
+        server, job, context = make_server(ImplicitServer, Discipline)
         discipline = self._make_discipline()
-        server._discipline = discipline
-        server._stream_opts.num_double = 10
+        job.discipline = discipline
+        job.stream_opts.num_double = 10
 
         captured = {}
 
@@ -471,17 +474,17 @@ class TestImplicitServerDiscrete(unittest.TestCase):
         discipline.compute_residuals = compute_residuals
 
         responses = list(
-            server.ComputeResiduals(self._make_request(), None)
+            server.ComputeResiduals(self._make_request(), context)
         )
 
         self.assertEqual(captured["mode"], "fast")
         self.assertGreater(len(responses), 0)
 
     def test_solve_residuals_with_discrete(self):
-        server = ImplicitServer()
+        server, job, context = make_server(ImplicitServer, Discipline)
         discipline = self._make_discipline()
-        server._discipline = discipline
-        server._stream_opts.num_double = 10
+        job.discipline = discipline
+        job.stream_opts.num_double = 10
 
         captured = {}
 
@@ -492,17 +495,17 @@ class TestImplicitServerDiscrete(unittest.TestCase):
         discipline.solve_residuals = solve_residuals
 
         responses = list(
-            server.SolveResiduals(self._make_request(), None)
+            server.SolveResiduals(self._make_request(), context)
         )
 
         self.assertEqual(captured["mode"], "fast")
         self.assertGreater(len(responses), 0)
 
     def test_compute_residual_gradients_with_discrete(self):
-        server = ImplicitServer()
+        server, job, context = make_server(ImplicitServer, Discipline)
         discipline = self._make_discipline()
-        server._discipline = discipline
-        server._stream_opts.num_double = 10
+        job.discipline = discipline
+        job.stream_opts.num_double = 10
 
         captured = {}
 
@@ -513,7 +516,7 @@ class TestImplicitServerDiscrete(unittest.TestCase):
         discipline.residual_partials = residual_partials
 
         responses = list(
-            server.ComputeResidualGradients(self._make_request(), None)
+            server.ComputeResidualGradients(self._make_request(), context)
         )
 
         self.assertEqual(captured["mode"], "fast")
@@ -530,7 +533,7 @@ class TestExplicitClientDiscrete(unittest.TestCase):
     def test_run_compute_with_discrete(self, mock_stub_cls):
         mock_channel = Mock()
         mock_stub = mock_stub_cls.return_value
-        client = ExplicitClient(mock_channel)
+        client = bind_job(ExplicitClient(mock_channel))
         client._var_meta = [
             data.VariableMetaData(name="f", type=data.kOutput, shape=(1,)),
         ]
@@ -560,7 +563,7 @@ class TestExplicitClientDiscrete(unittest.TestCase):
     def test_run_compute_partials_with_discrete(self, mock_stub_cls):
         mock_channel = Mock()
         mock_stub = mock_stub_cls.return_value
-        client = ExplicitClient(mock_channel)
+        client = bind_job(ExplicitClient(mock_channel))
         client._var_meta = [
             data.VariableMetaData(name="f", type=data.kOutput, shape=(1,)),
             data.VariableMetaData(name="x", type=data.kInput, shape=(1,)),
@@ -649,7 +652,11 @@ class TestOpenMdaoExplicitDiscrete(unittest.TestCase):
         from philote_mdo.openmdao import RemoteExplicitComponent
 
         mock_channel = Mock()
-        comp = RemoteExplicitComponent(channel=mock_channel)
+
+        # the component claims a job inside __init__, so the stub has to be
+        # mocked around the construction itself
+        with patch_discipline_stub():
+            comp = RemoteExplicitComponent(channel=mock_channel)
 
         client_mock = MagicMock()
         client_mock._var_meta = [

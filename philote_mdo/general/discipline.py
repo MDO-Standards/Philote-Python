@@ -67,6 +67,11 @@ class Discipline:
         # flag that indicates the discipline is implicit
         self._is_implicit = False
 
+        # the job that owns this instance, assigned by the server when the
+        # job is created. One discipline instance serves exactly one job, so
+        # anything stored on self is private to that client.
+        self.job = None
+
         # dictionary of available discipline options (with types)
         self.options_list = {}
 
@@ -281,6 +286,17 @@ class Discipline:
         pass
 
     def configure(self):
+        pass
+
+    def teardown_job(self):
+        """
+        Releases whatever this instance holds, before its job is discarded.
+
+        Called when the client ends the job and when the server evicts one
+        that has gone idle, so a discipline that opened a file, started a
+        subprocess, or built a solver should close it here. Overriding this
+        is optional; the default does nothing.
+        """
         pass
 
     def _clear_data(self):

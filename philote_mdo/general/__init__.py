@@ -35,6 +35,8 @@ from .discipline_server import DisciplineServer
 from .explicit_server import ExplicitServer
 from .implicit_server import ImplicitServer
 
+from .job import JOB_METADATA_KEY, Job, JobState, JobStore
+
 from .discipline import Discipline
 from .explicit_discipline import ExplicitDiscipline
 from .implicit_discipline import ImplicitDiscipline

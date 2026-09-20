@@ -227,14 +227,13 @@ import grpc
 import philote_mdo.general as pmdo
 
 def run_server():
-    # Create the discipline
-    discipline = QuadraticSolver()
+    # Create gRPC server. The pool should be at least as large as the
+    # server's job cap, since every in-flight RPC holds a worker.
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
 
-    # Create gRPC server
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-
-    # Create and attach implicit server
-    impl_server = pmdo.ImplicitServer(discipline=discipline)
+    # Create and attach implicit server. It takes a factory and builds one
+    # discipline per job, so concurrent clients do not interfere.
+    impl_server = pmdo.ImplicitServer(discipline=QuadraticSolver)
     impl_server.attach_to_server(server)
 
     # Start server
@@ -268,7 +267,7 @@ def run_production_server():
         ]
     )
 
-    impl_server = pmdo.ImplicitServer(discipline=discipline)
+    impl_server = pmdo.ImplicitServer(discipline=QuadraticSolver)
     impl_server.attach_to_server(server)
 
     # Use secure connection in production
