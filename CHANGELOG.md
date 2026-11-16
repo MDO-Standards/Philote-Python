@@ -66,12 +66,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   which includes the integer-valued ones, since a continuous Philote
   variable is an array of doubles.  Discrete variables are excluded from
   the Jacobian, including when it is requested in full with
-  `compute_all_jacobians=True`.
+  `compute_all_jacobians=True`.  A discrete input left out on the client
+  side is not sent, and the server applies the wrapped discipline's
+  default value.
 - Added examples and tutorials demonstrating interoperability between
   GEMSEO, OpenMDAO and OpenAeroStruct through Philote-MDO.
 
 ### Bug Fixes
 
+- The `default` passed to `add_discrete_input` was accepted but discarded.
+  The discipline now keeps it, and the server applies it to any discrete
+  input a client does not send.  Defaults are still not part of the
+  variable metadata on the wire, so clients do not see them.
+- A NumPy array or scalar sent as a discrete value was serialized through
+  `str()`, so the peer received a string such as `"[1 2]"`.  NumPy arrays
+  are now sent as (nested) lists and NumPy scalars as the equivalent Python
+  scalars.
 - `DisciplineServer` inherited `DisciplineService`, the generated experimental
   static-call API, rather than `DisciplineServiceServicer`, the servicer base
   that `add_DisciplineServiceServicer_to_server` is written against.  No

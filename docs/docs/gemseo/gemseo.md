@@ -287,6 +287,13 @@ class ScalingDiscipline(Discipline):
         self.output_grammar.update_from_types({"used_mode": str})  # discrete
 ```
 
+A discrete input takes the wrapped discipline's default value, if it has
+one, whenever a client does not send a value for it, or sends `None` (as
+an OpenMDAO client does for an unconnected discrete input). A NumPy value
+of a discrete variable, such as an integer array of a `JSONGrammar`, is
+sent to clients as a (nested) list, and an array received from a client is
+converted back to a NumPy array before it reaches the wrapped discipline.
+
 :::note
 `is_continuous` is the right question to ask, rather than `is_numeric`,
 because an integer is numeric but a continuous Philote variable is an
@@ -320,10 +327,11 @@ declared for them, and they are excluded from the Jacobian, including
 when it is requested in full with `compute_all_jacobians=True`.
 :::
 
-:::warning
+:::note
 Philote-MDO does not transfer default values, so a discrete input has no
-default on the client side. It must be part of the input data passed to
-`execute()`, just like a continuous one.
+default on the client side. It is therefore optional in the input grammar:
+when it is left out of the input data passed to `execute()`, it is not
+sent, and the server uses its own default value for it.
 :::
 
 ## Where to go next

@@ -111,6 +111,32 @@ class DiscreteOnlyDiscipline(Discipline):
         return {"used_mode": input_data["mode"]}
 
 
+class IntegerArrayDiscipline(Discipline):
+    """A GEMSEO discipline with integer arrays, using a JSON grammar.
+
+    A JSON grammar does not report an integer array as continuous, so the
+    integer arrays are served as discrete variables: ``n`` has no default
+    value, while ``offsets`` has one.
+    """
+
+    default_grammar_type = GrammarType.JSON
+
+    def __init__(self):
+        super().__init__()
+        self.input_grammar.update_from_data(
+            {"x": array([1.0]), "n": array([1, 2]), "offsets": array([0, 0])}
+        )
+        self.output_grammar.update_from_data({"counts": array([0, 0])})
+        self.default_input_data = {"x": array([1.0]), "offsets": array([0, 0])}
+        self.received_types = {}
+
+    def _run(self, input_data):
+        self.received_types = {
+            name: type(input_data[name]) for name in ("n", "offsets")
+        }
+        return {"counts": input_data["n"] + input_data["offsets"]}
+
+
 class GEMSEOToPhiloteTests(unittest.TestCase):
     """
     Integration tests for GEMSEOtoPhiloteDiscipline, which wraps a GEMSEO
@@ -324,6 +350,79 @@ class DiscreteVariableTests(unittest.TestCase):
         self.assertEqual(
             [(m.name, m.subname) for m in wrapper._partials_meta], [("y", "x")]
         )
+
+    def test_unsent_discrete_input_uses_gemseo_default(self):
+        """
+        A discrete input the client leaves out takes the default value of
+        the wrapped GEMSEO discipline, which the server applies.
+        """
+        remote = self._serve_scaling_discipline()
+
+        out = remote.execute({"x": array([1.0, 2.0])})
+
+        assert_allclose(out["y"], array([2.0, 4.0]))
+        self.assertEqual(out["used_mode"], "double")
+
+    def test_none_discrete_input_uses_gemseo_default(self):
+        """
+        A discrete input set to None, as an OpenMDAO client sends for an
+        unconnected discrete input, is left to the GEMSEO default value.
+        """
+        wrapper = GEMSEOtoPhiloteDiscipline(ScalingDiscipline())
+        wrapper.setup()
+
+        outputs = {}
+        discrete_outputs = {}
+        wrapper.compute(
+            {"x": array([1.0, 2.0])}, outputs, {"mode": None}, discrete_outputs
+        )
+
+        assert_allclose(outputs["y"], array([2.0, 4.0]))
+        self.assertEqual(discrete_outputs["used_mode"], "double")
+
+    def test_integer_arrays_round_trip(self):
+        """
+        Integer arrays served as discrete variables reach the wrapped
+        discipline as NumPy arrays, whether or not they have a default
+        value, and come back to the client as lists of ints rather than
+        as strings.
+        """
+        discipline = IntegerArrayDiscipline()
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
+        pmdo.ExplicitServer(
+            discipline=GEMSEOtoPhiloteDiscipline(discipline)
+        ).attach_to_server(server)
+        server.add_insecure_port(PORT)
+        server.start()
+        self.addCleanup(server.stop, 0)
+        remote = PhiloteDiscipline(channel=grpc.insecure_channel(CHANNEL))
+
+        out = remote.execute(
+            {"x": array([1.0]), "n": array([1, 2]), "offsets": array([10, 20])}
+        )
+
+        self.assertEqual(
+            discipline.received_types, {"n": ndarray, "offsets": ndarray}
+        )
+        self.assertEqual(out["counts"], [11, 22])
+
+    def test_compute_partials_restores_differentiated_variables(self):
+        """
+        Linearizing on behalf of a client leaves the differentiated inputs
+        and outputs of the wrapped discipline as they were, since that
+        discipline may also be used locally.
+        """
+        discipline = ScalingDiscipline()
+        wrapper = GEMSEOtoPhiloteDiscipline(discipline)
+        wrapper.setup()
+        wrapper.setup_partials()
+
+        partials = {}
+        wrapper.compute_partials({"x": array([1.0, 2.0])}, partials, {})
+
+        assert_allclose(partials["y", "x"], 2.0 * eye(2))
+        self.assertEqual(discipline._differentiated_input_names, [])
+        self.assertEqual(discipline._differentiated_output_names, [])
 
     def test_compute_partials_without_declared_partials(self):
         """

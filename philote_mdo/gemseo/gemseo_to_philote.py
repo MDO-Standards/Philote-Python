@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 from typing import Any
 
 from gemseo.core.serializable import GoogleDocstringInheritanceMeta
+from numpy import asarray
 from numpy import ndarray
 from scipy.sparse import issparse
 
@@ -110,8 +111,9 @@ class GEMSEOtoPhiloteDiscipline(
         when it is a :class:`~numpy.ndarray`, and from
         :attr:`.default_data_size` otherwise.
 
-        Every other name is declared as a discrete Philote variable, with
-        the default value of the wrapped discipline, if any.
+        Every other name is declared as a discrete Philote variable. A
+        discrete input takes the default value of the wrapped discipline, if
+        any, which the server uses when a client does not send that input.
         """
         disc = self.gemseo_discipline
         self._input_names, self._discrete_input_names = self._split_names(
@@ -233,10 +235,18 @@ class GEMSEOtoPhiloteDiscipline(
 
         disc = self.gemseo_discipline
         # Restrict the differentiation to the continuous variables, which is
-        # exactly the subset that setup_partials() declared.
-        disc.add_differentiated_inputs(self._input_names)
-        disc.add_differentiated_outputs(self._output_names)
-        jac = disc.linearize(self._merge_inputs(inputs, discrete_inputs))
+        # exactly the subset that setup_partials() declared. GEMSEO keeps the
+        # differentiated variables as discipline state, so restore them
+        # afterwards: the wrapped discipline may also be used locally.
+        saved_input_names = list(disc._differentiated_input_names)
+        saved_output_names = list(disc._differentiated_output_names)
+        try:
+            disc.add_differentiated_inputs(self._input_names)
+            disc.add_differentiated_outputs(self._output_names)
+            jac = disc.linearize(self._merge_inputs(inputs, discrete_inputs))
+        finally:
+            disc._differentiated_input_names = saved_input_names
+            disc._differentiated_output_names = saved_output_names
 
         for out_k, jac_in in jac.items():
             if out_k not in self._output_names:
@@ -255,9 +265,15 @@ class GEMSEOtoPhiloteDiscipline(
                     jac_loc = jac_loc.toarray()
                 partials[out_k, in_k] = jac_loc
 
-    @staticmethod
-    def _merge_inputs(inputs, discrete_inputs):
+    def _merge_inputs(self, inputs, discrete_inputs):
         """Merge the continuous and the discrete inputs into GEMSEO input data.
+
+        A discrete input set to ``None`` is left out, so that the wrapped
+        discipline uses its own default value; this is what an OpenMDAO
+        client sends for an unconnected discrete input. The other discrete
+        values are converted back to the types the GEMSEO grammar expects,
+        which the Philote wire protocol does not preserve (see
+        :meth:`._to_gemseo_value`).
 
         Args:
             inputs: The continuous input values, indexed by input name.
@@ -269,4 +285,40 @@ class GEMSEOtoPhiloteDiscipline(
         """
         if not discrete_inputs:
             return inputs
-        return {**inputs, **discrete_inputs}
+        merged = dict(inputs)
+        for name, value in discrete_inputs.items():
+            if value is not None:
+                merged[name] = self._to_gemseo_value(name, value)
+        return merged
+
+    def _to_gemseo_value(self, name: str, value: Any) -> Any:
+        """Convert a discrete value received from a client to its GEMSEO type.
+
+        A discrete value travels as a ``google.protobuf.Value``, so a NumPy
+        array, e.g. an integer array of a JSON grammar, arrives as a (nested)
+        list. The array is restored using the default value of the wrapped
+        discipline when there is one, and otherwise when the JSON schema of
+        the input grammar declares an array of numbers.
+
+        Args:
+            name: The name of the discrete input.
+            value: The value received from the client.
+
+        Returns:
+            The value, converted to the type the GEMSEO grammar expects
+            when it can be inferred, and unchanged otherwise.
+        """
+        default = self._discrete_input_defaults.get(name)
+        if isinstance(default, ndarray):
+            return asarray(value, dtype=default.dtype)
+        if default is None and isinstance(value, list):
+            schema = getattr(self.gemseo_discipline.input_grammar, "schema", None)
+            if schema is not None:
+                node = schema.get("properties", {}).get(name, {})
+                items = node.get("items", {})
+                if node.get("type") == "array" and items.get("type") in (
+                    "integer",
+                    "number",
+                ):
+                    return asarray(value)
+        return value

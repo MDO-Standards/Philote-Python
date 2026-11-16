@@ -67,6 +67,26 @@ class DiscreteDiscipline(pmdo.ExplicitDiscipline):
         partials["y", "x"] = discrete_inputs["factor"] * eye(2)
 
 
+class ManyDiscreteDiscipline(pmdo.ExplicitDiscipline):
+    """A discipline declaring several discrete variables in a given order."""
+
+    INPUT_NAMES = ["zeta", "alpha", "mu", "beta", "omega", "gamma"]
+    OUTPUT_NAMES = ["z_out", "a_out", "m_out"]
+
+    def setup(self):
+        self.add_input("x", shape=(1,))
+        for name in self.INPUT_NAMES:
+            self.add_discrete_input(name, default=0)
+        self.add_output("y", shape=(1,))
+        for name in self.OUTPUT_NAMES:
+            self.add_discrete_output(name)
+
+    def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
+        outputs["y"] = inputs["x"]
+        for name in self.OUTPUT_NAMES:
+            discrete_outputs[name] = 0
+
+
 class PhiloteToGEMSEOTests(unittest.TestCase):
     """
     Integration tests for PhiloteDiscipline, which wraps a remote Philote
@@ -261,6 +281,54 @@ class PhiloteToGEMSEOTests(unittest.TestCase):
         )
 
         self.assertEqual(list(jac), ["y"])
+        self.assertEqual(list(jac["y"]), ["x"])
+        assert_allclose(jac["y"]["x"], 3.0 * eye(2))
+
+    def test_discrete_input_is_optional(self):
+        """
+        A discrete input is not required by the GEMSEO grammar: when it is
+        left out, it is not sent, and the server uses its own default.
+        """
+        self._serve(DiscreteDiscipline())
+
+        disc = PhiloteDiscipline(channel=grpc.insecure_channel(CHANNEL))
+
+        self.assertNotIn("factor", disc.input_grammar.required_names)
+        out = disc.execute({"x": array([1.0, 2.0])})
+
+        assert_allclose(out["y"], array([2.0, 4.0]))
+        self.assertEqual(out["tags"], ["scaled", 2])
+
+    def test_discrete_names_keep_server_order(self):
+        """
+        The discrete variables are added to the grammars in the order the
+        server declares them, so that the grammars do not depend on the
+        hash seed of the process.
+        """
+        self._serve(ManyDiscreteDiscipline())
+
+        disc = PhiloteDiscipline(channel=grpc.insecure_channel(CHANNEL))
+
+        self.assertEqual(
+            list(disc.input_grammar), ["x", *ManyDiscreteDiscipline.INPUT_NAMES]
+        )
+        self.assertEqual(
+            list(disc.output_grammar), ["y", *ManyDiscreteDiscipline.OUTPUT_NAMES]
+        )
+
+    def test_selected_discrete_input_is_not_differentiated(self):
+        """
+        Selecting a discrete input for differentiation does not put it in
+        the Jacobian.
+        """
+        self._serve(DiscreteDiscipline())
+
+        disc = PhiloteDiscipline(channel=grpc.insecure_channel(CHANNEL))
+        disc.add_differentiated_inputs(["x", "factor"])
+        disc.add_differentiated_outputs(["y"])
+
+        jac = disc.linearize({"x": array([1.0, 2.0]), "factor": 3.0})
+
         self.assertEqual(list(jac["y"]), ["x"])
         assert_allclose(jac["y"]["x"], 3.0 * eye(2))
 

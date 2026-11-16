@@ -54,8 +54,10 @@ class PhiloteDiscipline(Discipline):
     grammars, next to the continuous ones, and are read from and written to
     the local data like any other variable. Since a Philote discrete
     variable may carry any JSON-compatible value, its grammar element is
-    bound to no type. Discrete variables are never differentiated: they are
-    excluded from the Jacobian, including when it is requested in full with
+    bound to no type. The discrete inputs are optional: one left out of the
+    input data is not sent, and the server uses its own default value for
+    it. Discrete variables are never differentiated: they are excluded from
+    the Jacobian, including when it is requested in full with
     ``compute_all_jacobians=True``.
     """
 
@@ -87,11 +89,12 @@ class PhiloteDiscipline(Discipline):
         # _compute_jacobian() to reshape the flattened partial derivatives
         # sent by the server.
         self._shapes = {}
-        # The names of the discrete input and output variables, filled in by
-        # _initialize_grammars(); discrete inputs travel on their own side of
-        # the wire protocol and so must be split off the GEMSEO input data.
-        self._discrete_input_names = set()
-        self._discrete_output_names = set()
+        # The names of the discrete input and output variables, in the order
+        # the server declares them, filled in by _initialize_grammars();
+        # discrete inputs travel on their own side of the wire protocol and
+        # so must be split off the GEMSEO input data.
+        self._discrete_input_names = []
+        self._discrete_output_names = []
         # generic Philote client
         self._client = pm.ExplicitClient(channel=channel)
 
@@ -205,10 +208,9 @@ class PhiloteDiscipline(Discipline):
         """Return the inputs and outputs used in the differentiation.
 
         The discrete variables are filtered out, as they cannot be
-        differentiated. GEMSEO already does this when the differentiated
-        variables are selected with :meth:`.add_differentiated_inputs` and
-        :meth:`.add_differentiated_outputs`, but not when the whole Jacobian
-        is requested.
+        differentiated. GEMSEO does not do this when the whole Jacobian is
+        requested, and the filter is applied in every case so that no
+        discrete variable can reach :meth:`._compute_jacobian`.
 
         Args:
             compute_all_jacobians: Whether to compute the Jacobians of all the
@@ -221,9 +223,6 @@ class PhiloteDiscipline(Discipline):
         input_names, output_names = super()._get_differentiated_io(
             compute_all_jacobians
         )
-        if not compute_all_jacobians:
-            return input_names, output_names
-
         return (
             tuple(
                 name for name in input_names if name not in self._discrete_input_names
@@ -246,7 +245,10 @@ class PhiloteDiscipline(Discipline):
 
         Continuous variables are bound to :class:`~numpy.ndarray`, while
         discrete variables are bound to no type at all, since a Philote
-        discrete variable may hold any JSON-compatible value.
+        discrete variable may hold any JSON-compatible value. The discrete
+        inputs are not required, since the server may provide default values
+        for them; the wire protocol does not carry those defaults, so they
+        are not known on the client side.
 
         Raises:
             NotImplementedError: When the server declares dynamic-shape
@@ -277,10 +279,10 @@ class PhiloteDiscipline(Discipline):
 
         for var in self._client._discrete_var_meta:
             if var.type == data.kDiscreteInput:
-                self._discrete_input_names.add(var.name)
+                self._discrete_input_names.append(var.name)
 
             if var.type == data.kDiscreteOutput:
-                self._discrete_output_names.add(var.name)
+                self._discrete_output_names.append(var.name)
 
         self.input_grammar.update_from_names(input_names)
         self.output_grammar.update_from_names(output_names)
@@ -289,6 +291,8 @@ class PhiloteDiscipline(Discipline):
         self.input_grammar.update_from_types(
             dict.fromkeys(self._discrete_input_names)
         )
+        for name in self._discrete_input_names:
+            self.input_grammar.required_names.discard(name)
         self.output_grammar.update_from_types(
             dict.fromkeys(self._discrete_output_names)
         )
