@@ -110,6 +110,17 @@ class TestValueConversion(unittest.TestCase):
         self.assertEqual(result["mesh"], "coarse")
         self.assertEqual(result["params"], [1, 2, 3])
 
+    def test_numpy_array_converts_to_list(self):
+        """NumPy arrays are sent as (nested) lists of Python scalars."""
+        val = _python_to_value(np.array([[1, 2], [3, 4]]))
+        self.assertEqual(_value_to_python(val), [[1, 2], [3, 4]])
+
+    def test_numpy_scalars_convert_to_python_scalars(self):
+        """NumPy scalars are sent as the equivalent Python scalars."""
+        self.assertEqual(_value_to_python(_python_to_value(np.int64(3))), 3)
+        self.assertEqual(_value_to_python(_python_to_value(np.float64(2.5))), 2.5)
+        self.assertIs(_value_to_python(_python_to_value(np.bool_(True))), True)
+
     def test_unsupported_type_becomes_string(self):
         """Unsupported types are serialized via str()."""
         val = _python_to_value(object)
@@ -139,12 +150,19 @@ class TestDisciplineDiscreteVars(unittest.TestCase):
         self.assertEqual(meta.name, "status")
         self.assertEqual(meta.type, data.VariableType.kDiscreteOutput)
 
+    def test_add_discrete_input_stores_default(self):
+        d = Discipline()
+        d.add_discrete_input("mode", default="forward")
+        d.add_discrete_input("label")
+        self.assertEqual(d._discrete_input_defaults, {"mode": "forward"})
+
     def test_clear_data_resets_discrete_meta(self):
         d = Discipline()
-        d.add_discrete_input("x")
+        d.add_discrete_input("x", default=1)
         d.add_discrete_output("y")
         d._clear_data()
         self.assertEqual(len(d._discrete_var_meta), 0)
+        self.assertEqual(d._discrete_input_defaults, {})
 
 
 # ---------------------------------------------------------------------------
@@ -206,6 +224,31 @@ class TestDisciplineServerDiscrete(unittest.TestCase):
         np.testing.assert_array_equal(flat_inputs["x"], [1.0, 2.0])
         self.assertEqual(di["mode"], "forward")
         self.assertEqual(do["status"], 0)
+
+    def test_process_inputs_fills_unsent_discrete_defaults(self):
+        """A discrete input the client does not send takes its default."""
+        server = DisciplineServer()
+        server._discipline = Discipline()
+        default = {"levels": [1, 2]}
+        server._discipline.add_discrete_input("mode", default="forward")
+        server._discipline.add_discrete_input("config", default=default)
+        server._discipline.add_discrete_input("label")
+
+        request_iterator = [
+            data.VariableMessage(
+                discrete=data.DiscreteVariable(
+                    name="mode",
+                    type=data.VariableType.kDiscreteInput,
+                    value=_python_to_value("reverse"),
+                )
+            ),
+        ]
+
+        di, _ = server.process_inputs(request_iterator, {})
+
+        self.assertEqual(di, {"mode": "reverse", "config": default})
+        # the default is copied, so the discipline cannot alter it
+        self.assertIsNot(di["config"], default)
 
 
 # ---------------------------------------------------------------------------
