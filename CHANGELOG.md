@@ -74,6 +74,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- `RemoteImplicitComponent.solve_nonlinear` passed the
+  `(outputs, discrete_outputs)` tuple that `run_solve_residuals` returns
+  for a server with discrete outputs straight to OpenMDAO, which failed.
+  It now assigns each part to the OpenMDAO outputs and discrete outputs,
+  as `RemoteExplicitComponent.compute` already did.
 - The `default` passed to `add_discrete_input` was accepted but discarded.
   The discipline now keeps it, and the server applies it to any discrete
   input a client does not send.  Defaults are still not part of the
