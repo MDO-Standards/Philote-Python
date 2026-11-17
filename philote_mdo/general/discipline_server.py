@@ -27,6 +27,8 @@
 # the linked websites, of the information, products, or services contained
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
+import copy
+
 import grpc
 import numpy as np
 
@@ -244,6 +246,9 @@ class DisciplineServer(disc.DisciplineServiceServicer):
 
         Note, for implicit disciplines, the function values are considered
         inputs to evaluate the residuals and the partials of the residuals.
+
+        A discrete input that the client does not send takes the default
+        value declared with ``add_discrete_input``, if any.
         """
         for var in self._discipline._var_meta:
             # validate that dynamic-shape variables have been resolved
@@ -339,6 +344,12 @@ class DisciplineServer(disc.DisciplineServiceServicer):
                 elif dv.type == data.VariableType.kDiscreteOutput:
                     discrete_outputs[dv.name] = native_value
 
+        defaults = getattr(self._discipline, "_discrete_input_defaults", {})
+        for name, default in defaults.items():
+            if name not in discrete_inputs:
+                # copy, so that the discipline cannot alter the default
+                discrete_inputs[name] = copy.deepcopy(default)
+
         return discrete_inputs, discrete_outputs
 
 
@@ -385,7 +396,8 @@ def _python_to_value(obj):
     Parameters
     ----------
     obj : object
-        A Python scalar, list, or dict
+        A Python scalar, list, or dict, or a NumPy array or scalar, which is
+        converted to the equivalent (nested) list or Python scalar
 
     Returns
     -------
@@ -396,8 +408,12 @@ def _python_to_value(obj):
 
     if obj is None:
         val.null_value = 0
-    elif isinstance(obj, bool):
-        val.bool_value = obj
+    elif isinstance(obj, (bool, np.bool_)):
+        val.bool_value = bool(obj)
+    elif isinstance(obj, np.ndarray):
+        return _python_to_value(obj.tolist())
+    elif isinstance(obj, np.generic):
+        return _python_to_value(obj.item())
     elif isinstance(obj, (int, float)):
         val.number_value = float(obj)
     elif isinstance(obj, str):

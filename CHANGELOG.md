@@ -57,11 +57,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a GEMSEO interface (`philote_mdo.gemseo`) allowing GEMSEO
   disciplines to be called from Philote-MDO, and Philote-MDO disciplines
   (local or remote, e.g. served from OpenMDAO) to be called from GEMSEO.
+  Discrete variables are carried in both directions.  The discrete
+  variables of a remote Philote discipline are part of the GEMSEO
+  grammars next to the continuous ones, bound to no type since a discrete
+  variable may carry any JSON-compatible value.  Conversely, a variable
+  of a wrapped GEMSEO discipline is served as a discrete Philote variable
+  when its grammar's data converter does not report it as continuous,
+  which includes the integer-valued ones, since a continuous Philote
+  variable is an array of doubles.  Discrete variables are excluded from
+  the Jacobian, including when it is requested in full with
+  `compute_all_jacobians=True`.  A discrete input left out on the client
+  side is not sent, and the server applies the wrapped discipline's
+  default value.
 - Added examples and tutorials demonstrating interoperability between
   GEMSEO, OpenMDAO and OpenAeroStruct through Philote-MDO.
 
 ### Bug Fixes
 
+- `RemoteImplicitComponent.solve_nonlinear` passed the
+  `(outputs, discrete_outputs)` tuple that `run_solve_residuals` returns
+  for a server with discrete outputs straight to OpenMDAO, which failed.
+  It now assigns each part to the OpenMDAO outputs and discrete outputs,
+  as `RemoteExplicitComponent.compute` already did.
+- The `default` passed to `add_discrete_input` was accepted but discarded.
+  The discipline now keeps it, and the server applies it to any discrete
+  input a client does not send.  Defaults are still not part of the
+  variable metadata on the wire, so clients do not see them.
+- A NumPy array or scalar sent as a discrete value was serialized through
+  `str()`, so the peer received a string such as `"[1 2]"`.  NumPy arrays
+  are now sent as (nested) lists and NumPy scalars as the equivalent Python
+  scalars.
 - `DisciplineServer` inherited `DisciplineService`, the generated experimental
   static-call API, rather than `DisciplineServiceServicer`, the servicer base
   that `add_DisciplineServiceServicer_to_server` is written against.  No

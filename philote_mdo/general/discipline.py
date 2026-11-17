@@ -53,8 +53,12 @@ class Discipline:
         # variable metadata
         self._var_meta = []
 
-        # discrete variable metadata (name → default value)
+        # discrete variable metadata
         self._discrete_var_meta = []
+
+        # default values of the discrete inputs, indexed by name; the server
+        # uses them for the discrete inputs a client does not send
+        self._discrete_input_defaults = {}
 
         # partials metadata
         self._partials_meta = []
@@ -140,7 +144,9 @@ class Discipline:
         name : string
             the name of the discrete input variable
         default : object, optional
-            the default value for the discrete input
+            the default value for the discrete input, used by the server
+            when a client does not send a value for it. ``None`` means
+            that the input has no default value.
         """
         validate_name(name, "add_discrete_input")
         key = (data.VariableType.kDiscreteInput, name)
@@ -152,6 +158,8 @@ class Discipline:
         meta.type = data.VariableType.kDiscreteInput
         meta.name = name
         self._discrete_var_meta += [meta]
+        if default is not None:
+            self._discrete_input_defaults[name] = default
         self._declared.add(key)
 
     def add_discrete_output(self, name, default=None):
@@ -291,5 +299,6 @@ class Discipline:
         """
         self._var_meta = []
         self._discrete_var_meta = []
+        self._discrete_input_defaults = {}
         self._partials_meta = []
         self._declared = set()

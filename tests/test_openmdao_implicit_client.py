@@ -286,6 +286,39 @@ class TestOpenMdaoImplicitClient(unittest.TestCase):
             self.assertTrue(output_name in outputs)
             np.testing.assert_array_equal(outputs[output_name], expected_data)
 
+    def test_solve_nonlinear_with_discrete_outputs(self, mock):
+        """
+        When the server returns discrete outputs, run_solve_residuals
+        returns an (outputs, discrete_outputs) tuple, whose parts are
+        assigned to the OpenMDAO outputs and discrete outputs.
+        """
+        client_mock = MagicMock()
+        client_mock._var_meta = [
+            data.VariableMetaData(name="f", type=data.kOutput, shape=(1,)),
+            data.VariableMetaData(name="f", type=data.kResidual, shape=(1,)),
+            data.VariableMetaData(name="x", type=data.kInput, shape=(1,)),
+        ]
+        client_mock._discrete_var_meta = [
+            data.VariableMetaData(
+                name="status", type=data.VariableType.kDiscreteOutput
+            ),
+        ]
+        client_mock.run_solve_residuals.return_value = (
+            {"f": np.array([5.0])},
+            {"status": "converged"},
+        )
+
+        comp = RemoteImplicitComponent(channel=Mock())
+        comp._client = client_mock
+        comp.name = "test"
+
+        outputs = {"f": np.zeros(1)}
+        discrete_outputs = {"status": None}
+        comp.solve_nonlinear({"x": np.array([1.0])}, outputs, None, discrete_outputs)
+
+        np.testing.assert_array_equal(outputs["f"], [5.0])
+        self.assertEqual(discrete_outputs["status"], "converged")
+
     def test_linearize(self, om_explicit_component_patch):
         """
         Tests the linearize function of the OpenMDAO implicit client.

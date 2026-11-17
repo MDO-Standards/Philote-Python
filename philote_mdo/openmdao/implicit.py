@@ -276,8 +276,17 @@ class RemoteImplicitComponent(om.ImplicitComponent):
         local_di = utils.create_local_discrete_inputs(
             discrete_inputs, self._client._discrete_var_meta
         )
-        out = self._client.run_solve_residuals(local_inputs, local_di)
-        utils.assign_global_outputs(out, outputs)
+        result = self._client.run_solve_residuals(local_inputs, local_di)
+
+        # run_solve_residuals returns (outputs, discrete_outputs) when
+        # discrete data exists
+        if isinstance(result, tuple):
+            out, d_out = result
+            utils.assign_global_outputs(out, outputs)
+            if discrete_outputs is not None:
+                utils.assign_global_outputs(d_out, discrete_outputs)
+        else:
+            utils.assign_global_outputs(result, outputs)
 
     def linearize(self, inputs, outputs, partials, discrete_inputs=None, discrete_outputs=None):
         """

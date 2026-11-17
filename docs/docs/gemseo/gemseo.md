@@ -50,7 +50,9 @@ flowchart LR
 
 Both directions carry the discipline's Jacobian, not just its output
 values, so a remote discipline can be used in a gradient-based
-optimization exactly like a local one.
+optimization exactly like a local one. Both also carry the discipline's
+discrete variables next to its continuous ones -- see
+[Discrete variables](#discrete-variables) below.
 
 This page walks through the first, and simplest, direction --
 `PhiloteDiscipline` consuming a remote discipline -- using the complete
@@ -249,6 +251,93 @@ if __name__ == "__main__":
 See the actual, always up-to-date source at
 [`examples/paraboloid_gemseo.py`](https://github.com/MDO-Standards/Philote-Python/blob/main/examples/paraboloid_gemseo.py)
 in the repository.
+
+## Discrete variables
+
+Philote-MDO distinguishes **continuous** variables, which travel over the
+wire as arrays of doubles, from **discrete** variables, which carry any
+JSON-compatible value: a string, a boolean, an integer, a list, or a
+nested structure. `philote_mdo.gemseo` supports them in both directions,
+and nothing has to be configured to enable it.
+
+### Serving a GEMSEO discipline that has discrete variables
+
+`GEMSEOtoPhiloteDiscipline` classifies every name of the wrapped
+discipline's grammars by asking the grammar's data converter whether that
+name holds continuous data:
+
+```python
+discipline.input_grammar.data_converter.is_continuous(name)
+```
+
+A name reported as continuous is declared as a continuous Philote
+variable; every other name is declared as a discrete one. A grammar
+element typed `str`, `bool`, `int`, `dict` or `list` is therefore served
+as a discrete variable automatically:
+
+```python
+class ScalingDiscipline(Discipline):
+    default_grammar_type = GrammarType.SIMPLE
+
+    def __init__(self):
+        super().__init__()
+        self.input_grammar.update_from_names(["x"])           # continuous
+        self.input_grammar.update_from_types({"mode": str})   # discrete
+        self.output_grammar.update_from_names(["y"])          # continuous
+        self.output_grammar.update_from_types({"used_mode": str})  # discrete
+```
+
+A discrete input takes the wrapped discipline's default value, if it has
+one, whenever a client does not send a value for it, or sends `None` (as
+an OpenMDAO client does for an unconnected discrete input). A NumPy value
+of a discrete variable, such as an integer array of a `JSONGrammar`, is
+sent to clients as a (nested) list, and an array received from a client is
+converted back to a NumPy array before it reaches the wrapped discipline.
+That array is restored with the dtype of the default value when there is
+one, and otherwise whenever the grammar's data converter reports the
+variable as numeric. Every kind of grammar answers that question, while
+only a `JSONGrammar` has a JSON schema to read: asking a `PydanticGrammar`
+that holds a NumPy array for its schema raises.
+
+:::note
+`is_continuous` is the right question to ask, rather than `is_numeric`,
+because an integer is numeric but a continuous Philote variable is an
+array of doubles. An integer-valued variable therefore belongs to the
+discrete side of the protocol, as it does in OpenMDAO.
+
+A `SimpleGrammar` cannot see the dtype of an element it types as
+`ndarray`, so an integer-valued *array* still travels as a continuous
+variable. Use a `JSONGrammar` or a `PydanticGrammar` if that distinction
+matters.
+:::
+
+### Consuming a remote discipline that has discrete variables
+
+`PhiloteDiscipline` puts the server's discrete variables in its GEMSEO
+grammars next to the continuous ones, bound to no type, since a discrete
+variable may carry any value. They are then read and written like any
+other variable:
+
+```python
+remote = PhiloteDiscipline(channel=grpc.insecure_channel("localhost:50051"))
+
+out = remote.execute({"x": array([1.0, 2.0]), "mode": "triple"})
+
+print(out["y"], out["used_mode"])
+```
+
+:::note
+Discrete variables are never differentiated: no partial derivative is
+declared for them, and they are excluded from the Jacobian, including
+when it is requested in full with `compute_all_jacobians=True`.
+:::
+
+:::note
+Philote-MDO does not transfer default values, so a discrete input has no
+default on the client side. It is therefore optional in the input grammar:
+when it is left out of the input data passed to `execute()`, it is not
+sent, and the server uses its own default value for it.
+:::
 
 ## Where to go next
 
