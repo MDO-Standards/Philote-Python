@@ -297,8 +297,8 @@ class GEMSEOtoPhiloteDiscipline(
         A discrete value travels as a ``google.protobuf.Value``, so a NumPy
         array, e.g. an integer array of a JSON grammar, arrives as a (nested)
         list. The array is restored using the default value of the wrapped
-        discipline when there is one, and otherwise when the JSON schema of
-        the input grammar declares an array of numbers.
+        discipline when there is one, and otherwise when the input grammar
+        reports the variable as numeric.
 
         Args:
             name: The name of the discrete input.
@@ -311,14 +311,31 @@ class GEMSEOtoPhiloteDiscipline(
         default = self._discrete_input_defaults.get(name)
         if isinstance(default, ndarray):
             return asarray(value, dtype=default.dtype)
-        if default is None and isinstance(value, list):
-            schema = getattr(self.gemseo_discipline.input_grammar, "schema", None)
-            if schema is not None:
-                node = schema.get("properties", {}).get(name, {})
-                items = node.get("items", {})
-                if node.get("type") == "array" and items.get("type") in (
-                    "integer",
-                    "number",
-                ):
-                    return asarray(value)
+        if isinstance(value, list) and self._has_numeric_type(name):
+            return asarray(value)
         return value
+
+    def _has_numeric_type(self, name: str) -> bool:
+        """Return whether the input grammar declares a name as numeric.
+
+        The question is put to the grammar's data converter, which answers
+        it for every kind of GEMSEO grammar. Reading the JSON schema
+        instead would only work for a
+        :class:`~gemseo.core.grammars.json_grammar.JSONGrammar`, and a
+        :class:`~gemseo.core.grammars.pydantic_grammar.PydanticGrammar`
+        holding a NumPy array raises rather than returning no schema, since
+        such a model has no JSON schema at all.
+
+        Args:
+            name: The name of the discrete input.
+
+        Returns:
+            Whether the name is declared by the wrapped discipline and
+            bound to numeric data.
+        """
+        if name not in self._discrete_input_names:
+            # A name the client sent that setup() never declared; the
+            # grammar would raise rather than report a type for it.
+            return False
+        converter = self.gemseo_discipline.input_grammar.data_converter
+        return converter.is_numeric(name)

@@ -16,10 +16,12 @@
 #
 # originally authored by Francois Gallard, IRT Saint Exupery.
 from concurrent import futures
+from contextlib import contextmanager
 import unittest
 from unittest.mock import patch
 import grpc
 from numpy import array
+from numpy import asarray
 from numpy import eye
 from numpy import ndarray
 from numpy.testing import assert_allclose
@@ -111,6 +113,16 @@ class DiscreteOnlyDiscipline(Discipline):
         return {"used_mode": input_data["mode"]}
 
 
+# Every kind of GEMSEO grammar, so that a mechanism which happens to work
+# for one of them, e.g. by reading a JSON schema, is caught by the tests.
+GRAMMAR_TYPES = (
+    GrammarType.JSON,
+    GrammarType.SIMPLE,
+    GrammarType.SIMPLER,
+    GrammarType.PYDANTIC,
+)
+
+
 class IntegerArrayDiscipline(Discipline):
     """A GEMSEO discipline with integer arrays, using a JSON grammar.
 
@@ -135,6 +147,65 @@ class IntegerArrayDiscipline(Discipline):
             name: type(input_data[name]) for name in ("n", "offsets")
         }
         return {"counts": input_data["n"] + input_data["offsets"]}
+
+
+class TagDiscipline(Discipline):
+    """A GEMSEO discipline with a list input, using a Pydantic grammar.
+
+    The list input ``tags`` has no default value, and the grammar also
+    holds a NumPy array, so it has no JSON schema at all: asking such a
+    Pydantic model for its schema raises.
+    """
+
+    default_grammar_type = GrammarType.PYDANTIC
+
+    def __init__(self):
+        super().__init__()
+        self.input_grammar.update_from_data({"x": array([1.0]), "tags": ["a", "b"]})
+        self.output_grammar.update_from_data({"y": array([1.0]), "joined": "ab"})
+        self.default_input_data = {"x": array([1.0])}
+        self.default_output_data = {"y": array([0.0]), "joined": ""}
+
+    def _run(self, input_data):
+        return {"y": 2.0 * input_data["x"], "joined": "".join(input_data["tags"])}
+
+
+def build_integer_array_discipline(grammar_type):
+    """Create an integer-array discipline using a given kind of grammar.
+
+    Every variable is given a default value, so that the size of the ones
+    served as continuous Philote variables can be taken from it; the
+    wrapper has no other way to size a variable.
+
+    Args:
+        grammar_type: The kind of grammar the discipline uses.
+
+    Returns:
+        A discipline adding two integer arrays, which records the types
+        its inputs were received as.
+    """
+
+    class ParametrizedIntegerArrayDiscipline(Discipline):
+        """A discipline adding two integer arrays."""
+
+        default_grammar_type = grammar_type
+
+        def __init__(self):
+            super().__init__()
+            data = {"x": array([1.0]), "n": array([1, 2]), "offsets": array([0, 0])}
+            self.input_grammar.update_from_data(data)
+            self.output_grammar.update_from_data({"counts": array([0, 0])})
+            self.default_input_data = dict(data)
+            self.default_output_data = {"counts": array([0, 0])}
+            self.received_types = {}
+
+        def _run(self, input_data):
+            self.received_types = {
+                name: type(input_data[name]) for name in ("n", "offsets")
+            }
+            return {"counts": input_data["n"] + input_data["offsets"]}
+
+    return ParametrizedIntegerArrayDiscipline()
 
 
 class GEMSEOToPhiloteTests(unittest.TestCase):
@@ -405,6 +476,114 @@ class DiscreteVariableTests(unittest.TestCase):
             discipline.received_types, {"n": ndarray, "offsets": ndarray}
         )
         self.assertEqual(out["counts"], [11, 22])
+
+    def test_discrete_list_input_of_a_grammar_without_a_json_schema(self):
+        """
+        A discrete list input with no default value reaches the wrapped
+        discipline unchanged, for a grammar that has no JSON schema.
+
+        A Pydantic grammar holding a NumPy array cannot produce one, and
+        asking it for its schema raises rather than reporting that it has
+        none, so the type of a discrete value has to be settled through
+        the grammar's data converter.
+        """
+        discipline = TagDiscipline()
+
+        with self._serve(GEMSEOtoPhiloteDiscipline(discipline)) as remote:
+            out = remote.execute({"x": array([1.0]), "tags": ["a", "b"]})
+
+        assert_allclose(out["y"], array([2.0]))
+        self.assertEqual(out["joined"], "ab")
+
+    def test_undeclared_discrete_input_is_left_unchanged(self):
+        """
+        A discrete input the client sent but setup() never declared is
+        passed on unchanged, rather than being looked up in a grammar that
+        does not know the name and would raise.
+        """
+        wrapper = GEMSEOtoPhiloteDiscipline(ScalingDiscipline())
+        wrapper.setup()
+
+        merged = wrapper._merge_inputs({}, {"not_declared": [1, 2]})
+
+        self.assertEqual(merged, {"not_declared": [1, 2]})
+
+    def test_integer_arrays_classified_for_every_grammar_type(self):
+        """
+        Whether an integer array is a discrete or a continuous Philote
+        variable follows the grammar's data converter, so it depends on the
+        kind of grammar: only a JSON grammar reports an integer array as
+        non-continuous.
+        """
+        discrete_names = {
+            GrammarType.JSON: (("n", "offsets"), ("counts",)),
+            GrammarType.SIMPLE: ((), ()),
+            GrammarType.SIMPLER: ((), ()),
+            GrammarType.PYDANTIC: ((), ()),
+        }
+        for grammar_type in GRAMMAR_TYPES:
+            with self.subTest(grammar_type=grammar_type.name):
+                expected_inputs, expected_outputs = discrete_names[grammar_type]
+                wrapper = GEMSEOtoPhiloteDiscipline(
+                    build_integer_array_discipline(grammar_type)
+                )
+
+                wrapper.setup()
+
+                self.assertEqual(wrapper._discrete_input_names, expected_inputs)
+                self.assertEqual(wrapper._discrete_output_names, expected_outputs)
+
+    def test_integer_arrays_round_trip_for_every_grammar_type(self):
+        """
+        An integer array reaches the wrapped discipline as a NumPy array,
+        and its values survive the round trip, for every kind of GEMSEO
+        grammar.
+
+        The arrays travel as discrete variables with a JSON grammar and as
+        continuous ones otherwise, so this covers both paths. A mechanism
+        that only works for a JSON grammar, such as reading its schema,
+        fails here.
+        """
+        for grammar_type in GRAMMAR_TYPES:
+            with self.subTest(grammar_type=grammar_type.name):
+                discipline = build_integer_array_discipline(grammar_type)
+
+                with self._serve(GEMSEOtoPhiloteDiscipline(discipline)) as remote:
+                    out = remote.execute({
+                        "x": array([1.0]),
+                        "n": array([1, 2]),
+                        "offsets": array([10, 20]),
+                    })
+
+                self.assertEqual(
+                    discipline.received_types, {"n": ndarray, "offsets": ndarray}
+                )
+                assert_allclose(asarray(out["counts"]), array([11, 22]))
+
+    @contextmanager
+    def _serve(self, discipline):
+        """
+        Serves a Philote discipline for the duration of the block.
+
+        Unlike addCleanup, this releases the port before the next
+        iteration of a subTest loop binds it again.
+
+        Args:
+            discipline: The Philote discipline to serve.
+
+        Yields:
+            A PhiloteDiscipline client connected to the served discipline.
+        """
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
+        pmdo.ExplicitServer(discipline=discipline).attach_to_server(server)
+        self.assertNotEqual(
+            server.add_insecure_port(PORT), 0, "the test port is already in use"
+        )
+        server.start()
+        try:
+            yield PhiloteDiscipline(channel=grpc.insecure_channel(CHANNEL))
+        finally:
+            server.stop(0)
 
     def test_compute_partials_restores_differentiated_variables(self):
         """

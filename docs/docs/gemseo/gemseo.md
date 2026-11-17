@@ -293,6 +293,11 @@ an OpenMDAO client does for an unconnected discrete input). A NumPy value
 of a discrete variable, such as an integer array of a `JSONGrammar`, is
 sent to clients as a (nested) list, and an array received from a client is
 converted back to a NumPy array before it reaches the wrapped discipline.
+That array is restored with the dtype of the default value when there is
+one, and otherwise whenever the grammar's data converter reports the
+variable as numeric. Every kind of grammar answers that question, while
+only a `JSONGrammar` has a JSON schema to read: asking a `PydanticGrammar`
+that holds a NumPy array for its schema raises.
 
 :::note
 `is_continuous` is the right question to ask, rather than `is_numeric`,
