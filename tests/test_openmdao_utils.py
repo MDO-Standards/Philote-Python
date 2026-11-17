@@ -34,6 +34,26 @@ import numpy as np
 from philote_mdo.generated.data_pb2 import kInput, kOutput
 from philote_mdo.utils.validation import PhiloteValidationError
 import philote_mdo.openmdao.utils as utils
+from openmdao.utils.options_dictionary import OptionsDictionary
+
+
+def _options(values, unset=()):
+    """
+    Builds an OpenMDAO options dictionary with the given values.
+
+    Names listed in ``unset`` are declared without a default, mirroring
+    what ``declare_options`` does for an option the user never assigned.
+    """
+    options = OptionsDictionary()
+
+    for name, val in values.items():
+        options.declare(name, types=type(val))
+        options[name] = val
+
+    for name in unset:
+        options.declare(name, types=float)
+
+    return options
 
 
 class TestOpenMdaoUtils(unittest.TestCase):
@@ -59,11 +79,18 @@ class TestOpenMdaoUtils(unittest.TestCase):
 
         comp._client._var_meta = [var1, var2]
         comp._client._discrete_var_meta = []
+        comp._client.options_list = {}
 
         utils.client_setup(comp)
 
         comp._client.run_setup.assert_called_once()
         comp._client.get_variable_definitions.assert_called_once()
+
+        # the options have to reach the server before the remote setup runs
+        self.assertEqual(
+            [name for name, _, _ in comp._client.mock_calls][:2],
+            ["send_options", "run_setup"],
+        )
 
         expected_calls = [
             ("add_input", ("var1",), {"shape": (2,), "units": "m"}),
@@ -168,6 +195,60 @@ class TestOpenMdaoUtils(unittest.TestCase):
         self.assertEqual(outputs["output2"], 20)
         # ensure that other keys in outputs are unchanged
         self.assertEqual(outputs["output3"], None)
+
+    def test_send_options_uses_resolved_options(self):
+        """
+        Tests that the resolved options are sent, not the constructor kwargs.
+        """
+        comp = Mock()
+        comp._client.options_list = {"dimension": "int", "scale": "float"}
+        comp.options = _options({"dimension": 10, "scale": 2.5})
+
+        utils.send_options(comp)
+
+        comp._client.send_options.assert_called_once_with(
+            {"dimension": 10, "scale": 2.5}
+        )
+
+    def test_send_options_skips_unset_options(self):
+        """
+        Tests that a declared but unset option is not transmitted.
+
+        Options declared from the server's option list have no default, so
+        reading an unset one raises. It has to be left out and the server
+        left on its own default.
+        """
+        comp = Mock()
+        comp._client.options_list = {"dimension": "int", "scale": "float"}
+        comp.options = _options({"dimension": 10}, unset=["scale"])
+
+        utils.send_options(comp)
+
+        comp._client.send_options.assert_called_once_with({"dimension": 10})
+
+    def test_send_options_ignores_undeclared_options(self):
+        """
+        Tests that OpenMDAO options the server never declared are not sent.
+        """
+        comp = Mock()
+        comp._client.options_list = {"dimension": "int"}
+        comp.options = _options({"dimension": 10, "num_par_fd": 1})
+
+        utils.send_options(comp)
+
+        comp._client.send_options.assert_called_once_with({"dimension": 10})
+
+    def test_send_options_ignores_missing_options(self):
+        """
+        Tests that a server option with no matching OpenMDAO option is skipped.
+        """
+        comp = Mock()
+        comp._client.options_list = {"dimension": "int", "unknown": "int"}
+        comp.options = _options({"dimension": 10})
+
+        utils.send_options(comp)
+
+        comp._client.send_options.assert_called_once_with({"dimension": 10})
 
     def test_declare_options(self):
         """

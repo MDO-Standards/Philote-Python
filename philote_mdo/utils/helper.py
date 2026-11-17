@@ -29,6 +29,7 @@
 # control over the information you may find at these locations.
 import numpy as np
 
+import philote_mdo.generated.data_pb2 as data
 from philote_mdo.utils.validation import PhiloteValidationError
 
 
@@ -44,6 +45,11 @@ def get_chunk_indices(num_values, chunk_size):
             f"got {chunk_size!r}."
         )
 
+    # the common case is a variable that fits in one chunk, where the answer
+    # is known without building two arrays to derive it
+    if 0 < num_values <= chunk_size:
+        return iter([(0, num_values)])
+
     beg_i = np.arange(0, num_values, chunk_size)
 
     if beg_i.size == 1:
@@ -52,6 +58,31 @@ def get_chunk_indices(num_values, chunk_size):
         end_i = np.append(beg_i[1:], [num_values])
 
     return zip(beg_i, end_i)
+
+
+def get_partials_shape(shapef, shapex):
+    """
+    Returns the shape of the Jacobian block of a function with respect to a
+    variable.
+
+    Note, there are edge cases for this function, where either f or x, or both
+    are scalar. In those cases a (1,) dimension is dropped from the block
+    shape instead of being carried through, so that the partial of a scalar
+    with respect to a vector of length n is (n,) rather than (1, n).
+
+    :param shapef: shape of the function, as a tuple
+    :param shapex: shape of the variable, as a tuple
+    :return: shape of the Jacobian block, as a tuple
+    """
+    if shapef == (1,):
+        if shapex == (1,):
+            return (1,)
+        return shapex
+
+    if shapex == (1,):
+        return shapef
+
+    return shapef + shapex
 
 
 def get_flattened_view(arr):
@@ -69,3 +100,67 @@ def get_flattened_view(arr):
     flat_view = arr.view()
     flat_view.shape = -1
     return flat_view
+
+
+# a partial is always the derivative of a function with respect to a
+# variable. the function is an output (explicit) or a residual (implicit),
+# and the variable is an input or, for implicit disciplines, an output. the
+# residual carries the same name as its output, so the lookup order below is
+# what disambiguates the two entries in the metadata list.
+_FUNCTION_TYPES = (data.VariableType.kResidual, data.VariableType.kOutput)
+_VARIABLE_TYPES = (data.VariableType.kInput, data.VariableType.kOutput)
+
+
+def build_shape_index(var_meta):
+    """
+    Indexes the shapes of continuous variable metadata by (type, name).
+
+    Indexing on the name alone is ambiguous for implicit disciplines, where
+    an output and its residual share a name, and would resolve every lookup
+    against whichever of the two comes last in the metadata list.
+
+    :param var_meta: iterable of VariableMetaData
+    :return: dictionary mapping (type, name) to the shape, as a tuple
+    """
+    index = {}
+
+    for var in var_meta:
+        index.setdefault((var.type, var.name), tuple(var.shape))
+
+    return index
+
+
+def get_function_shape(shape_index, name, context):
+    """
+    Returns the shape of the function a partial is taken of, preferring the
+    residual entry over the output entry of the same name.
+
+    :param shape_index: index built by build_shape_index
+    :param name: name of the function
+    :param context: name of the caller, used in the error message
+    :return: shape of the function, as a tuple
+    """
+    return _lookup_shape(shape_index, name, _FUNCTION_TYPES, context)
+
+
+def get_variable_shape(shape_index, name, context):
+    """
+    Returns the shape of the variable a partial is taken with respect to,
+    preferring the input entry over the output entry of the same name.
+
+    :param shape_index: index built by build_shape_index
+    :param name: name of the variable
+    :param context: name of the caller, used in the error message
+    :return: shape of the variable, as a tuple
+    """
+    return _lookup_shape(shape_index, name, _VARIABLE_TYPES, context)
+
+
+def _lookup_shape(shape_index, name, types, context):
+    for var_type in types:
+        if (var_type, name) in shape_index:
+            return shape_index[(var_type, name)]
+
+    raise PhiloteValidationError(
+        f"{context}: no variable metadata found for '{name}'."
+    )

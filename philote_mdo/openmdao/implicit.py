@@ -150,13 +150,6 @@ class RemoteImplicitComponent(om.ImplicitComponent):
         # Initialize the parent OpenMDAO ImplicitComponent
         super().__init__(num_par_fd=num_par_fd, **kwargs)
 
-        # Send initial options to the server
-        # This must be done here and not in initialize, as the values of the
-        # OpenMDAO options are only set after initialize has been called in the
-        # parent init function. That is why the parent init function must be called
-        # before sending the option values to the Philote server.
-        self._client.send_options(kwargs)
-
     def initialize(self):
         """
         Define OpenMDAO component options based on server-available options.
@@ -191,6 +184,10 @@ class RemoteImplicitComponent(om.ImplicitComponent):
 
         The method is called automatically by OpenMDAO during problem setup and should
         not be called directly by users.
+
+        The component's resolved options are transmitted to the server before
+        the remote setup runs, so options assigned after construction take
+        effect.
 
         Notes
         -----
@@ -279,8 +276,17 @@ class RemoteImplicitComponent(om.ImplicitComponent):
         local_di = utils.create_local_discrete_inputs(
             discrete_inputs, self._client._discrete_var_meta
         )
-        out = self._client.run_solve_residuals(local_inputs, local_di)
-        utils.assign_global_outputs(out, outputs)
+        result = self._client.run_solve_residuals(local_inputs, local_di)
+
+        # run_solve_residuals returns (outputs, discrete_outputs) when
+        # discrete data exists
+        if isinstance(result, tuple):
+            out, d_out = result
+            utils.assign_global_outputs(out, outputs)
+            if discrete_outputs is not None:
+                utils.assign_global_outputs(d_out, discrete_outputs)
+        else:
+            utils.assign_global_outputs(result, outputs)
 
     def linearize(self, inputs, outputs, partials, discrete_inputs=None, discrete_outputs=None):
         """

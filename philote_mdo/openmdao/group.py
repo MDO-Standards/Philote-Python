@@ -368,11 +368,11 @@ class OpenMdaoSubProblem(pm.ExplicitDiscipline):
         self._prob.run_model()
 
         # get the list of functions and variables for the compute_totals call
-        func = []
-        var = []
-        for val in self._partials_map.values():
-            func += [val[0]]
-            var += [val[1]]
+        # the partials map is keyed on (output, input) pairs, so a name can
+        # appear in several entries; dict.fromkeys drops the repeats while
+        # preserving the declaration order
+        func = list(dict.fromkeys(val[0] for val in self._partials_map.values()))
+        var = list(dict.fromkeys(val[1] for val in self._partials_map.values()))
 
         totals = self._prob.compute_totals(of=func, wrt=var)
 

@@ -297,6 +297,61 @@ class TestOpenMdaoSubProblem(unittest.TestCase):
         with self.assertRaises(PhiloteValidationError):
             subprob.declare_subproblem_partial("y", "unmapped_x")
 
+    def test_compute_partials_deduplicates_totals_arguments(self):
+        """
+        Test that compute_totals is called without repeated of/wrt entries.
+        """
+        subprob = OpenMdaoSubProblem()
+
+        group = om.Group()
+        group.add_subsystem(
+            "comp", om.ExecComp(["y1 = 2*x1 + 3*x2", "y2 = 4*x1"]), promotes=["*"]
+        )
+        subprob.add_group(group)
+
+        subprob.add_mapped_input("local_x1", "x1")
+        subprob.add_mapped_input("local_x2", "x2")
+        subprob.add_mapped_output("local_y1", "y1")
+        subprob.add_mapped_output("local_y2", "y2")
+
+        # y1 depends on both inputs and x1 feeds both outputs, so a naive
+        # build of the argument lists repeats "y1" and "x1"
+        subprob.declare_subproblem_partial("local_y1", "local_x1")
+        subprob.declare_subproblem_partial("local_y1", "local_x2")
+        subprob.declare_subproblem_partial("local_y2", "local_x1")
+
+        subprob.setup()
+
+        calls = []
+        original = subprob._prob.compute_totals
+
+        def spy(of, wrt):
+            calls.append((of, wrt))
+            return original(of=of, wrt=wrt)
+
+        subprob._prob.compute_totals = spy
+
+        inputs = {"local_x1": np.array([3.0]), "local_x2": np.array([4.0])}
+        partials = {
+            ("local_y1", "local_x1"): np.array([0.0]),
+            ("local_y1", "local_x2"): np.array([0.0]),
+            ("local_y2", "local_x1"): np.array([0.0]),
+        }
+
+        subprob.compute_partials(inputs, partials)
+
+        self.assertEqual(len(calls), 1)
+        func, var = calls[0]
+        self.assertEqual(func, list(dict.fromkeys(func)))
+        self.assertEqual(var, list(dict.fromkeys(var)))
+        self.assertEqual(sorted(func), ["y1", "y2"])
+        self.assertEqual(sorted(var), ["x1", "x2"])
+
+        # the derivatives are still assembled correctly
+        self.assertAlmostEqual(partials[("local_y1", "local_x1")][0], 2.0, places=6)
+        self.assertAlmostEqual(partials[("local_y1", "local_x2")][0], 3.0, places=6)
+        self.assertAlmostEqual(partials[("local_y2", "local_x1")][0], 4.0, places=6)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

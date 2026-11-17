@@ -38,6 +38,7 @@ from google.protobuf.empty_pb2 import Empty
 from philote_mdo.general import Discipline, DisciplineServer
 from philote_mdo.utils.validation import PhiloteValidationError
 import philote_mdo.generated.data_pb2 as data
+import philote_mdo.generated.disciplines_pb2_grpc as disc
 
 
 class TestDisciplineServer(unittest.TestCase):
@@ -54,24 +55,24 @@ class TestDisciplineServer(unittest.TestCase):
         server._discipline._is_continuous = True
         server._discipline._is_differentiable = True
         server._discipline._provides_gradients = True
+        server._discipline._name = "TestDiscipline"
+        server._discipline._version = "1.2.3"
 
         # mock arguments
         context = Mock()
         request = Empty()
 
-        response_generator = server.GetInfo(request, context)
+        # GetInfo is a unary RPC, so it must return a message (not a generator)
+        response = server.GetInfo(request, context)
 
-        # Generate responses and collect them into a list
-        responses = list(response_generator)
-
-        # check that there is only one response
-        self.assertEqual(len(responses), 1)
+        self.assertIsInstance(response, data.DisciplineProperties)
 
         # check the values of the response
-        response = responses[0]
         self.assertTrue(response.continuous)
         self.assertTrue(response.differentiable)
         self.assertTrue(response.provides_gradients)
+        self.assertEqual(response.name, "TestDiscipline")
+        self.assertEqual(response.version, "1.2.3")
 
     def test_set_stream_options(self):
         """
@@ -324,6 +325,48 @@ class TestDisciplineServer(unittest.TestCase):
             self.assertIsInstance(jac[pair], np.ndarray)
             self.assertEqual(jac[pair].shape, shape)
 
+    def test_preallocate_partials_implicit_uses_the_residual_shape(self):
+        """
+        For an implicit discipline the partial is taken of the residual, so
+        the function shape must be resolved against the residual entry and
+        not against the output that shares its name.
+        """
+        server = DisciplineServer()
+        discipline = server._discipline = Discipline()
+        discipline._is_implicit = True
+        discipline.add_input("x", shape=(3,), units="m")
+        discipline.add_output("y", shape=(2,), units="m")
+
+        # force the two entries apart so that the lookup is observable
+        residual = discipline._var_meta[-1]
+        self.assertEqual(residual.type, data.VariableType.kResidual)
+        residual.shape[:] = []
+        residual.shape.extend((4,))
+
+        discipline.declare_partials("y", "x")
+        discipline.declare_partials("y", "y")
+
+        jac = server.preallocate_partials()
+
+        # d(residual y)/dx uses the residual (4,) and the input (3,)
+        self.assertEqual(jac[("y", "x")].shape, (4, 3))
+        # d(residual y)/dy uses the residual (4,) and the output (2,)
+        self.assertEqual(jac[("y", "y")].shape, (4, 2))
+
+    def test_preallocate_partials_unknown_variable(self):
+        """
+        A partial declared against a variable that was never added reports a
+        validation error rather than a bare KeyError.
+        """
+        server = DisciplineServer()
+        discipline = server._discipline = Discipline()
+        discipline.add_input("x", shape=(1,))
+        discipline.add_output("f", shape=(1,))
+        discipline.declare_partials("f", "missing")
+
+        with self.assertRaises(PhiloteValidationError):
+            server.preallocate_partials()
+
     def test_process_inputs(self):
         # create a mock request_iterator
         request_iterator = [
@@ -567,6 +610,31 @@ class TestDisciplineServer(unittest.TestCase):
         args = context.abort.call_args
         self.assertEqual(args[0][0], grpc.StatusCode.INTERNAL)
         self.assertIn("Setup failed", args[0][1])
+
+    def test_servicer_base_class(self):
+        """
+        Tests that the server derives from the servicer, not the static API.
+        """
+        self.assertTrue(issubclass(DisciplineServer, disc.DisciplineServiceServicer))
+        self.assertNotIn(disc.DisciplineService, DisciplineServer.__mro__)
+
+    def test_missing_rpc_falls_back_to_servicer_default(self):
+        """
+        Tests that an RPC a subclass fails to define resolves to the servicer's
+        UNIMPLEMENTED default rather than to the static-call API.
+        """
+        skip = ("__dict__", "__weakref__", "GetInfo")
+        attrs = {k: v for k, v in vars(DisciplineServer).items() if k not in skip}
+        partial_cls = type("PartialServer", DisciplineServer.__bases__, attrs)
+
+        # the inherited GetInfo must come from the servicer, not the static API
+        self.assertIs(partial_cls.GetInfo, disc.DisciplineServiceServicer.GetInfo)
+
+        context = Mock()
+        with self.assertRaises(NotImplementedError):
+            partial_cls().GetInfo(Empty(), context)
+
+        context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
 
 
 if __name__ == "__main__":

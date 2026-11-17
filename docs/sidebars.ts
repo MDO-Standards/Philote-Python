@@ -29,6 +29,14 @@ const sidebars: SidebarsConfig = {
         },
         {
             type: "category",
+            label: "Working with GEMSEO",
+            items: [
+                "gemseo/gemseo",
+                "gemseo/gemseo-openaerostruct",
+            ],
+        },
+        {
+            type: "category",
             label: "About",
             items: ["about/license"],
         },

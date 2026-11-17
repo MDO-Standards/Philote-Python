@@ -44,6 +44,8 @@ class Discipline:
 
     def __init__(self):
         # discipline properties
+        self._name = ""
+        self._version = ""
         self._is_continuous = False
         self._is_differentiable = False
         self._provides_gradients = False
@@ -51,11 +53,20 @@ class Discipline:
         # variable metadata
         self._var_meta = []
 
-        # discrete variable metadata (name → default value)
+        # discrete variable metadata
         self._discrete_var_meta = []
+
+        # default values of the discrete inputs, indexed by name; the server
+        # uses them for the discrete inputs a client does not send
+        self._discrete_input_defaults = {}
 
         # partials metadata
         self._partials_meta = []
+
+        # (type, name) of every declared variable, so that the duplicate check
+        # on each add does not have to scan the lists above, which is
+        # quadratic in the size of the discipline
+        self._declared = set()
 
         # flag that indicates the discipline is implicit
         self._is_implicit = False
@@ -106,7 +117,8 @@ class Discipline:
         if not dynamic_shape:
             validate_shape(shape, "add_input")
         validate_units(units, "add_input")
-        if any(v.name == name and v.type == data.VariableType.kInput for v in self._var_meta):
+        key = (data.VariableType.kInput, name)
+        if key in self._declared:
             raise PhiloteValidationError(
                 f"add_input: input '{name}' is already defined."
             )
@@ -118,6 +130,7 @@ class Discipline:
         meta.units = units
         meta.dynamic_shape = dynamic_shape
         self._var_meta += [meta]
+        self._declared.add(key)
 
     def add_discrete_input(self, name, default=None):
         """
@@ -131,13 +144,13 @@ class Discipline:
         name : string
             the name of the discrete input variable
         default : object, optional
-            the default value for the discrete input
+            the default value for the discrete input, used by the server
+            when a client does not send a value for it. ``None`` means
+            that the input has no default value.
         """
         validate_name(name, "add_discrete_input")
-        if any(
-            v.name == name and v.type == data.VariableType.kDiscreteInput
-            for v in self._discrete_var_meta
-        ):
+        key = (data.VariableType.kDiscreteInput, name)
+        if key in self._declared:
             raise PhiloteValidationError(
                 f"add_discrete_input: discrete input '{name}' is already defined."
             )
@@ -145,6 +158,9 @@ class Discipline:
         meta.type = data.VariableType.kDiscreteInput
         meta.name = name
         self._discrete_var_meta += [meta]
+        if default is not None:
+            self._discrete_input_defaults[name] = default
+        self._declared.add(key)
 
     def add_discrete_output(self, name, default=None):
         """
@@ -161,10 +177,8 @@ class Discipline:
             the default value for the discrete output
         """
         validate_name(name, "add_discrete_output")
-        if any(
-            v.name == name and v.type == data.VariableType.kDiscreteOutput
-            for v in self._discrete_var_meta
-        ):
+        key = (data.VariableType.kDiscreteOutput, name)
+        if key in self._declared:
             raise PhiloteValidationError(
                 f"add_discrete_output: discrete output '{name}' is already defined."
             )
@@ -172,6 +186,7 @@ class Discipline:
         meta.type = data.VariableType.kDiscreteOutput
         meta.name = name
         self._discrete_var_meta += [meta]
+        self._declared.add(key)
 
     def add_output(self, name, shape=(1,), units="", dynamic_shape=False):
         """
@@ -193,7 +208,8 @@ class Discipline:
         if not dynamic_shape:
             validate_shape(shape, "add_output")
         validate_units(units, "add_output")
-        if any(v.name == name and v.type == data.VariableType.kOutput for v in self._var_meta):
+        key = (data.VariableType.kOutput, name)
+        if key in self._declared:
             raise PhiloteValidationError(
                 f"add_output: output '{name}' is already defined."
             )
@@ -205,17 +221,20 @@ class Discipline:
         out_meta.units = units
         out_meta.dynamic_shape = dynamic_shape
         self._var_meta += [out_meta]
+        self._declared.add(key)
 
         if self._is_implicit:
             res_meta = data.VariableMetaData()
-            res_meta.type = data.VariableType.kOutput
+            res_meta.type = data.VariableType.kResidual
             res_meta.name = name
             if not dynamic_shape:
                 res_meta.shape.extend(shape)
             res_meta.units = units
-            res_meta.type = data.VariableType.kResidual
             res_meta.dynamic_shape = dynamic_shape
             self._var_meta += [res_meta]
+            # the residual is a separate entry in the metadata list, so it
+            # also has to be registered for the duplicate check to cover it
+            self._declared.add((data.VariableType.kResidual, name))
 
     def declare_partials(self, func, var):
         """
@@ -280,4 +299,6 @@ class Discipline:
         """
         self._var_meta = []
         self._discrete_var_meta = []
+        self._discrete_input_defaults = {}
         self._partials_meta = []
+        self._declared = set()

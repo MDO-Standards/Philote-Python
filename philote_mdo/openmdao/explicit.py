@@ -143,13 +143,6 @@ class RemoteExplicitComponent(om.ExplicitComponent):
         # Initialize the parent OpenMDAO ExplicitComponent
         super().__init__(num_par_fd=num_par_fd, **kwargs)
 
-        # Send initial options to the server
-        # This must be done here and not in initialize, as the values of the
-        # OpenMDAO options are only set after initialize has been called in the
-        # parent init function. That is why the parent init function must be called
-        # before sending the option values to the Philote server.
-        self._client.send_options(kwargs)
-
     def initialize(self):
         """
         Define OpenMDAO component options based on server-available options.
@@ -183,6 +176,10 @@ class RemoteExplicitComponent(om.ExplicitComponent):
 
         The method is called automatically by OpenMDAO during problem setup and should
         not be called directly by users.
+
+        The component's resolved options are transmitted to the server before
+        the remote setup runs, so options assigned after construction take
+        effect.
 
         Notes
         -----

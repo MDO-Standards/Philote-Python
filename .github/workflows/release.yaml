@@ -268,8 +268,7 @@ jobs:
         name: ${{ steps.version.outputs.tag_version }}
         body_path: /tmp/release-notes.md
         prerelease: ${{ steps.version.outputs.is_prerelease }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        token: ${{ secrets.RELEASE_TOKEN }}
 
     # ── Merge back to develop ───────────────────────────────────────
     - name: Merge main back to develop

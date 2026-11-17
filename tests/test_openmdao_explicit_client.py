@@ -74,9 +74,10 @@ class TestOpenMdaoExplicitClient(unittest.TestCase):
             num_par_fd=num_par_fd, **options
         )
 
-        # Verify that send_options is called with the correct arguments
-        expected_send_options_args = options.copy()
-        comp._client.send_options.assert_called_once_with(expected_send_options_args)
+        # The options are sent at setup time from the resolved OpenMDAO
+        # options, not from the constructor kwargs, so nothing is
+        # transmitted during construction.
+        comp._client.send_options.assert_not_called()
 
     def test_initialize(self, om_explicit_component_patch):
         mock_channel = Mock()
@@ -314,6 +315,80 @@ class TestOpenMdaoExplicitClient(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             RemoteExplicitComponent(channel=mock_channel, num_par_fd=0)
         self.assertIn("num_par_fd must be a positive integer", str(context.exception))
+
+
+class TestOpenMdaoExplicitComponentOptions(unittest.TestCase):
+    """
+    Tests that the resolved options reach the server (issue #77).
+
+    These tests use the real OpenMDAO component machinery so the option
+    values are actually declared, validated and defaulted.
+    """
+
+    def _make_component(self, **kwargs):
+        client = MagicMock()
+        client.options_list = {"dimension": "int", "scale": "float"}
+        client._var_meta = []
+        client._discrete_var_meta = []
+
+        with patch("philote_mdo.general.ExplicitClient", return_value=client):
+            comp = RemoteExplicitComponent(channel=Mock(), **kwargs)
+
+        return comp, client
+
+    def test_constructor_does_not_send_options(self):
+        """
+        The constructor no longer sends the raw keyword arguments.
+        """
+        _, client = self._make_component(dimension=2)
+
+        client.send_options.assert_not_called()
+
+    def test_setup_sends_constructor_options(self):
+        """
+        Options passed to the constructor are sent when setup runs.
+        """
+        comp, client = self._make_component(dimension=2, scale=1.5)
+
+        comp.setup()
+
+        client.send_options.assert_called_once_with(
+            {"dimension": 2, "scale": 1.5}
+        )
+
+    def test_setup_sends_post_construction_assignment(self):
+        """
+        An option assigned after construction reaches the server.
+        """
+        comp, client = self._make_component(dimension=2, scale=1.5)
+        comp.options["dimension"] = 10
+
+        comp.setup()
+
+        client.send_options.assert_called_once_with(
+            {"dimension": 10, "scale": 1.5}
+        )
+
+    def test_setup_omits_unset_options(self):
+        """
+        An option the caller never set is left to the server's default.
+        """
+        comp, client = self._make_component(dimension=2)
+
+        comp.setup()
+
+        client.send_options.assert_called_once_with({"dimension": 2})
+
+    def test_setup_omits_unrelated_openmdao_options(self):
+        """
+        OpenMDAO options the server never declared are not forwarded.
+        """
+        comp, client = self._make_component(dimension=2)
+
+        comp.setup()
+
+        sent = client.send_options.call_args[0][0]
+        self.assertEqual(set(sent), {"dimension"})
 
 
 if __name__ == "__main__":

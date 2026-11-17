@@ -27,6 +27,8 @@
 # the linked websites, of the information, products, or services contained
 # therein. The DoD does not exercise any editorial, security, or other
 # control over the information you may find at these locations.
+import copy
+
 import grpc
 import numpy as np
 
@@ -34,11 +36,19 @@ import philote_mdo.generated.data_pb2 as data
 import philote_mdo.generated.disciplines_pb2_grpc as disc
 from google.protobuf.empty_pb2 import Empty
 from google.protobuf import struct_pb2
-from philote_mdo.utils import PairDict, get_flattened_view
+from philote_mdo.utils import (
+    PairDict,
+    build_shape_index,
+    get_flattened_view,
+    get_function_shape,
+    get_partials_shape,
+    get_variable_shape,
+    read_array_into,
+)
 from philote_mdo.utils.validation import PhiloteValidationError, validate_shape
 
 
-class DisciplineServer(disc.DisciplineService):
+class DisciplineServer(disc.DisciplineServiceServicer):
     """
     Base class for all server classes.
     """
@@ -50,7 +60,12 @@ class DisciplineServer(disc.DisciplineService):
         self._discipline = discipline
 
         # discipline stream options
-        self._stream_opts = data.StreamOptions(num_double=1000)
+        # doubles per message. The cost of a stream is dominated by the number
+        # of messages in it rather than by their size, so this wants to be as
+        # large as the message ceiling safely allows: at 100k doubles a chunk
+        # is about 780 KiB, or a fifth of gRPC's 4 MiB default, which leaves
+        # room for metadata and for a peer that has lowered the limit.
+        self._stream_opts = data.StreamOptions(num_double=100000)
 
     def attach_to_server(self, server):
         """
@@ -68,10 +83,12 @@ class DisciplineServer(disc.DisciplineService):
         """
         RPC that sends the discipline information/properties to the client.
         """
-        yield data.DisciplineProperties(
+        return data.DisciplineProperties(
             continuous=self._discipline._is_continuous,
             differentiable=self._discipline._is_differentiable,
             provides_gradients=self._discipline._provides_gradients,
+            name=self._discipline._name,
+            version=self._discipline._version,
         )
 
     def SetStreamOptions(self, request, context):
@@ -180,38 +197,40 @@ class DisciplineServer(disc.DisciplineService):
         with dynamic shapes.
         """
         try:
+            # index by type and name once; searching the list per incoming
+            # message is quadratic in the number of variables
+            index = {}
+            for var in self._discipline._var_meta:
+                index.setdefault((var.type, var.name), var)
+
             for meta in request_iterator:
                 validate_shape(tuple(meta.shape), "SetVariableShapes")
 
-                # find the matching variable and update its shape
-                for var in self._discipline._var_meta:
-                    if var.name == meta.name and var.type == meta.type:
-                        if not var.dynamic_shape:
-                            raise PhiloteValidationError(
-                                f"Variable '{meta.name}' does not allow "
-                                f"dynamic shapes."
-                            )
-                        var.shape[:] = []
-                        var.shape.extend(meta.shape)
-                        break
-                else:
+                var = index.get((meta.type, meta.name))
+
+                if var is None:
                     raise PhiloteValidationError(
                         f"SetVariableShapes: variable '{meta.name}' "
                         f"not found."
                     )
 
+                if not var.dynamic_shape:
+                    raise PhiloteValidationError(
+                        f"Variable '{meta.name}' does not allow "
+                        f"dynamic shapes."
+                    )
+
+                var.shape[:] = []
+                var.shape.extend(meta.shape)
+
                 # if the variable is an output on an implicit discipline,
                 # also update the matching residual entry
                 if meta.type == data.VariableType.kOutput:
-                    for var in self._discipline._var_meta:
-                        if (
-                            var.name == meta.name
-                            and var.type == data.VariableType.kResidual
-                            and var.dynamic_shape
-                        ):
-                            var.shape[:] = []
-                            var.shape.extend(meta.shape)
-                            break
+                    res = index.get((data.VariableType.kResidual, meta.name))
+
+                    if res is not None and res.dynamic_shape:
+                        res.shape[:] = []
+                        res.shape.extend(meta.shape)
 
             return Empty()
         except PhiloteValidationError as e:
@@ -227,6 +246,9 @@ class DisciplineServer(disc.DisciplineService):
 
         Note, for implicit disciplines, the function values are considered
         inputs to evaluate the residuals and the partials of the residuals.
+
+        A discrete input that the client does not send takes the default
+        value declared with ``add_discrete_input``, if any.
         """
         for var in self._discipline._var_meta:
             # validate that dynamic-shape variables have been resolved
@@ -259,25 +281,15 @@ class DisciplineServer(disc.DisciplineService):
         """
         jac = PairDict()
 
-        for pair in self._discipline._partials_meta:
-            shapef = tuple(
-                [d.shape for d in self._discipline._var_meta if d.name == pair.name][0]
-            )
-            shapex = tuple(
-                [d.shape for d in self._discipline._var_meta if d.name == pair.subname][
-                    0
-                ]
-            )
+        # index the metadata by (type, name) once; scanning it per partial is
+        # quadratic in the number of variables
+        shapes = build_shape_index(self._discipline._var_meta)
 
-            if shapef == (1,):
-                if shapex == (1,):
-                    shape = (1,)
-                else:
-                    shape = shapex
-            elif shapex == (1,):
-                shape = shapef
-            else:
-                shape = shapef + shapex
+        for pair in self._discipline._partials_meta:
+            shape = get_partials_shape(
+                get_function_shape(shapes, pair.name, "preallocate_partials"),
+                get_variable_shape(shapes, pair.subname, "preallocate_partials"),
+            )
 
             jac[(pair.name, pair.subname)] = np.zeros(shape)
 
@@ -310,14 +322,12 @@ class DisciplineServer(disc.DisciplineService):
 
             if variant == "continuous":
                 arr = message.continuous
-                b = arr.start
-                e = arr.end
 
                 if len(arr.data) > 0:
                     if arr.type == data.VariableType.kInput:
-                        flat_inputs[arr.name][b : e + 1] = arr.data
+                        read_array_into(arr, flat_inputs[arr.name])
                     elif arr.type == data.VariableType.kOutput:
-                        flat_outputs[arr.name][b : e + 1] = arr.data
+                        read_array_into(arr, flat_outputs[arr.name])
                 else:
                     raise PhiloteValidationError(
                         "Expected continuous variables but arrays were"
@@ -333,6 +343,12 @@ class DisciplineServer(disc.DisciplineService):
                     discrete_inputs[dv.name] = native_value
                 elif dv.type == data.VariableType.kDiscreteOutput:
                     discrete_outputs[dv.name] = native_value
+
+        defaults = getattr(self._discipline, "_discrete_input_defaults", {})
+        for name, default in defaults.items():
+            if name not in discrete_inputs:
+                # copy, so that the discipline cannot alter the default
+                discrete_inputs[name] = copy.deepcopy(default)
 
         return discrete_inputs, discrete_outputs
 
@@ -380,7 +396,8 @@ def _python_to_value(obj):
     Parameters
     ----------
     obj : object
-        A Python scalar, list, or dict
+        A Python scalar, list, or dict, or a NumPy array or scalar, which is
+        converted to the equivalent (nested) list or Python scalar
 
     Returns
     -------
@@ -391,8 +408,12 @@ def _python_to_value(obj):
 
     if obj is None:
         val.null_value = 0
-    elif isinstance(obj, bool):
-        val.bool_value = obj
+    elif isinstance(obj, (bool, np.bool_)):
+        val.bool_value = bool(obj)
+    elif isinstance(obj, np.ndarray):
+        return _python_to_value(obj.tolist())
+    elif isinstance(obj, np.generic):
+        return _python_to_value(obj.item())
     elif isinstance(obj, (int, float)):
         val.number_value = float(obj)
     elif isinstance(obj, str):

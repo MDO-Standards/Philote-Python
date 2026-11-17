@@ -7,7 +7,7 @@ Philote-Python is the reference Python implementation of the Philote-MDO standar
 ## Build System
 
 ### Requirements
-- Python 3.9 - 3.12
+- Python 3.10 - 3.12
 - `numpy`, `scipy`, `grpcio`, `protobuf` (installed automatically)
 - `openmdao` (only for the OpenMDAO bindings and integration tests)
 
@@ -51,7 +51,7 @@ docs/               # Docusaurus documentation site (see docs/README.md)
 ## CI/CD
 
 ### Tests workflow (`.github/workflows/tests.yaml`)
-Runs `pytest` against Python 3.9 / 3.10 / 3.11 / 3.12 on every push to `main`, `develop`, `release/*`, `support/*`, and on PRs into `main` / `develop`.
+Runs `pytest` against Python 3.10 / 3.11 / 3.12 on every push to `main`, `develop`, `release/*`, `support/*`, and on PRs into `main` / `develop`.
 
 ### Documentation workflow (`.github/workflows/documentation.yaml`)
 Builds the Docusaurus site under `docs/` and deploys it to GitHub Pages whenever `docs/**` changes on `develop`. Uses the GitHub Pages artifact pipeline (`actions/configure-pages` + `upload-pages-artifact` + `deploy-pages`).
